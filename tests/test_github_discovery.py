@@ -24,10 +24,11 @@ class TestGitHubDiscovery(unittest.TestCase):
 
     @mock.patch("radar.github_discovery._curl_text",
                 return_value=("Purchase Order creation", 200, None))
-    @mock.patch("radar.github_discovery._api_json", return_value=({"sha": "commit123"}, None))
+    @mock.patch("radar.github_discovery._api_list")
+    @mock.patch("radar.github_discovery._api_json")
     @mock.patch("radar.github_discovery._search")
     def test_discovers_code_issue_and_pr_with_precise_locators(
-            self, search, api_json, curl_text):
+            self, search, api_json, api_list, curl_text):
         requirements, pack = self._inputs()
         code = {
             "html_url": "https://github.com/acme/erp/blob/main/purchase.py",
@@ -59,17 +60,35 @@ class TestGitHubDiscovery(unittest.TestCase):
             return {"items": [pr]}, None
 
         search.side_effect = search_result
+        def api_result(path, token, timeout):
+            if "/commits/" in path:
+                return {"sha": "commit123"}, None
+            if "/pulls/9" in path:
+                return {"head": {"sha": "prhead123"}}, None
+            return {}, None
+        api_json.side_effect = api_result
+        api_list.return_value = ([{
+            "filename": "erpnext/buying/purchase_order.py",
+            "status": "modified", "additions": 1, "deletions": 0,
+            "blob_url": "https://github.com/acme/erp/blob/prhead123/erpnext/buying/purchase_order.py",
+            "patch": "@@ -1,1 +1,2 @@\\n existing = True\\n+if approved: create_purchase_order()",
+        }], None)
         result = discover_github(requirements, pack, "ws_demo", token="test-token",
                                  limit_per_query=2)
-        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1})
+        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1, "pr_files": 1})
         self.assertEqual(len(result["sources"]), 1)
         self.assertEqual({x["asset_type"] for x in result["assets"]},
                          {"file", "issue", "pull_request"})
-        self.assertEqual(len(result["evidence"]), 3)
+        self.assertEqual(len(result["evidence"]), 4)
         code_evidence = next(x for x in result["evidence"] if x["evidence_kind"] == "code")
         self.assertEqual(code_evidence["locator"]["line_start"], 1)
         self.assertEqual(code_evidence["locator"]["ref"], "commit123")
-        self.assertEqual(len(result["matches"]["req_demo"]), 3)
+        self.assertEqual(len(result["matches"]["req_demo"]), 4)
+        self.assertEqual(len(result["relationships"]), 1)
+        diff_evidence = next(x for x in result["evidence"]
+                             if x["locator"].get("pull_request") == 9)
+        self.assertEqual(diff_evidence["locator"]["line_start"], 2)
+        self.assertEqual(diff_evidence["locator"]["ref"], "prhead123")
         self.assertEqual(result["warnings"], [])
         self.assertEqual(search.call_count, 3,
                          "synonyms should be combined into one query per search type")
