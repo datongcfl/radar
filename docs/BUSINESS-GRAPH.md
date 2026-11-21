@@ -93,3 +93,10 @@ Example bundle:
 ```
 
 Invoke with `radar business-graph --observations observations.json ...`. The observation's Evidence IDs must already exist in the selected Workspace.
+
+
+## M13 acceptance-criterion to invariant mapping
+
+An acceptance criterion may explicitly declare `invariant_ids`. The graph validates each ID against the locked business model, creates a `requires_invariant` edge, and attaches any scoped invariant evaluation records to that criterion. The criterion matrix reports `not_mapped`, `no_observation`, `computed_pass`, `computed_fail`, or `mixed` separately from its lexical candidate-evidence status.
+
+These values are calculation states, not Requirement Assessment decisions. The edge status remains `computed_not_assessed`; a test fixture passing a rule cannot by itself make the acceptance criterion `supported`. D03 explicitly maps its receipt, quality, unit conversion, return, inventory valuation, and project-cost criteria to the corresponding Pack invariants.

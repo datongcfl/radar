@@ -79,21 +79,32 @@
           "description": "采购收货逐行关联采购订单及订单明细，支持分批收货并正确更新已收数量和订单状态。",
           "required": true,
           "kind": "data_integrity",
-          "severity": "critical"
+          "severity": "critical",
+          "invariant_ids": [
+            "receipt_quantity_balance",
+            "cumulative_receipt_not_over_order"
+          ]
         },
         {
           "id": "D03-C6",
           "description": "到货验收区分实收、合格、拒收数量，关联质检记录，并将拒收材料放入指定拒收仓。",
           "required": true,
           "kind": "exception",
-          "severity": "critical"
+          "severity": "critical",
+          "invariant_ids": [
+            "receipt_quantity_balance"
+          ]
         },
         {
           "id": "D03-C7",
           "description": "材料数量按采购单位和库存基本单位换算，支持序列号/批次等追踪信息，避免累计数量超过申请或订单允许范围。",
           "required": true,
           "kind": "data_integrity",
-          "severity": "high"
+          "severity": "high",
+          "invariant_ids": [
+            "cumulative_receipt_not_over_order",
+            "uom_conversion_consistency"
+          ]
         },
         {
           "id": "D03-C8",
@@ -107,21 +118,31 @@
           "description": "退料或采购退货必须关联原始收货单，校验供应商、物料、可退数量及已退数量，并区分合格品与拒收品退回。",
           "required": true,
           "kind": "exception",
-          "severity": "critical"
+          "severity": "critical",
+          "invariant_ids": [
+            "return_not_over_received"
+          ]
         },
         {
           "id": "D03-C10",
           "description": "采购收货、退货和调拨对库存数量、库存价值及总账产生一致影响，支持单位换算、精度舍入和后续重估。",
           "required": true,
           "kind": "data_integrity",
-          "severity": "critical"
+          "severity": "critical",
+          "invariant_ids": [
+            "inventory_gl_value_reconciliation",
+            "uom_conversion_consistency"
+          ]
         },
         {
           "id": "D03-C11",
           "description": "采购申请、采购承诺、收货入库、领料消耗和退料能够关联项目成本；预算成本、承诺成本和实际成本不得混为一项。",
           "required": true,
           "kind": "workflow",
-          "severity": "high"
+          "severity": "high",
+          "invariant_ids": [
+            "project_cost_dimensions_separate"
+          ]
         }
       ]
     }

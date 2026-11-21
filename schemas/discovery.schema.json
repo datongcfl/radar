@@ -295,6 +295,15 @@
         },
         "verification_hint": {
           "type": "string"
+        },
+        "invariant_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "Explicit IDs of Pack business invariants used to evaluate this acceptance criterion."
         }
       },
       "additionalProperties": false

@@ -168,7 +168,10 @@ class TestBusinessGraph(unittest.TestCase):
         observations = {"schema_version":1,"observations":[{
             "id":"obs_receipt_1","invariant_id":invariant["id"],"scope_key":"receipt-item-1",
             "origin":"test","values":values,"field_provenance":provenance}]}
-        graph = build_business_graph(model, pack,
+        requirement = {"id":"req_d03","key":"D03","version":1,"title":"材料采购",
+            "acceptance_criteria":[{"id":"D03-C6","description":"区分实收、合格和拒收数量。",
+                                    "required":True,"invariant_ids":[invariant["id"]]}]}
+        graph = build_business_graph(model, pack, requirements=[requirement],
             assets=[{"id":"ast_receipt","title":"receipt.json","asset_type":"file","uri":"https://x/receipt.json"}],
             evidence=evidence, observations=observations)
         result = graph["invariant_evaluations"]["evaluations"][0]
@@ -178,6 +181,20 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertTrue(any(edge["relation"] == "derived_from_observation"
                             and edge["evidence_ids"] == ["evd_qty"] for edge in graph["edges"]))
         self.assertEqual(graph["counts"]["invariants_passed"], 1)
+        criterion = graph["criterion_evidence_matrix"][0]
+        self.assertEqual(criterion["invariant_ids"], [invariant["id"]])
+        self.assertEqual(criterion["invariant_status"], "computed_pass")
+        self.assertEqual(criterion["invariant_evaluation_ids"], ["obs_receipt_1"])
+        self.assertTrue(any(edge["relation"] == "has_invariant_evaluation"
+                            and edge["status"] == "computed_not_assessed" for edge in graph["edges"]))
+
+    def test_unknown_criterion_invariant_reference_is_rejected(self):
+        _, pack, model = self._data()
+        requirement = {"id":"req_d03","key":"D03","version":1,"title":"材料采购",
+            "acceptance_criteria":[{"id":"D03-CX","description":"测试规则映射。",
+                                    "required":True,"invariant_ids":["not_a_pack_rule"]}]}
+        with self.assertRaises(BusinessModelError):
+            build_business_graph(model, pack, requirements=[requirement])
 
     def test_invariant_rejects_non_finite_tolerance_and_duplicate_fields(self):
         _, pack, model = self._data()

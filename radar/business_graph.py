@@ -288,6 +288,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                     {"source":"evidence_text","evidence_id":eid,"asset_id":ev.get("asset_id"),
                      "locator":ev.get("locator",{}),"matching_policy":"casefold_substring"},
                     "candidate_only", 0.5, [eid], matched)
+    invariant_evaluation_nodes = {}
     for evaluation in invariant_results["evaluations"]:
         evaluation_node = node("invariant_evaluation", evaluation["id"],
             record_id=evaluation["id"], invariant_id=evaluation["invariant_id"],
@@ -295,6 +296,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             verification_level=evaluation["verification_level"], origin=evaluation["origin"],
             computed=evaluation["computed"], delta=evaluation["delta"],
             tolerance=evaluation["tolerance"], evidence_ids=evaluation["evidence_ids"])
+        invariant_evaluation_nodes[evaluation["id"]] = evaluation_node
         _add_edge(edges, evaluation_node, invariant_nodes[evaluation["invariant_id"]],
             "evaluates_invariant", "INVARIANT.EVALUATION",
             {"source":"structured_observation","observation_id":evaluation["id"],
@@ -351,6 +353,49 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             _add_edge(edges, rid, cid, "has_criterion", "CORE.REQUIREMENT_CRITERION",
                 {"source":"requirement_record","requirement_id":requirement["id"]},
                 "source_backed", 1.0)
+            explicit_invariant_ids = criterion.get("invariant_ids", [])
+            if (not isinstance(explicit_invariant_ids, list)
+                    or any(not isinstance(item, str) or not item.strip()
+                           for item in explicit_invariant_ids)
+                    or len(set(explicit_invariant_ids)) != len(explicit_invariant_ids)):
+                raise BusinessModelError("criterion %s invariant_ids must be unique non-empty strings" %
+                                         criterion["id"])
+            unknown_invariants = sorted(set(explicit_invariant_ids) - set(invariant_nodes))
+            if unknown_invariants:
+                raise BusinessModelError("criterion %s references unknown invariants: %s" %
+                                         (criterion["id"], ", ".join(unknown_invariants)))
+            criterion_evaluation_ids = []
+            criterion_invariant_evidence_ids = set()
+            criterion_invariant_outcomes = []
+            for invariant_id in explicit_invariant_ids:
+                _add_edge(edges, cid, invariant_nodes[invariant_id], "requires_invariant",
+                    "CRITERION.EXPLICIT_INVARIANT",
+                    {"source":"requirement_acceptance_criterion","requirement_id":requirement["id"],
+                     "criterion_id":criterion["id"],"invariant_id":invariant_id},
+                    "requirement_declared", 1.0)
+                for evaluation in invariant_results["evaluations"]:
+                    if evaluation["invariant_id"] != invariant_id:
+                        continue
+                    criterion_evaluation_ids.append(evaluation["id"])
+                    criterion_invariant_evidence_ids.update(evaluation["evidence_ids"])
+                    criterion_invariant_outcomes.append(evaluation["outcome"])
+                    _add_edge(edges, cid, invariant_evaluation_nodes[evaluation["id"]],
+                        "has_invariant_evaluation", "CRITERION.INVARIANT_EVALUATION",
+                        {"source":"explicit_requirement_invariant_mapping",
+                         "requirement_id":requirement["id"],"criterion_id":criterion["id"],
+                         "invariant_id":invariant_id,
+                         "verification_level":evaluation["verification_level"]},
+                        "computed_not_assessed", 1.0, evaluation["evidence_ids"])
+            if not explicit_invariant_ids:
+                invariant_status = "not_mapped"
+            elif not criterion_evaluation_ids:
+                invariant_status = "no_observation"
+            elif set(criterion_invariant_outcomes) == {"pass"}:
+                invariant_status = "computed_pass"
+            elif set(criterion_invariant_outcomes) == {"fail"}:
+                invariant_status = "computed_fail"
+            else:
+                invariant_status = "mixed"
             criterion_text = criterion["description"]
             criterion_entity_ids = set()
             criterion_exception_ids = set()
@@ -394,7 +439,12 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 "required":criterion["required"],"status":criterion_status,
                 "candidate_evidence_ids":sorted(candidate_evidence_ids),
                 "candidate_entity_ids":sorted(criterion_entity_ids),
-                "candidate_exception_ids":sorted(criterion_exception_ids)})
+                "candidate_exception_ids":sorted(criterion_exception_ids),
+                "invariant_ids":sorted(explicit_invariant_ids),
+                "invariant_status":invariant_status,
+                "invariant_evaluation_ids":sorted(criterion_evaluation_ids),
+                "invariant_evidence_ids":sorted(criterion_invariant_evidence_ids),
+                "invariant_outcomes":sorted(criterion_invariant_outcomes)})
     nodes.sort(key=lambda item: (item["kind"], item["id"]))
     edges.sort(key=lambda item: item["id"])
     return {"schema_version":1,"projection_type":"pack_driven_business_graph",
@@ -419,6 +469,9 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "invariants_passed":sum(1 for item in invariant_results["summary"] if item["status"]=="passed"),
             "invariants_failed":sum(1 for item in invariant_results["summary"] if item["status"]=="failed"),
             "invariants_without_observations":sum(1 for item in invariant_results["summary"] if item["status"]=="no_observation"),
+            "criteria_with_invariant_mappings":sum(1 for item in criterion_summaries if item["invariant_ids"]),
+            "criteria_with_computed_invariant_pass":sum(1 for item in criterion_summaries if item["invariant_status"]=="computed_pass"),
+            "criteria_with_computed_invariant_fail":sum(1 for item in criterion_summaries if item["invariant_status"]=="computed_fail"),
             "criterion_candidate_evidence_links":sum(1 for e in edges if e["relation"]=="candidate_evidence_for"),
             "criteria_no_evidence":sum(1 for item in criterion_summaries if item["status"]=="no_evidence"),
             "criteria_with_candidates":sum(1 for item in criterion_summaries if item["status"]=="candidate_evidence")},
