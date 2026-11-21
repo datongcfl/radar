@@ -208,6 +208,8 @@ def aggregate_observations(rule: dict[str, Any],
                     identity_invalid = True
                     break
                 transaction_identity[name] = scope[name]
+                verified_scope_provenance[name] = {
+                    "evidence_id": identity_evidence_id, "locator": item["locator"]}
             if identity_invalid:
                 skipped.append({"observation_id": row_id, "reason": "unverified_transaction_identity"})
                 continue
