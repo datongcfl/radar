@@ -17,13 +17,13 @@
 | Evidence | D03 验收项 | 证据位置 | 可确认的事实 |
 |---|---|---|---|
 | E01 | C1、C3、C5 | [Material Request → Purchase Order mapper，L87-L162](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/material_request/mapper.py#L87-L162) | 已提交的 Purchase 类型 Material Request 可映射成 Purchase Order；明细保留 material_request 与 material_request_item 引用；已映射数量参与剩余数量计算 |
-| E02 | C2 | [Material Request → Supplier Quotation mapper，L335-L368](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/material_request/mapper.py#L335-L368) | Material Request 可映射为 Supplier Quotation，并保留来源明细引用；这证明报价采集入口存在，不足以证明完整的多供应商比价、评分和审批闭环 |
-| E03 | C4 | [Purchase Order validation，L201-L285](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/buying/doctype/purchase_order/purchase_order.py#L201-L285)；[submit 与审批权限，L458-L480](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/buying/doctype/purchase_order/purchase_order.py#L458-L480) | 订单校验供应商、来源单据、单位与数量等；提交时调用 Authorization Control 校验审批权限 |
+| E02 | D03-C2 | [Material Request → Supplier Quotation mapper，L335-L368](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/material_request/mapper.py#L335-L368) | Material Request 可映射为 Supplier Quotation，并保留来源明细引用；这证明报价采集入口存在，不足以证明完整的多供应商比价、评分和审批闭环 |
+| E03 | D03-C4 | [Purchase Order validation，L201-L285](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/buying/doctype/purchase_order/purchase_order.py#L201-L285)；[submit 与审批权限，L458-L480](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/buying/doctype/purchase_order/purchase_order.py#L458-L480) | 订单校验供应商、来源单据、单位与数量等；提交时调用 Authorization Control 校验审批权限 |
 | E04 | C5、C6、C10 | [Purchase Receipt validation and submit，L270-L405](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/purchase_receipt/purchase_receipt.py#L270-L405) | 收货校验采购订单、订单明细、供应商、公司和物料；可按设置要求必须关联 PO；执行质量检验引用校验；提交时更新前序单据状态、库存流水和总账 |
-| E05 | C8 | [Material Request → Stock Entry mapper，L375-L455](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/material_request/mapper.py#L375-L455) | Material Transfer/Material Issue 映射为 Stock Entry，按来源与目标仓库设置 s_warehouse/t_warehouse，并换算 transfer_qty |
+| E05 | D03-C8 | [Material Request → Stock Entry mapper，L375-L455](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/material_request/mapper.py#L375-L455) | Material Transfer/Material Issue 映射为 Stock Entry，按来源与目标仓库设置 s_warehouse/t_warehouse，并换算 transfer_qty |
 | E06 | C7、C8 | [Material Request quantity controls，L500-L523](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/material_request/material_request.py#L500-L523) | 发料/调拨数量可按申请数量及允许超量比例进行约束；超出时拒绝 |
-| E07 | C9 | [Return source validation，L45-L120](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/controllers/sales_and_purchase_return.py#L45-L120) | 退货关联原单，校验原单存在、供应商/客户、公司、日期及原始物料明细；采购收货退货路径纳入 rejected_qty/received_qty 字段 |
-| E08 | C10 | [Purchase Receipt rejected-warehouse return regression test，L8309-L8360](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/purchase_receipt/test_purchase_receipt.py#L8309-L8360) | 有专门测试覆盖浮点精度 2、UOM 换算系数 0.3356、合格/拒收数量、拒收仓退货，以及应付未开票库存科目金额 199.64 的回冲 |
+| E07 | D03-C9 | [Return source validation，L45-L120](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/controllers/sales_and_purchase_return.py#L45-L120) | 退货关联原单，校验原单存在、供应商/客户、公司、日期及原始物料明细；采购收货退货路径纳入 rejected_qty/received_qty 字段 |
+| E08 | D03-C10 | [Purchase Receipt rejected-warehouse return regression test，L8309-L8360](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/purchase_receipt/test_purchase_receipt.py#L8309-L8360) | 有专门测试覆盖浮点精度 2、UOM 换算系数 0.3356、合格/拒收数量、拒收仓退货，以及应付未开票库存科目金额 199.64 的回冲 |
 | E09 | C10 | [Purchase Receipt valuation/ledger regression tests，L10213-L10340](https://github.com/frappe/erpnext/blob/a8ea38cb75dd00f51212d4072de24ec580ad6c84/erpnext/stock/doctype/purchase_receipt/test_purchase_receipt.py#L10213-L10340) | 测试覆盖移动平均法退货、内部收货退货、库存价值和汇兑差额冲回 |
 | E10 | C10 | [Issue #68057](https://github.com/frappe/erpnext/issues/68057) → [merged PR #68721](https://github.com/frappe/erpnext/pull/68721) | 真实缺陷：拒收仓退货因 UOM 精度舍入导致 Stock Received But Not Billed 残留 0.36；PR 修正冲回金额计算，并于 2026-11-21 合并 |
 
@@ -47,17 +47,17 @@
 
 | 验收项 | 当前判断 | 依据与缺口 |
 |---|---|---|
-| C1 需求申请 | 部分支持 | E01/E06 支持需求单和数量控制；申请人、现场签收及审批链配置需进一步核验 |
+| D03-C1 需求申请 | 部分支持 | E01/E06 支持需求单和数量控制；申请人、现场签收及审批链配置需进一步核验 |
 | C2 询价比价 | 部分支持 | E02 证明报价单创建入口；跨供应商比价规则、价格评分、审批历史尚无充分证据 |
-| C3 订单追溯 | 支持 | E01/E03 证明来源需求及明细映射、数量计算与前序单据校验 |
+| D03-C3 订单追溯 | 支持 | E01/E03 证明来源需求及明细映射、数量计算与前序单据校验 |
 | C4 订单审批 | 部分支持 | E03 证明提交时审批权限校验；完整审批流、代理/会签/超额授权需按部署配置验证 |
-| C5 分批收货 | 部分支持 | E04 证明 PO/明细关联、前序状态更新和收货入账；需要额外验证多次收货、短交/超交边界的业务规则 |
-| C6 质检与拒收 | 部分支持 | E04/E08 证明质量检验引用和拒收仓路径；质检标准、复检、供应商索赔流程未完整核验 |
-| C7 单位与数量 | 部分支持 | E05/E06/E08 证明单位换算与数量控制的部分机制；序列号/批次端到端流程需独立验证 |
+| D03-C5 分批收货 | 部分支持 | E04 证明 PO/明细关联、前序状态更新和收货入账；需要额外验证多次收货、短交/超交边界的业务规则 |
+| D03-C6 质检与拒收 | 部分支持 | E04/E08 证明质量检验引用和拒收仓路径；质检标准、复检、供应商索赔流程未完整核验 |
+| D03-C7 单位与数量 | 部分支持 | E05/E06/E08 证明单位换算与数量控制的部分机制；序列号/批次端到端流程需独立验证 |
 | C8 领料与调拨 | 部分支持 | E05/E06 证明 Stock Entry 与仓库方向、数量控制；现场签收人、调拨在途和签收确认需继续核验 |
 | C9 退货 | 部分支持 | E07/E08/E10 证明原单关联及拒收仓退货校验；退料与供应商退货的权限、审批和全量异常矩阵仍需补齐 |
 | C10 库存/财务一致性 | 部分支持 | E04/E08/E09/E10 有库存、GL 和舍入回归证据；不能据此推断所有估价方法、币种和税费组合均已覆盖 |
-| C11 项目成本归集 | 无充分证据 | 当前采集的 D03 证据不足以证明采购承诺、实际领料、退料和项目成本科目完整勾稽；应联合 D02 继续发现和验证 |
+| D03-C11 项目成本归集 | 无充分证据 | 当前采集的 D03 证据不足以证明采购承诺、实际领料、退料和项目成本科目完整勾稽；应联合 D02 继续发现和验证 |
 
 **本轮结论：** 当前可重建采购主干，且能找到具体代码和回归测试支撑部分关键规则；但不能将 D03 判为全部满足。没有证据的项保持 `no_evidence` 或 `not_assessed`，不得推断为未实现。
 
