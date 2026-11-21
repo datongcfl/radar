@@ -35,7 +35,7 @@ def _record(kind: str, stable_key: str, **fields: Any) -> dict[str, Any]:
 
 def _api_json(path: str, token: str, timeout: int) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     url = API + path
-    data, error = _curl_json(url, token=token, accept="application/vnd.github+json")
+    data, error = _curl_json(url, token=token, accept="application/vnd.github+json", timeout=timeout)
     if error:
         return None, error
     if not isinstance(data, dict):
