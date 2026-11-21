@@ -980,5 +980,19 @@
       ],
       "risk": "成本口径混用会使项目毛利和完工预测失真。"
     }
+  ],
+  "aggregations": [
+    {
+      "id": "purchase_order_receipts_total",
+      "source_invariant_id": "receipt_quantity_balance",
+      "source_field": "received_qty",
+      "group_by": [
+        "purchase_order_id",
+        "purchase_order_item_id"
+      ],
+      "operation": "sum",
+      "output_field": "cumulative_received_qty",
+      "description": "按采购订单及订单明细累计跨收货单的实收数量"
+    }
   ]
 }

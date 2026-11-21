@@ -235,6 +235,53 @@ class TestBusinessGraph(unittest.TestCase):
         with self.assertRaises(BusinessModelError):
             validate_business_model(model, pack)
 
+    def test_pack_aggregation_rule_is_validated_and_projected_with_evidence_links(self):
+        _, pack, model = self._data()
+        rule = {"id":"po_receipts","source_invariant_id":"receipt_quantity_balance",
+                "source_field":"received_qty","group_by":["purchase_order_id","purchase_order_item_id"],
+                "operation":"sum","output_field":"cumulative_received_qty"}
+        model["aggregations"] = [rule]
+        with self.assertRaises(BusinessModelError):
+            validate_business_model(dict(model, aggregations=[dict(rule, operation="exec")]), pack)
+        evidence = []
+        observations_rows = []
+        for index, qty in enumerate((40, 35, 30), 1):
+            asset_id = "ast_receipt_%d" % index
+            evidence_id = "evd_receipt_%d" % index
+            evidence.append({"id":evidence_id,"asset_id":asset_id,"statement":"receipt",
+                "locator":{"path":"receipt%d.csv" % index,"row":2},
+                "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
+            fields = {"received_qty":str(qty)}
+            provenance = {"received_qty":{"evidence_id":evidence_id,
+                "locator":{"path":"receipt%d.csv" % index,"row":2,"column":3},
+                "verification_level":"test_fixture","runtime_observed":False}}
+            observations_rows.append({"id":"obs_%d" % index,"asset_id":asset_id,
+                "invariant_id":"receipt_quantity_balance","scope_key":"receipt-%d" % index,
+                "origin":"test","values":fields,"field_provenance":provenance,
+                "business_scope":{"purchase_order_id":"PO-1","purchase_order_item_id":"LINE-1"},
+                "scope_provenance":{"purchase_order_id":{"evidence_id":evidence_id,
+                    "locator":{"path":"receipt%d.csv" % index,"row":2}},
+                    "purchase_order_item_id":{"evidence_id":evidence_id,
+                    "locator":{"path":"receipt%d.csv" % index,"row":2}}}})
+        # The invariant itself requires all declared fields; use a complete, balanced observation.
+        for row in observations_rows:
+            qty = int(row["values"]["received_qty"])
+            row["values"].update({"accepted_qty":qty,"rejected_qty":0})
+            for field in ("accepted_qty","rejected_qty"):
+                row["field_provenance"][field] = dict(row["field_provenance"]["received_qty"])
+        assets = [{"id":"ast_receipt_%d" % index,"title":"receipt","asset_type":"file","uri":"https://x/r%d.csv" % index}
+                  for index in range(1,4)]
+        graph = build_business_graph(model, pack, assets=assets, evidence=evidence,
+            observations={"schema_version":1,"observations":observations_rows})
+        self.assertEqual(graph["counts"]["aggregation_rules"], 1)
+        self.assertEqual(graph["counts"]["aggregation_groups"], 1)
+        self.assertEqual(graph["counts"]["aggregation_contributions"], 3)
+        agg = next(n for n in graph["nodes"] if n["kind"] == "business_aggregation")
+        self.assertEqual(agg["values"]["cumulative_received_qty"], "105")
+        links = [e for e in graph["edges"] if e["relation"] == "aggregated_from_evidence"]
+        self.assertEqual(len(links), 3)
+        self.assertTrue(all(e["status"] == "source_backed" for e in links))
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]

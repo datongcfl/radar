@@ -6,6 +6,7 @@ import json
 from typing import Any, Iterable, Optional
 
 from .business_invariants import evaluate_business_invariants
+from .observation_aggregator import aggregate_observations, ObservationAggregationError
 
 class BusinessModelError(ValueError):
     """Invalid declarative business model."""
@@ -180,6 +181,39 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
             if len(operands) < minimum:
                 raise BusinessModelError("%s.fields must declare at least %d operands" %
                                          (where, minimum))
+    aggregations = data.get("aggregations", [])
+    if not isinstance(aggregations, list):
+        raise BusinessModelError("business model aggregations must be an array")
+    aggregation_ids: set[str] = set()
+    invariant_map = {item["id"]: item for item in invariants}
+    for i, rule in enumerate(aggregations):
+        where = "aggregations[%d]" % i
+        if not isinstance(rule, dict):
+            raise BusinessModelError("%s must be an object" % where)
+        for key in ("id", "source_invariant_id", "source_field", "group_by", "operation", "output_field"):
+            if key not in rule:
+                raise BusinessModelError("%s missing %s" % (where, key))
+        _strings([rule["id"], rule["source_invariant_id"], rule["source_field"],
+                  rule["operation"], rule["output_field"]], where)
+        if rule["id"] in aggregation_ids:
+            raise BusinessModelError("duplicate aggregation id: %s" % rule["id"])
+        aggregation_ids.add(rule["id"])
+        if rule["operation"] != "sum":
+            raise BusinessModelError("%s has unsupported operation" % where)
+        _strings(rule["group_by"], where + ".group_by")
+        if len(set(rule["group_by"])) != len(rule["group_by"]):
+            raise BusinessModelError("%s.group_by must be unique" % where)
+        source = invariant_map.get(rule["source_invariant_id"])
+        if source is None:
+            raise BusinessModelError("%s references unknown source invariant" % where)
+        valid_fields = set(source["fields"])
+        if source.get("target_field"):
+            valid_fields.add(source["target_field"])
+        if rule["source_field"] not in valid_fields:
+            raise BusinessModelError("%s.source_field is not declared by source invariant" % where)
+        declared_scope = set(source.get("scope_fields", []))
+        if set(rule["group_by"]) - declared_scope:
+            raise BusinessModelError("%s.group_by references undeclared source scope fields" % where)
     return data
 
 def _node_id(kind: str, key: str) -> str:
@@ -218,6 +252,14 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
     relationships = list(relationships)
     invariant_results = evaluate_business_invariants(
         model.get("invariants", []), observations, evidence_records=evidence)
+    aggregation_results = []
+    try:
+        if observations is not None:
+            for rule in model.get("aggregations", []):
+                aggregation_results.append(aggregate_observations(
+                    rule, observations.get("observations", [])))
+    except ObservationAggregationError as exc:
+        raise BusinessModelError("observation aggregation failed: %s" % exc)
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -355,6 +397,39 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                      "evidence_id":evidence_id,
                      "field_provenance":evaluation["field_provenance"]},
                     "source_backed", 1.0, [evidence_id])
+
+    aggregation_node_ids = {}
+    for result in aggregation_results:
+        rule_id = result["aggregation_id"]
+        rule = next(item for item in model.get("aggregations", []) if item["id"] == rule_id)
+        for aggregate in result["results"]:
+            aid = node("business_aggregation", aggregate["id"],
+                record_id=aggregate["id"], aggregation_id=rule_id,
+                source_invariant_id=rule["source_invariant_id"],
+                operation=rule["operation"], scope_key=aggregate["scope_key"],
+                business_scope=aggregate["business_scope"], values=aggregate["values"],
+                contribution_count=aggregate["contribution_count"],
+                evidence_ids=aggregate["evidence_ids"],
+                verification_status="computed_not_assessed")
+            aggregation_node_ids[aggregate["id"]] = aid
+            for contribution in aggregate["contributions"]:
+                evidence_id = contribution["evidence_id"]
+                if evidence_id in {item["id"] for item in evidence}:
+                    _add_edge(edges, aid, _node_id("evidence", evidence_id),
+                        "aggregated_from_evidence", "AGGREGATION.EVIDENCE_PROVENANCE",
+                        {"source":"observation_aggregation",
+                         "aggregation_id":rule_id,
+                         "observation_id":contribution["observation_id"],
+                         "asset_id":contribution["asset_id"],
+                         "field_provenance":contribution["field_provenance"]},
+                        "source_backed", 1.0, [evidence_id])
+                if contribution["asset_id"] in asset_nodes:
+                    _add_edge(edges, aid, asset_nodes[contribution["asset_id"]],
+                        "aggregated_from_asset", "AGGREGATION.ASSET_PROVENANCE",
+                        {"source":"observation_aggregation",
+                         "aggregation_id":rule_id,
+                         "observation_id":contribution["observation_id"]},
+                        "source_backed", 1.0, [evidence_id])
 
     # Reconstruct only candidate cross-file transitions when a typed Asset relationship
     # connects evidence-bearing assets that mention the declared source/target entities.
@@ -502,7 +577,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "ci_result_is_not_runtime_observation":True,
             "no_evidence_does_not_mean_not_implemented":True},
         "counts":{"entities":len(model["entities"]),"processes":len(model["processes"]),
-            "exceptions":len(model["exceptions"]),"invariants":len(model.get("invariants", [])),
+            "exceptions":len(model["exceptions"]),"invariants":len(model.get("invariants", [])),\n            "aggregation_rules":len(model.get("aggregations", [])),\n            "aggregation_groups":sum(item["summary"]["groups"] for item in aggregation_results),\n            "aggregation_contributions":sum(item["summary"]["contributions"] for item in aggregation_results),\n            "aggregation_skipped":sum(item["summary"]["skipped"] for item in aggregation_results),
             "assets":len(asset_nodes),"evidence":len(evidence),
             "nodes":len(nodes),"edges":len(edges),
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
@@ -520,5 +595,5 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "criteria_no_evidence":sum(1 for item in criterion_summaries if item["status"]=="no_evidence"),
             "criteria_with_candidates":sum(1 for item in criterion_summaries if item["status"]=="candidate_evidence")},
         "criterion_evidence_matrix":sorted(criterion_summaries,key=lambda item:(item["requirement_id"],item["criterion_id"])),
-        "invariant_evaluations":invariant_results,
+        "invariant_evaluations":invariant_results,\n        "observation_aggregations":{"schema_version":1,"results":aggregation_results},
         "nodes":nodes,"edges":edges}
