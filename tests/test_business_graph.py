@@ -308,7 +308,7 @@ class TestBusinessGraph(unittest.TestCase):
         transaction_links = [e for e in graph["edges"] if e["relation"] == "transaction_metadata_evidence"]
         self.assertEqual(len(links), 3)
         self.assertEqual(len(scope_links), 12)
-        self.assertEqual(len(transaction_links), 6)
+        self.assertEqual(len(transaction_links), 9)
         self.assertTrue(all(e["status"] == "source_backed" for e in links + scope_links + transaction_links))
 
     def test_projection_is_deterministic(self):
