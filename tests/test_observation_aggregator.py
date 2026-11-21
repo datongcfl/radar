@@ -115,8 +115,8 @@ class TestObservationAggregator(unittest.TestCase):
 
     def _transactional_row(self, identifier, po, line, qty, status="1",
                            is_return="0", return_against="", receipt="PR-1",
-                           receipt_item="PR-1-ROW-1"):
-        item, records = row(identifier, po, line, qty)
+                           receipt_item="PR-1-ROW-1", asset=None):
+        item, records = row(identifier, po, line, qty, asset=asset)
         item["business_scope"].update({"receipt_id": receipt, "receipt_item_id": receipt_item})
         scope_fields = ("receipt_id", "receipt_item_id")
         for index, field in enumerate(scope_fields, 10):
