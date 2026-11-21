@@ -235,3 +235,15 @@ python3 -m radar discover \
 新增 DiscoveryRun 计数：`github_documents` 和 `github_unsupported_documents`。Git Trees 返回 truncated 时记录警告，不能把部分文件树宣称为完整发现。
 
 重要限制：当前 Tree 扫描的仓库范围来自本轮需求检索命中的 GitHub 仓库，不是对 GitHub 全站或所有 Seeds 仓库进行无边界扫描。PDF/Office 的内容解析仍需独立 Parser 适配器；后续应保留页码、段落、Sheet、单元格等原生定位信息。
+
+
+## 10. Office 文档解析（M8）
+
+Radar 使用 Python 标准库 zipfile 与 xml.etree.ElementTree 读取 Office Open XML：
+
+- DOCX：段落、表格单元格，定位到 paragraph 或 table/row/column；
+- XLSX：工作表、共享字符串/内联字符串，定位到 sheet/cell；
+- PPTX：幻灯片段落，定位到 slide/paragraph；
+- 原始文件仍以 Git Blob SHA 和仓库 Commit SHA 固定版本，Evidence 同时保存文件路径及原生位置。
+
+解析状态必须明确区分 parsed、failed 和 unsupported。损坏的 ZIP/XML 不得伪装成空文档解析成功。当前 PDF、DOC/XLS/PPT 二进制旧格式仍标记为 unsupported；不从文件名或元数据生成正文 Evidence。该解析器只提取文本，不代表 OCR、图像理解、公式语义理解或业务规则已核验。

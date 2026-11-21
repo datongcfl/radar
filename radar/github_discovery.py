@@ -181,7 +181,7 @@ def _evidence(workspace_id: str, asset_id: str, kind: str, statement: str,
 def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     workspace_id: str, token: Optional[str] = None,
                     limit_per_query: int = 5, timeout: int = 25) -> dict[str, Any]:
-    """Discover candidate GitHub files, Issues, and PRs for supplied requirements."""
+    """Discover candidate GitHub files, Issues, PRs, and parseable documents for supplied requirements."""
     token = token or os.environ.get("GITHUB_TOKEN")
     if not token:
         return {"sources": [], "assets": [], "evidence": [], "matches": {},

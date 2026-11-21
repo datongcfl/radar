@@ -147,6 +147,54 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(pdf["metadata"]["content_extraction"], "unsupported_binary")
         self.assertEqual(result["counts"]["documents"], 1)
         self.assertEqual(result["counts"]["unsupported_documents"], 1)
+        self.assertEqual(result["counts"]["parsed_documents"], 0)
+        self.assertEqual(result["counts"]["parse_failures"], 0)
+
+
+    @mock.patch("radar.github_discovery._curl_text")
+    @mock.patch("radar.github_discovery._api_json")
+    @mock.patch("radar.github_discovery._search")
+    def test_docx_blob_is_parsed_into_paragraph_evidence(
+            self, search, api_json, curl_text):
+        import base64
+        from io import BytesIO
+        from zipfile import ZipFile
+        requirements, pack = self._inputs()
+        archive = BytesIO()
+        with ZipFile(archive, "w") as doc:
+            doc.writestr("word/document.xml",
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                '<w:body><w:p><w:r><w:t>Purchase Order approval requires manager review</w:t>'
+                '</w:r></w:p></w:body></w:document>')
+        code = {"html_url": "https://github.com/acme/erp/blob/main/app.py",
+                "path": "app.py", "sha": "codeblob",
+                "repository": {"full_name": "acme/erp", "default_branch": "main"}}
+        search.side_effect = lambda query, kind, token, limit, timeout: (
+            {"items": [code] if kind == "code" else []}, None)
+        def api_result(path, token, timeout):
+            if "/commits/" in path:
+                return {"sha": "fixedcommit"}, None
+            if "/git/trees/" in path:
+                return {"tree": [{"path": "docs/procurement.docx", "type": "blob",
+                                  "sha": "docblob", "size": len(archive.getvalue())}],
+                        "truncated": False}, None
+            if "/git/blobs/docblob" in path:
+                return {"encoding": "base64",
+                        "content": base64.b64encode(archive.getvalue()).decode("ascii")}, None
+            return {}, None
+        api_json.side_effect = api_result
+        curl_text.return_value = ("purchase_order()", 200, None)
+        result = discover_github(requirements, pack, "ws_docx", token="test-token")
+        doc_asset = next(a for a in result["assets"] if a["title"].endswith(".docx"))
+        self.assertEqual(doc_asset["metadata"]["content_extraction"], "parsed")
+        self.assertEqual(doc_asset["metadata"]["parser"], "stdlib-office-xml")
+        ev = next(e for e in result["evidence"] if e["asset_id"] == doc_asset["id"])
+        self.assertIn("Purchase Order approval", ev["statement"])
+        self.assertEqual(ev["locator"]["paragraph"], 1)
+        self.assertEqual(ev["locator"]["path"], "docs/procurement.docx")
+        self.assertEqual(ev["locator"]["ref"], "fixedcommit")
+        self.assertEqual(ev["extractor"]["name"], "stdlib-office-xml")
+        self.assertEqual(result["counts"]["parsed_documents"], 1)
 
     @mock.patch("radar.github_discovery._curl_text",
                 return_value=("Purchase Order", 200, None))
