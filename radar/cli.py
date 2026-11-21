@@ -24,6 +24,8 @@ from .model import (RadarError, enforce_web_verification, load_json, load_pack, 
 from .report import write_run
 from .state import compare_sources, read_sources, write_changes
 from .discover import run_discovery
+from .business_graph import build_business_graph
+from .discovery_store import JsonWorkspaceStore
 
 
 def _now():
@@ -203,6 +205,22 @@ def cmd_discover(args):
                          github=args.github, github_limit=args.github_limit)
 
 
+def cmd_business_graph(args):
+    pack = load_pack(args.pack)
+    model = load_json(args.business_model)
+    store = JsonWorkspaceStore(args.workspace_root, args.workspace)
+    graph = build_business_graph(
+        model, pack,
+        requirements=store.list_records("requirement"),
+        assets=store.list_records("asset"),
+        evidence=store.list_records("evidence"),
+        model_digest=sha256_file(args.business_model),
+    )
+    write_json(args.out, graph)
+    return {"out": str(args.out), "counts": graph["counts"],
+            "pack": graph["pack"], "business_model_version": graph["business_model_version"]}
+
+
 def cmd_diff(args):
     text = diff_runs(args.old, args.new, out=args.out)
     return {"old": args.old, "new": args.new, "out": args.out, "bytes": len(text)}
@@ -274,6 +292,14 @@ def build_parser():
     ds.add_argument("--github-limit", type=int, default=5,
                     help="每条需求、每个 GitHub 搜索类型的候选上限（1-10）")
     ds.set_defaults(func=cmd_discover)
+
+    bg = sub.add_parser("business-graph", help="从行业 Pack 声明和 Workspace 证据生成派生业务图谱")
+    bg.add_argument("--workspace", required=True)
+    bg.add_argument("--workspace-root", default=".")
+    bg.add_argument("--pack", required=True)
+    bg.add_argument("--business-model", required=True)
+    bg.add_argument("--out", required=True)
+    bg.set_defaults(func=cmd_business_graph)
 
     d = sub.add_parser("diff", help="比较两次 run")
     d.add_argument("--from", dest="old", required=True)

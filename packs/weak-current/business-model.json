@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "pack": "weak-current",
+  "pack_version": "0.1.0",
+  "version": "1.0.0",
+  "entities": [
+    {"id":"material_request","name":"材料需求申请","aliases":["Material Request","采购申请","材料申请"],"description":"项目或现场提出的物料需求及数量、单位、日期和来源。","key_fields":["project_id","item_id","requested_qty","uom","required_date","warehouse"],"evidence_terms":["material request","requested_qty","required_qty","采购申请","需求数量"],"risk_notes":["申请记录不等于已审批或已采购"]},
+    {"id":"supplier_quotation","name":"供应商报价","aliases":["Supplier Quotation","询价单","供应商报价"],"description":"供应商针对需求提供的价格、币种、有效期和版本。","key_fields":["supplier_id","item_id","rate","currency","valid_till","version"],"evidence_terms":["supplier quotation","quotation","报价单","供应商比价"],"risk_notes":["报价入口不等于多供应商比价或审批闭环"]},
+    {"id":"purchase_order","name":"采购订单","aliases":["Purchase Order","PO","采购单"],"description":"向供应商发出的采购承诺及明细。","key_fields":["supplier_id","item_id","qty","uom","rate","project_id"],"evidence_terms":["purchase order","purchase_order","采购订单","采购单"],"risk_notes":["订单存在不等于已收货或已付款"]},
+    {"id":"purchase_receipt","name":"采购收货","aliases":["Purchase Receipt","Goods Receipt","到货单","收货单"],"description":"按采购订单分批接收物料并记录质检结果。","key_fields":["purchase_order","item_id","received_qty","accepted_qty","rejected_qty"],"evidence_terms":["purchase receipt","received_qty","accepted_qty","rejected_qty","收货单","到货验收"],"risk_notes":["单次收货不能证明分批收货边界均正确"]},
+    {"id":"stock_entry","name":"库存流水","aliases":["Stock Entry","Material Issue","Material Transfer","领料单","调拨单"],"description":"库存仓库之间的收发、领用和调拨记录。","key_fields":["item_id","qty","source_warehouse","target_warehouse","project_id"],"evidence_terms":["stock entry","material issue","material transfer","s_warehouse","t_warehouse","库存流水","现场调拨"],"risk_notes":["仓库方向不等于现场已签收或责任已转移"]},
+    {"id":"purchase_return","name":"采购退货","aliases":["Purchase Return","Supplier Return","采购退货","拒收退回"],"description":"关联原收货单的供应商退货及库存价值回冲。","key_fields":["return_against","item_id","qty","rejected_qty","valuation_rate"],"evidence_terms":["purchase return","return_against","rejected warehouse","采购退货","拒收仓"],"risk_notes":["退货单存在不等于数量、价值和总账全部一致"]},
+    {"id":"project_cost","name":"项目成本","aliases":["Project Cost","Actual Cost","Committed Cost","项目成本","实际成本","承诺成本"],"description":"将采购承诺、库存消耗和费用归集到项目成本。","key_fields":["project_id","cost_type","amount","source_voucher"],"evidence_terms":["project cost","actual cost","committed cost","项目成本","实际成本","承诺成本"],"risk_notes":["预算、承诺成本和实际成本必须分开核算"]}
+  ],
+  "processes": [
+    {"id":"procurement_lifecycle","name":"采购主流程","description":"从材料需求到供应商报价、采购订单和分批收货。","steps":["material_request","supplier_quotation","purchase_order","purchase_receipt"],"transitions":[
+      {"from":"material_request","to":"supplier_quotation","condition":"报价必须能追溯需求及其物料明细。","required_evidence":["需求单与报价单的来源明细引用","供应商、币种、有效期和报价版本"]},
+      {"from":"supplier_quotation","to":"purchase_order","condition":"订单应追溯被选中的供应商报价及明细。","required_evidence":["报价到订单的来源映射","审批记录和订单数量/单价"]},
+      {"from":"purchase_order","to":"purchase_receipt","condition":"收货按订单明细累计，允许分批并校验超收。","required_evidence":["收货与订单明细关联","多次收货及累计数量状态"]}
+    ]},
+    {"id":"site_material_flow","name":"现场材料流转","description":"收货入库后领料、发料和现场仓库调拨。","steps":["purchase_receipt","stock_entry"],"transitions":[
+      {"from":"purchase_receipt","to":"stock_entry","condition":"领料或调拨应关联来源库存和项目需求。","required_evidence":["库存流水来源单据","发料仓、目标仓、数量和现场签收"]}
+    ]},
+    {"id":"returns_and_cost","name":"退货与成本归集","description":"退料/采购退货影响库存价值，并追溯项目成本。","steps":["purchase_receipt","purchase_return","project_cost"],"transitions":[
+      {"from":"purchase_receipt","to":"purchase_return","condition":"退货必须关联原始收货并限制可退数量。","required_evidence":["原收货单及明细引用","已收/已退数量和退货原因"]},
+      {"from":"stock_entry","to":"project_cost","condition":"领料消耗和退料应进入对应项目成本。","required_evidence":["库存流水到项目成本科目映射","成本冲回或调整记录"]},
+      {"from":"purchase_return","to":"project_cost","condition":"采购退货应同步调整项目成本及库存价值。","required_evidence":["退货库存价值变化","项目成本和总账勾稽"]}
+    ]}
+  ],
+  "exceptions": [
+    {"id":"partial_receipt","name":"分批收货/短交超交","description":"订单分多次收货，累计数量可能短交或超交。","aliases":["partial receipt","short receipt","over receipt","分批收货","超量收货"],"evidence_terms":["received_qty","over receipt","short receipt","分批收货","超收"],"related_entities":["purchase_order","purchase_receipt"],"expected_evidence":["多次收货记录","累计收货数量校验","订单状态变化"],"risk":"只看到单张收货单不能证明累计数量控制正确。"},
+    {"id":"rejected_material","name":"质检拒收","description":"实收物料中存在不合格数量，需隔离、复检或退货。","aliases":["rejected material","rejected warehouse","质检拒收","拒收仓"],"evidence_terms":["rejected_qty","rejected warehouse","quality inspection","拒收数量","拒收仓"],"related_entities":["purchase_receipt","purchase_return"],"expected_evidence":["质检记录","合格/拒收数量","拒收仓库存和后续退货"],"risk":"拒收数量可能影响库存估值和应付暂估金额。"},
+    {"id":"unit_conversion_rounding","name":"单位换算与精度舍入","description":"采购单位与库存基本单位换算后产生精度差异。","aliases":["UOM conversion","rounding difference","单位换算","精度舍入"],"evidence_terms":["conversion_factor","uom","rounding","precision","0.3356","单位换算","舍入"],"related_entities":["purchase_order","purchase_receipt","purchase_return"],"expected_evidence":["换算系数","精度配置","换算前后数量和金额","回归测试"],"risk":"舍入误差可能造成库存价值或总账残留差额。"},
+    {"id":"over_issue","name":"超量领料","description":"领料或调拨数量超过申请或订单允许数量。","aliases":["over issue","excess material issue","超量领料","超额发料"],"evidence_terms":["over issue","excess_qty","allowance_percentage","超量领料","超额发料"],"related_entities":["material_request","stock_entry"],"expected_evidence":["申请/计划数量","实际发料数量","超量配置和拒绝结果"],"risk":"超量发料可能造成项目成本和库存责任失真。"},
+    {"id":"return_without_source","name":"无来源退货","description":"退货未关联原始收货或原始物料明细。","aliases":["return without source","unlinked return","无来源退货","未关联原单"],"evidence_terms":["return_against","original receipt","无来源退货","原收货单"],"related_entities":["purchase_receipt","purchase_return"],"expected_evidence":["原始收货单引用","原始物料明细校验","无来源退货被拒绝的测试"],"risk":"无来源退货可能突破可退数量及供应商责任追踪。"},
+    {"id":"inventory_value_mismatch","name":"库存价值不一致","description":"退货、换算或估值调整导致库存价值与总账不一致。","aliases":["inventory valuation mismatch","stock ledger mismatch","库存价值差异","总账不一致"],"evidence_terms":["stock received but not billed","valuation_rate","stock ledger","general ledger","库存价值差异","总账不一致"],"related_entities":["purchase_receipt","purchase_return","project_cost"],"expected_evidence":["库存流水","总账分录","差异计算","修复 PR 和回归测试"],"risk":"数量正确不代表库存价值与财务账务一致。"}
+  ]
+}
