@@ -1,6 +1,7 @@
 """Dependency-free extraction for common Office Open XML documents."""
 from __future__ import annotations
-from io import BytesIO
+from io import BytesIO, StringIO
+import csv
 from zipfile import BadZipFile, ZipFile
 from xml.etree import ElementTree
 import posixpath
@@ -97,6 +98,35 @@ def _pptx(data):
                     chunks.append({"text": value, "locator": {
                         "slide": slide_no, "paragraph": para_no, "block": "slide_paragraph"}})
         return chunks
+
+
+def extract_csv_document(text):
+    """Extract CSV cells with row, column, and optional header locators."""
+    try:
+        sample = (text or "")[:4096]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\\t|")
+        except csv.Error:
+            dialect = csv.excel
+        rows = list(csv.reader(StringIO(text or ""), dialect))
+    except csv.Error as exc:
+        return {"status": "failed", "chunks": [], "reason": str(exc)[:240]}
+    if not rows:
+        return {"status": "parsed", "chunks": [], "reason": None}
+    headers = [value.strip() for value in rows[0]]
+    chunks = []
+    for row_no, row in enumerate(rows, 1):
+        for col_no, value in enumerate(row, 1):
+            value = value.strip()
+            if not value:
+                continue
+            locator = {"row": row_no, "column": col_no, "block": "cell"}
+            if row_no == 1:
+                locator["header"] = value
+            elif col_no <= len(headers) and headers[col_no - 1]:
+                locator["header"] = headers[col_no - 1]
+            chunks.append({"text": value, "locator": locator})
+    return {"status": "parsed", "chunks": chunks, "reason": None}
 
 def extract_office_document(data, extension):
     """Extract DOCX/XLSX/PPTX text chunks with native locators."""
