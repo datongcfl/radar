@@ -306,9 +306,11 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(agg["values"]["cumulative_received_qty"], "105")
         links = [e for e in graph["edges"] if e["relation"] == "aggregated_from_evidence"]
         scope_links = [e for e in graph["edges"] if e["relation"] == "grouped_by_evidence"]
+        transaction_links = [e for e in graph["edges"] if e["relation"] == "transaction_metadata_evidence"]
         self.assertEqual(len(links), 3)
-        self.assertEqual(len(scope_links), 6)
-        self.assertTrue(all(e["status"] == "source_backed" for e in links + scope_links))
+        self.assertEqual(len(scope_links), 12)
+        self.assertEqual(len(transaction_links), 6)
+        self.assertTrue(all(e["status"] == "source_backed" for e in links + scope_links + transaction_links))
 
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()

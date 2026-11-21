@@ -471,6 +471,19 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                              "scope_field":scope_field,
                              "locator":scope_source["locator"]},
                             "source_backed", 1.0, [scope_evidence_id])
+                for transaction_field, tx_source in contribution.get("transaction_provenance", {}).items():
+                    tx_evidence_id = tx_source["evidence_id"]
+                    if tx_evidence_id in {item["id"] for item in evidence}:
+                        _add_edge(edges, aid, _node_id("evidence", tx_evidence_id),
+                            "transaction_metadata_evidence", "AGGREGATION.TRANSACTION_PROVENANCE",
+                            {"source":"observation_aggregation",
+                             "aggregation_id":rule_id,
+                             "observation_id":contribution["observation_id"],
+                             "asset_id":contribution["asset_id"],
+                             "transaction_field":transaction_field,
+                             "transaction_value":contribution["transaction"].get(transaction_field),
+                             "locator":tx_source["locator"]},
+                            "source_backed", 1.0, [tx_evidence_id])
                 if contribution["asset_id"] in asset_nodes:
                     _add_edge(edges, aid, asset_nodes[contribution["asset_id"]],
                         "aggregated_from_asset", "AGGREGATION.ASSET_PROVENANCE",

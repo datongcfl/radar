@@ -131,6 +131,8 @@ def aggregate_observations(rule: dict[str, Any],
         transaction = row.get("transaction", {})
         transaction_provenance = row.get("transaction_provenance", {})
         transaction_identity = {}
+        transaction_metadata = {}
+        verified_transaction_provenance = {}
         signed_value = amount
         if semantics:
             status_field = semantics.get("status_field")
@@ -151,6 +153,9 @@ def aggregate_observations(rule: dict[str, Any],
                         or not tx_locator or _locator_identity(tx_evidence.get("locator")) != tx_locator):
                     transaction_invalid = True
                     break
+                transaction_metadata[name] = transaction[name]
+                verified_transaction_provenance[name] = {
+                    "evidence_id": tx_evidence_id, "locator": item["locator"]}
             if transaction_invalid:
                 skipped.append({"observation_id": row_id, "reason": "unverified_transaction_metadata"})
                 continue
@@ -177,6 +182,9 @@ def aggregate_observations(rule: dict[str, Any],
                     skipped.append({"observation_id": row_id, "reason": "unresolved_return_reference"})
                     continue
                 signed_value = -abs(amount)
+                transaction_metadata[return_reference_field] = reference
+                verified_transaction_provenance[return_reference_field] = {
+                    "evidence_id": ref_id, "locator": ref_item["locator"]}
             elif return_value in normal_values:
                 if amount < 0:
                     skipped.append({"observation_id": row_id, "reason": "negative_value_without_return_semantics"})
@@ -231,6 +239,8 @@ def aggregate_observations(rule: dict[str, Any],
             "evidence_id": evidence_id, "value": signed_value,
             "field_provenance": provenance[field], "business_scope": key_values,
             "scope_provenance": verified_scope_provenance,
+            "transaction": transaction_metadata,
+            "transaction_provenance": verified_transaction_provenance,
             "transaction_identity": transaction_identity,
         })
 
@@ -267,6 +277,9 @@ def aggregate_observations(rule: dict[str, Any],
                 "value": str(item["value"]),
                 "field_provenance": item["field_provenance"],
                 "scope_provenance": item["scope_provenance"],
+                "transaction": item["transaction"],
+                "transaction_provenance": item["transaction_provenance"],
+                "transaction_identity": item["transaction_identity"],
             } for item in unique],
             "contribution_count": len(unique),
             "evidence_ids": sorted(by_evidence),
