@@ -1053,8 +1053,7 @@
           "0",
           "false",
           "no",
-          "否",
-          ""
+          "否"
         ],
         "return_reference_field": "return_against",
         "deduplicate_by": [
