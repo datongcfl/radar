@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Optional
 from urllib.parse import quote, urlencode, urlsplit
+import re
 import json
 import os
 
@@ -88,6 +89,13 @@ def _repo_source(repo: dict[str, Any], sources: dict[str, dict[str, Any]]) -> st
             metadata={"imported_from": "legacy_seeds"},
         )
     return source_id
+
+
+def _code_ref_from_url(url: str) -> Optional[str]:
+    parts = [part for part in urlsplit(url).path.split("/") if part]
+    if len(parts) >= 5 and parts[2] == "blob":
+        return parts[3]
+    return None
 
 
 def _repository_info(item: dict[str, Any]) -> dict[str, Any]:
@@ -174,16 +182,21 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     if cached_head:
                         version_ref, immutable_ref = cached_head
                     else:
-                        head_data, head_error = _api_json(
-                            "/repos/%s/commits/%s" % (full_name, quote(branch, safe="")),
-                            token, timeout)
-                        immutable_ref = not head_error and bool(head_data.get("sha"))
+                        result_ref = _code_ref_from_url(html_url)
+                        immutable_ref = bool(result_ref and re.fullmatch(r"[0-9a-fA-F]{40,64}", result_ref))
                         if immutable_ref:
-                            version_ref = str(head_data["sha"])
+                            version_ref = result_ref
                         else:
-                            version_ref = branch
-                            warnings.append("could not resolve immutable HEAD for %s: %s" %
-                                            (full_name, (head_error or "missing commit SHA")[:160]))
+                            head_data, head_error = _api_json(
+                                "/repos/%s/commits/%s" % (full_name, quote(branch, safe="")),
+                                token, timeout)
+                            immutable_ref = not head_error and bool(head_data.get("sha"))
+                            if immutable_ref:
+                                version_ref = str(head_data["sha"])
+                            else:
+                                version_ref = result_ref or branch
+                                warnings.append("could not resolve immutable HEAD for %s: %s" %
+                                                (full_name, (head_error or "missing commit SHA")[:160]))
                         repo_heads[full_name] = (version_ref, immutable_ref)
                     uri = "https://github.com/%s/blob/%s/%s" % (
                         full_name, version_ref, quote(path, safe="/"))
