@@ -12,7 +12,7 @@ import tempfile
 from .discovery import DiscoveryValidationError, validate_record
 
 
-class StorageError(RuntimeError):
+class StorageError(ValueError):
     pass
 
 
