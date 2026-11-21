@@ -153,18 +153,22 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
 
     candidate_assets: dict[str, set[str]] = {r["id"]: set() for r in requirements}
     candidate_evidence: dict[str, set[str]] = {r["id"]: set() for r in requirements}
-    requirements_by_id = {r["id"]: r for r in requirements}
     for requirement_id, asset_ids in github_result["matches"].items():
         if requirement_id in candidate_assets:
             candidate_assets[requirement_id].update(asset_ids)
     new_relationships = []
-    for asset in converted["assets"]:
+    for asset in all_assets:
         covers = set(asset.get("metadata", {}).get("legacy_covers", []))
         matched = {req["id"]: req for unit in covers
                    for req in requirements_by_unit.get(unit, [])}
         for req_id, requirement in matched.items():
             candidate_assets[req_id].add(asset["id"])
             relation = _mention_relationship("asset", asset["id"], "requirement", req_id)
+            _append_idempotent(store, relation)
+            new_relationships.append(relation)
+    for requirement_id, asset_ids in github_result["matches"].items():
+        for asset_id in asset_ids:
+            relation = _mention_relationship("asset", asset_id, "requirement", requirement_id)
             _append_idempotent(store, relation)
             new_relationships.append(relation)
     for evidence in all_evidence:
@@ -176,9 +180,9 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 new_relationships.append(relation)
 
     run = new_record("discovery_run", workspace_id=workspace_id, status="partial"
-                     if converted["pending_quotes"] else "succeeded",
+                     if converted["pending_quotes"] or github_result["warnings"] else "succeeded",
         requirement_refs=[{"requirement_id": r["id"], "version": r["version"]} for r in requirements],
-        pack_refs=pack_refs, source_scope=[r["id"] for r in converted["sources"]],
+        pack_refs=pack_refs, source_scope=[r["id"] for r in all_sources],
         started_at=started_at, finished_at=_now(),
         stages=[
             {"name": "load_requirements", "status": "succeeded"},
