@@ -139,7 +139,7 @@ def _requirement_terms(requirement: dict[str, Any], pack: dict[str, Any]) -> lis
         seen.add(term.lower())
         result.append(term)
     # Keep requests bounded; canonical and aliases occur before broad descriptions.
-    return result[:16]
+    return result[:20]
 
 
 def _repo_source(repo: dict[str, Any], sources: dict[str, dict[str, Any]]) -> str:

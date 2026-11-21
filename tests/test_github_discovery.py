@@ -286,10 +286,10 @@ class TestGitHubDiscovery(unittest.TestCase):
             "description": "采购申请、收货、入库、领料、退料和调拨",
             "pack_unit_ids": ["M04", "M08", "M11"],
             "terms": {
-                "canonical": ["Material Request", "Supplier Quotation", "Purchase Order",
+                "canonical": ["材料采购", "Material Request", "Supplier Quotation", "Purchase Order",
                               "Purchase Receipt", "Stock Entry", "Material Issue",
                               "Material Transfer", "Purchase Return"],
-                "aliases": ["采购申请", "询价比价", "到货验收", "材料入库",
+                "aliases": ["采购申请", "询价比价", "采购收货", "到货验收", "材料入库",
                             "材料领用", "退料", "现场调拨", "采购退货"],
             },
         }
@@ -302,7 +302,7 @@ class TestGitHubDiscovery(unittest.TestCase):
         result = discover_github([requirement], pack, "ws_d03_terms",
                                  token="test-token", limit_per_query=5)
         queries = [call.args[0] for call in search.call_args_list]
-        self.assertEqual(len(queries), 12)
+        self.assertEqual(len(queries), 15)
         for critical_term in ("Purchase Receipt", "Stock Entry",
                               "Material Transfer", "Purchase Return",
                               "到货验收", "现场调拨"):
