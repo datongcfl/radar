@@ -203,7 +203,7 @@ python3 -m radar discover \
 
 - Code Search：定位仓库内部文件；对命中的文本文件再获取固定 Commit 版本的内容，按真实行号生成 Evidence。
 - Issue Search：收集 Issue 标题和正文，locator 指向 Issue URL 及字段。
-- Pull Request Search：收集 PR 标题和正文，locator 指向 PR URL 及字段。
+- Pull Request Search：收集 PR 标题和正文；继续读取 PR 元数据与变更文件列表，从 unified diff 提取新增行，建立 PR Asset 包含文件 Asset 的 `contains` 关系，并将新增行保存为带文件路径、行号和 head Commit SHA 的 Evidence。
 
 需求 canonical terms、aliases、标题、描述及映射 Pack 单元的术语会合并成一个 OR 查询，避免每个同义词都单独消耗一次 Search API 配额。每条需求、每种搜索类型最多返回 10 个候选，默认 5 个。
 
@@ -215,7 +215,7 @@ python3 -m radar discover \
 4. Issue/PR Evidence 定位到原始 URL 和 title/body 字段；它证明讨论内容存在，不自动证明修复已合并或代码已部署。
 5. 文件 Asset 以 Commit SHA 版本化；Issue/PR Asset 以更新时间版本化。重复搜索同一版本会复用 Asset 身份，新的内容版本产生新的 Asset/Evidence。
 6. 访问失败、API 限流、无权限或单个文件读取失败记录为阶段警告；已有 Seeds 和已成功发现的结果继续保存，Run 标记为 `partial`。
-7. 当前不读取 PR review comments、review threads、CI checks、提交 diff，也不解析 PDF/Office 文件；这些属于后续适配器扩展。
+7. 当前读取 PR 文件列表和文件 diff，但尚不读取 PR review comments、review threads、CI checks，也不解析 PDF/Office 文件；这些属于后续适配器扩展。
 8. 只支持公开可访问且 Token 有权访问的仓库；不会绕过仓库权限、登录限制或 GitHub API 限制。
 
 `github-discovery` 当前是 opt-in 来源适配器，不改变旧 `run --github` 仓库元数据发现行为，也不改变离线 Discover 默认行为。
