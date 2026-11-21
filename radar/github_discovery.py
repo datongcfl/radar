@@ -105,7 +105,8 @@ def _repository_info(item: dict[str, Any]) -> dict[str, Any]:
 
 def _asset(source_id: str, kind: str, uri: str, title: str,
            metadata: dict[str, Any]) -> dict[str, Any]:
-    key = kind + "|" + uri
+    version_ref = metadata.get("version_ref")
+    key = kind + "|" + uri + "|" + str(version_ref or "current")
     return _record("asset", key, source_id=source_id, asset_type=kind,
                    uri=uri, title=title, version_ref=metadata.get("version_ref"),
                    status="active", metadata=metadata)
@@ -161,7 +162,8 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     source_id = _repo_source(repo, sources)
                     if kind == "code":
                         branch = str(repo.get("default_branch") or "HEAD")
-                        uri = html_url
+                        uri = "https://github.com/%s/blob/%s/%s" % (
+                            full_name, version_ref or branch, quote(path, safe="/"))
                         asset_kind = "file"
                         title = path or html_url
                         version_ref = str(repo_heads.get(full_name) or "")
@@ -178,14 +180,9 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                             repo_heads[full_name] = version_ref
                         asset_metadata = {"path": path, "repository": full_name,
                                           "default_branch": branch, "version_ref": version_ref,
-                                          "matched_requirement_keys": [requirement["key"]]}
+                                          "matched_by": "github_code_search"}
                         asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
-                        existing_asset = assets.get(asset["id"])
-                        if existing_asset:
-                            keys = set(existing_asset.get("metadata", {}).get("matched_requirement_keys", []))
-                            keys.add(requirement["key"])
-                            existing_asset["metadata"]["matched_requirement_keys"] = sorted(keys)
-                        else:
+                        if asset["id"] not in assets:
                             assets[asset["id"]] = asset
                             counted_assets[asset["id"]] = "code"
                             counts["code"] += 1
@@ -237,16 +234,11 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                             "repository": full_name, "number": number,
                             "state": item.get("state"), "created_at": item.get("created_at"),
                             "updated_at": item.get("updated_at"),
-                            "matched_requirement_keys": [requirement["key"]],
+                            "matched_by": "github_issue_search",
                             "labels": [x.get("name") for x in item.get("labels") or []],
                         }
                         asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
-                        existing_asset = assets.get(asset["id"])
-                        if existing_asset:
-                            keys = set(existing_asset.get("metadata", {}).get("matched_requirement_keys", []))
-                            keys.add(requirement["key"])
-                            existing_asset["metadata"]["matched_requirement_keys"] = sorted(keys)
-                        else:
+                        if asset["id"] not in assets:
                             assets[asset["id"]] = asset
                             counted_assets[asset["id"]] = "pull_requests" if is_pr else "issues"
                             counts[counted_assets[asset["id"]]] += 1
