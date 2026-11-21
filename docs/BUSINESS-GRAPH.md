@@ -100,3 +100,35 @@ Invoke with `radar business-graph --observations observations.json ...`. The obs
 An acceptance criterion may explicitly declare `invariant_ids`. The graph validates each ID against the locked business model, creates a `requires_invariant` edge, and attaches any scoped invariant evaluation records to that criterion. The criterion matrix reports `not_mapped`, `no_observation`, `computed_pass`, `computed_fail`, or `mixed` separately from its lexical candidate-evidence status.
 
 These values are calculation states, not Requirement Assessment decisions. The edge status remains `computed_not_assessed`; a test fixture passing a rule cannot by itself make the acceptance criterion `supported`. D03 explicitly maps its receipt, quality, unit conversion, return, inventory valuation, and project-cost criteria to the corresponding Pack invariants.
+
+
+## M13 conservative table-to-observation extraction
+
+The weak-current Business Model now declares explicit bilingual `field_aliases` for receipt quantities, order/return quantities, unit conversion, and inventory/GL values. Alias collisions are rejected during Business Model validation. Aliases are Pack knowledge, not hard-coded global business vocabulary.
+
+Use `radar extract-observations` to parse a local CSV or XLSX file and match its first row (per worksheet) to those exact aliases. The command requires an existing Workspace Asset and Evidence records for every source cell it uses. The `--source-path` value must exactly match the path stored in those Evidence locators. It emits a versioned observation bundle that can be supplied to `radar business-graph --observations`.
+
+Only complete row-scoped numeric observations are emitted. Missing cells, missing Evidence, ambiguous aliases, non-numeric values, and unsupported `separate_fields` rules are skipped rather than guessed. The first version does not aggregate values across rows or accounting periods, infer project/document scope, or extract values from free-form prose. CSV and XLSX are supported; PDF/OCR, DOCX semantic tables, and runtime database/API observations are not.
+
+Example:
+```bash
+python -m radar extract-observations \
+  --workspace ws_d03_material_procurement \
+  --workspace-root .radar-d03-workspace \
+  --pack packs/weak-current/pack.json \
+  --business-model packs/weak-current/business-model.json \
+  --asset-id ast_receipt_register \
+  --input receipts.xlsx \
+  --source-path data/receipts.xlsx \
+  --out observations.json
+
+python -m radar business-graph \
+  --workspace ws_d03_material_procurement \
+  --workspace-root .radar-d03-workspace \
+  --pack packs/weak-current/pack.json \
+  --business-model packs/weak-current/business-model.json \
+  --observations observations.json \
+  --out business-graph.json
+```
+
+A successful numeric calculation from a document remains `static_candidate`, not runtime verification. It is not a final Requirement Assessment.

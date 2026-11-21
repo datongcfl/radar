@@ -116,6 +116,28 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
             raise BusinessModelError("%s.tolerance must be a finite non-negative number" % where)
         if len(set(invariant["fields"])) != len(invariant["fields"]):
             raise BusinessModelError("%s.fields must be unique" % where)
+        aliases = invariant.get("field_aliases")
+        if aliases is not None:
+            if not isinstance(aliases, dict):
+                raise BusinessModelError("%s.field_aliases must be an object" % where)
+            allowed_alias_fields = set(invariant["fields"])
+            if invariant.get("target_field"):
+                allowed_alias_fields.add(invariant["target_field"])
+            if set(aliases) - allowed_alias_fields:
+                raise BusinessModelError("%s.field_aliases references undeclared fields" % where)
+            normalized_aliases = {}
+            for alias_field, alias_values in aliases.items():
+                if not isinstance(alias_values, list) or not alias_values:
+                    raise BusinessModelError("%s.field_aliases.%s must be a non-empty array" %
+                                             (where, alias_field))
+                _strings(alias_values, where + ".field_aliases." + alias_field)
+                for alias in alias_values:
+                    normalized = "".join(char.casefold() for char in alias
+                                         if char.isalnum())
+                    if (not normalized or
+                            (normalized in normalized_aliases and normalized_aliases[normalized] != alias_field)):
+                        raise BusinessModelError("%s.field_aliases contains empty or ambiguous aliases" % where)
+                    normalized_aliases[normalized] = alias_field
         if invariant.get("target_field") is not None and (
                 not isinstance(invariant["target_field"], str) or not invariant["target_field"].strip()):
             raise BusinessModelError("%s.target_field must be a non-empty string" % where)

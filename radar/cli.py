@@ -25,6 +25,9 @@ from .report import write_run
 from .state import compare_sources, read_sources, write_changes
 from .discover import run_discovery
 from .business_graph import build_business_graph
+from .business_invariants import validate_observation_bundle
+from .business_observation_extractor import extract_table_observations
+from .document_parser import extract_csv_document, extract_office_document
 from .discovery_store import JsonWorkspaceStore
 
 
@@ -205,6 +208,56 @@ def cmd_discover(args):
                          github=args.github, github_limit=args.github_limit)
 
 
+def cmd_extract_observations(args):
+    pack = load_pack(args.pack)
+    model = load_json(args.business_model)
+    store = JsonWorkspaceStore(args.workspace_root, args.workspace)
+    workspace_rows = store.list_records("workspace")
+    if not workspace_rows:
+        raise RadarError("Workspace is not initialized")
+    workspace = workspace_rows[0]
+    expected_digest = sha256_file(args.pack)
+    locked = any(ref.get("pack") == pack["pack"]
+                 and str(ref.get("version")) == str(pack.get("version"))
+                 and ref.get("digest") == expected_digest
+                 for ref in workspace.get("pack_refs", []))
+    if not locked:
+        raise RadarError("Workspace Pack version lock differs; use the Pack version locked by this Workspace")
+    assets = store.list_records("asset")
+    asset = next((item for item in assets if item["id"] == args.asset_id), None)
+    if asset is None:
+        raise RadarError("asset_id is not present in the selected Workspace")
+    source_path = args.source_path or Path(args.input).name
+    extension = Path(args.input).suffix.lower().lstrip(".")
+    if extension == "csv":
+        try:
+            content = Path(args.input).read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeError) as exc:
+            raise RadarError("could not read CSV input: %s" % exc)
+        parsed = extract_csv_document(content)
+    elif extension == "xlsx":
+        try:
+            parsed = extract_office_document(Path(args.input).read_bytes(), "xlsx")
+        except OSError as exc:
+            raise RadarError("could not read XLSX input: %s" % exc)
+    else:
+        raise RadarError("extract-observations supports CSV and XLSX inputs only")
+    if parsed["status"] != "parsed":
+        raise RadarError("document parsing %s: %s" %
+                         (parsed["status"], parsed.get("reason") or "no reason"))
+    for chunk in parsed["chunks"]:
+        chunk["locator"]["path"] = source_path
+    evidence = [item for item in store.list_records("evidence")
+                if item.get("asset_id") == args.asset_id]
+    result = extract_table_observations(
+        model.get("invariants", []), parsed["chunks"], evidence,
+        args.asset_id, origin="static_source")
+    validate_observation_bundle(result, model.get("invariants", []), evidence)
+    write_json(args.out, result)
+    return {"out": str(args.out), "asset_id": args.asset_id,
+            "source_path": source_path, "counts": result["summary"]}
+
+
 def cmd_business_graph(args):
     pack = load_pack(args.pack)
     model = load_json(args.business_model)
@@ -304,6 +357,19 @@ def build_parser():
     ds.add_argument("--github-limit", type=int, default=5,
                     help="每条需求、每个 GitHub 搜索类型的候选上限（1-10）")
     ds.set_defaults(func=cmd_discover)
+
+    eo = sub.add_parser("extract-observations",
+        help="从带有精确 Evidence 的 CSV/XLSX 表格提取结构化业务观察值")
+    eo.add_argument("--workspace", required=True)
+    eo.add_argument("--workspace-root", default=".")
+    eo.add_argument("--pack", required=True)
+    eo.add_argument("--business-model", required=True)
+    eo.add_argument("--asset-id", required=True)
+    eo.add_argument("--input", required=True, help="CSV 或 XLSX 文件")
+    eo.add_argument("--source-path", default=None,
+                    help="与 Workspace Evidence locator.path 完全一致的原始路径")
+    eo.add_argument("--out", required=True)
+    eo.set_defaults(func=cmd_extract_observations)
 
     bg = sub.add_parser("business-graph", help="从行业 Pack 声明和 Workspace 证据生成派生业务图谱")
     bg.add_argument("--workspace", required=True)

@@ -215,6 +215,16 @@ class TestBusinessGraph(unittest.TestCase):
         with self.assertRaises(BusinessModelError):
             validate_business_model(model, pack)
 
+    def test_field_aliases_must_be_unambiguous(self):
+        _, pack, model = self._data()
+        model["invariants"][0]["field_aliases"] = {
+            "accepted_qty":["quantity"],
+            "rejected_qty":[" quantity "],
+            "received_qty":["received"],
+        }
+        with self.assertRaises(BusinessModelError):
+            validate_business_model(model, pack)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]

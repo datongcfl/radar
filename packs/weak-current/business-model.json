@@ -503,7 +503,33 @@
         "质检合格/拒收数量",
         "数量平衡测试"
       ],
-      "risk": "数量不平衡会造成库存数量与质检记录不一致。"
+      "risk": "数量不平衡会造成库存数量与质检记录不一致。",
+      "field_aliases": {
+        "accepted_qty": [
+          "accepted_qty",
+          "accepted qty",
+          "accepted quantity",
+          "合格数量",
+          "质检合格数量",
+          "验收合格数量"
+        ],
+        "rejected_qty": [
+          "rejected_qty",
+          "rejected qty",
+          "rejected quantity",
+          "拒收数量",
+          "质检拒收数量",
+          "不合格数量"
+        ],
+        "received_qty": [
+          "received_qty",
+          "received qty",
+          "received quantity",
+          "实收数量",
+          "收货数量",
+          "本次收货数量"
+        ]
+      }
     },
     {
       "id": "cumulative_receipt_not_over_order",
@@ -524,7 +550,24 @@
         "全部收货明细",
         "超收授权或拒绝测试"
       ],
-      "risk": "超收可能造成库存和应付承诺失真。"
+      "risk": "超收可能造成库存和应付承诺失真。",
+      "field_aliases": {
+        "cumulative_received_qty": [
+          "cumulative_received_qty",
+          "cumulative received qty",
+          "total received qty",
+          "累计收货数量",
+          "累计实收数量"
+        ],
+        "ordered_qty": [
+          "ordered_qty",
+          "ordered qty",
+          "order quantity",
+          "采购订单数量",
+          "订单数量",
+          "订购数量"
+        ]
+      }
     },
     {
       "id": "return_not_over_received",
@@ -545,7 +588,24 @@
         "全部退货明细",
         "超退拒绝测试"
       ],
-      "risk": "超退会造成库存和供应商结算错误。"
+      "risk": "超退会造成库存和供应商结算错误。",
+      "field_aliases": {
+        "cumulative_return_qty": [
+          "cumulative_return_qty",
+          "cumulative return qty",
+          "returned qty",
+          "累计退货数量",
+          "累计退料数量"
+        ],
+        "received_qty": [
+          "received_qty",
+          "received qty",
+          "received quantity",
+          "实收数量",
+          "原收货数量",
+          "收货数量"
+        ]
+      }
     },
     {
       "id": "uom_conversion_consistency",
@@ -570,7 +630,31 @@
         "库存基本单位数量",
         "精度配置和回归测试"
       ],
-      "risk": "换算或舍入差异可能积累成库存价值差额。"
+      "risk": "换算或舍入差异可能积累成库存价值差额。",
+      "field_aliases": {
+        "purchase_qty": [
+          "purchase_qty",
+          "purchase qty",
+          "purchase quantity",
+          "采购数量",
+          "采购单位数量"
+        ],
+        "conversion_factor": [
+          "conversion_factor",
+          "conversion factor",
+          "uom conversion",
+          "换算系数",
+          "单位换算系数"
+        ],
+        "base_qty": [
+          "base_qty",
+          "base qty",
+          "stock quantity",
+          "basic quantity",
+          "基本单位数量",
+          "库存数量"
+        ]
+      }
     },
     {
       "id": "inventory_gl_value_reconciliation",
@@ -594,7 +678,25 @@
         "差异计算",
         "退货估值回归测试"
       ],
-      "risk": "数量正确不代表库存估值与财务账务一致。"
+      "risk": "数量正确不代表库存估值与财务账务一致。",
+      "field_aliases": {
+        "inventory_value": [
+          "inventory_value",
+          "inventory value",
+          "stock value",
+          "库存价值",
+          "库存金额",
+          "存货金额"
+        ],
+        "general_ledger_value": [
+          "general_ledger_value",
+          "general ledger value",
+          "gl value",
+          "总账金额",
+          "总账余额",
+          "会计账面金额"
+        ]
+      }
     },
     {
       "id": "project_cost_dimensions_separate",
