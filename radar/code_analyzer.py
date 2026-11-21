@@ -10,10 +10,12 @@ from typing import Any
 
 
 def _target_key(node: ast.AST) -> str:
+    # Ignore Load/Store contexts so the same attribute compares equal on both sides.
     if isinstance(node, ast.Attribute):
-        return ast.dump(node, include_attributes=False)
+        parent = _target_key(node.value)
+        return parent + "." + node.attr if parent else ""
     if isinstance(node, ast.Name):
-        return ast.dump(node, include_attributes=False)
+        return node.id
     return ""
 
 

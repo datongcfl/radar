@@ -726,9 +726,11 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     for (repository, source_path), record in sorted(code_files.items()):
         parsed = analyze_python_source(record["content"], source_path)
         if parsed["status"] != "parsed":
-            warnings.append("Python AST analysis skipped for %s: %s" %
-                            (source_path, parsed.get("reason", "parse failed")))
+            # Keep unsupported/partial Python source visible without failing discovery.
+            assets[record["asset_id"]]["metadata"]["python_ast_analysis"] = {
+                "status": "parse_failed", "reason": parsed.get("reason", "parse failed")}
             continue
+        assets[record["asset_id"]]["metadata"]["python_ast_analysis"] = {"status": "parsed"}
         importer_id = record["asset_id"]
         is_test_file = (source_path.lower().startswith(("test/", "tests/"))
                         or source_path.rsplit("/", 1)[-1].lower().startswith("test_")
