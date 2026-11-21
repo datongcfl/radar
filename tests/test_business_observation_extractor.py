@@ -24,7 +24,7 @@ def receipt_invariant():
         "field_aliases":{
             "accepted_qty":["accepted_qty","合格数量"],
             "rejected_qty":["rejected_qty","拒收数量"],
-            "received_qty":["received_qty","实收数量"],
+            "received_qty":["received_qty","received quantity","实收数量"],
         },
     }
 
