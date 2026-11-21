@@ -1,4 +1,4 @@
-# data-center-ops 基线（v1.6.0）
+# data-center-ops 基线（v1.7.0）
 
 ## 数字
 

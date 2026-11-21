@@ -75,6 +75,14 @@ def canonical_url(url):
     if port and port not in (80, 443):
         host = "%s:%d" % (host, port)
     path = parts.path.rstrip("/") or "/"
+    if path.lower().endswith(".git"):
+        path = path[:-4] or "/"
+    if host in {"github.com", "gitee.com"}:
+        segs = path.split("/")
+        if len(segs) > 2:
+            segs[1] = segs[1].lower()
+            segs[2] = segs[2].lower()
+        path = "/".join(segs)
     query = sorted((k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
                    if k.lower() not in TRACKING)
     return urlunsplit((scheme, host, path, urlencode(query), ""))

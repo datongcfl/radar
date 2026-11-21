@@ -1,4 +1,4 @@
-# 弱电 pack 基线（v1.6.0）
+# 弱电 pack 基线（v1.7.0）
 
 ## 数字
 
@@ -27,7 +27,7 @@
 - 12 条短 quote 降为 `mention`，`limitations` 写明“仅短标题/描述”；
 - 新增 `tools/audit_ledger.py`，审计宽 covers、宽来源独占单元、短 quote；
 - v1.0 结果是 3 strong / 21 evidence / 8 mention / 5 none；
-- v1.6.0 用 `--verify-quotes --require-web-verify` 实抓后：3 strong（M01/M06/M13）/ 20 evidence / 8 mention / 6 none；
+- v1.7.0 用 `--verify-quotes --require-web-verify` 实抓后：3 strong（M01/M06/M13）/ 20 evidence / 8 mention / 6 none；
 - M01 恢复：SRC-008 从 SSL 失败的 docs 换成 OpenProject GitHub README，成为第二个验证通过的独立 host；
 - **M02 仍为 none**：SRC-001 的“全链条”是概括，不直接证明立项单/台账/项目阶段，不能挂 covers；
 - **M10 补证据**：SRC-012 补真实“竣工验收/资料”段落，从 mention 升 evidence；

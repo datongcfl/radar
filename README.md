@@ -1,4 +1,4 @@
-# radar · 最小行业雷达（v1.6.0）
+# radar · 最小行业雷达（v1.7.0）
 
 **A minimal industry radar: does every module in your industry outline actually have evidence?**
 
@@ -62,14 +62,14 @@ runs/weak-current-demo/
 └── state.json        # run 元数据、pack/seeds 哈希
 ```
 
-## data-center-ops 第三真实 pack（v1.6.0）
+## data-center-ops 第三真实 pack（v1.7.0）
 
 - **40 条公开来源**：10 selected / 30 needs_review；
 - 覆盖：**0 strong / 20 evidence / 6 mention / 0 none**；
 - 10 模块 / 16 子系统；沿用 issue #20 的五类底座 + 行业垂直层；
 - 基线见 [docs/BASELINE-DATA-CENTER.md](docs/BASELINE-DATA-CENTER.md)。
 
-## video-kb 第二真实 pack（v1.6.0）
+## video-kb 第二真实 pack（v1.7.0）
 
 - **32 条公开来源**：22 selected / 10 needs_review；
 - 覆盖：**0 strong / 26 evidence / 0 mention / 0 none**；
@@ -78,7 +78,7 @@ runs/weak-current-demo/
 
 strong 为 0 是因为没有单元同时满足“2 独立 host + real_artifact + web 验证 quote”。
 
-## 通用来源底座（v1.6.0）
+## 通用来源底座（v1.7.0）
 
 - [docs/SOURCES-BASE.md](docs/SOURCES-BASE.md)：标准/招投标/企业/统计/报告五类底座；
 - weak-current 新增 `SRC-035`（GB 50311-2016，metadata）；
@@ -96,7 +96,7 @@ python3 -m radar run \
 
 同一套代码，换 pack 就能跑；弱电和宠物医院互不写死。
 
-## 弱电 pack 现状（v1.6.0）
+## 弱电 pack 现状（v1.7.0）
 
 - **35 条公开来源**：30 selected / 5 needs_review；
 - 覆盖：**3 strong / 20 evidence / 8 mention / 6 none**；
@@ -196,7 +196,7 @@ v1.3 用 `--verify-quotes --require-web-verify` 实际抓取后：weak-current 3
 
 `report.md` 头部也会显示 `Radar: v...`。这样别人拿到一个 run，能知道是哪个版本/commit 跑出来的。
 
-当前代码版本 `1.6.0`。tag 由仓库 owner 打；Agent 不自行打标签。
+当前代码版本 `1.7.0`。tag 由仓库 owner 打；Agent 不自行打标签。
 
 ## Claim 账本（v0.4）
 
@@ -222,7 +222,7 @@ python3 -m radar claims \
 - [docs/SCHEMA.md](docs/SCHEMA.md)：字段/必填/兼容规则；
 - [docs/MIGRATION.md](docs/MIGRATION.md)：版本线与旧数据读取。
 
-`schema_version` 冻结为 `1`，软件版本 `1.6.0` 独立演进。
+`schema_version` 冻结为 `1`，软件版本 `1.7.0` 独立演进。
 
 ## 自动化（v1.4）
 
@@ -253,7 +253,7 @@ python3 -m radar claims \
 python3 -m unittest discover -s tests -v
 ```
 
-76 个用例覆盖：pack/seeds 校验、Seed Lite 默认值、`--strict` 拒绝最小字段、URL 规范化、单源上限、双源 strong、mention/none、gaps、来源级变更、Gitee metadata 映射、fetch 状态、snowball fork 映射、HTML 抽取、中文 quote、404 不冒充成功、license 提示、claim 覆盖校验/双向矛盾/CSV 注入、merge 并集/ID 唯一/canonical/平台推断/许可顺序、独立 host/单源口径、坏访问、reusable、CLI 报错、残留清理、账本审计、CLI run/scan/diff。
+77 个用例覆盖：pack/seeds 校验、Seed Lite 默认值、`--strict` 拒绝最小字段、URL 规范化、单源上限、双源 strong、mention/none、gaps、来源级变更、Gitee metadata 映射、fetch 状态、snowball fork 映射、HTML 抽取、中文 quote、404 不冒充成功、license 提示、claim 覆盖校验/双向矛盾/CSV 注入、merge 并集/ID 唯一/canonical/平台推断/许可顺序、独立 host/单源口径、坏访问、reusable、CLI 报错、残留清理、账本审计、CLI run/scan/diff。
 
 ## 交给其他 Agent
 
@@ -275,7 +275,7 @@ radar/
 ├── radar/            # CLI + 校验 + 覆盖度 + diff
 ├── packs/            # weak-current / video-kb / data-center-ops / pet-hospital
 ├── seeds/            # 两个行业的种子来源
-├── tests/            # 76 个单测
+├── tests/            # 77 个单测
 ├── docs/             # PACK / MVP
 ├── .dsh/skills/radar # Skill
 └── runs/             # demo 输出

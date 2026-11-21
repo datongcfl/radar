@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import urllib.parse
 
@@ -26,12 +27,23 @@ def _curl_json(url, token=None, accept="application/json"):
         return None, "JSON 解析失败: %s" % exc
 
 
+def _keyword_hit(text, keyword):
+    kw = str(keyword or "").strip().lower()
+    if not kw:
+        return False
+    # Short ASCII tokens (ai/dc/ups/bim/kv) need word boundaries; Chinese and
+    # longer phrases keep substring matching.
+    if len(kw) <= 4 and re.fullmatch(r"[a-z0-9]+", kw):
+        return re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(kw), text) is not None
+    return kw in text
+
+
 def infer_covers(text, pack, limit=6):
     text = (text or "").lower()
     hits = []
     for item in pack["modules"] + pack["subsystems"]:
         names = [item["name"]] + list(item.get("keywords", []))
-        if any(str(n).lower() in text for n in names if str(n).strip()):
+        if any(_keyword_hit(text, n) for n in names if str(n).strip()):
             hits.append(item["id"])
     return hits[:limit]
 

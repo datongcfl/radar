@@ -23,6 +23,7 @@
 | 1.5 | 通用来源底座 + 1 条国标来源；第三 pack 后续 |
 | 1.5.1 | 第三真实 pack：data-center-ops（40 条来源） |
 | 1.6 | data-center 厂商具体页补证，20 evidence / 6 mention |
+| 1.7 | 短关键词边界 + canonical URL 去重 |
 
 ## schema_version 与 __version__
 

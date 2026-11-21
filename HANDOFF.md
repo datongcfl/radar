@@ -19,7 +19,7 @@ radar/
 ├── packs/             # 行业包
 ├── seeds/             # 种子来源
 ├── docs/              # PACK/MVP
-├── tests/             # 76 个单测
+├── tests/             # 77 个单测
 ├── runs/weak-current-demo/  # 样例输出
 ├── README.md
 ├── AGENT-TASK.md
@@ -56,7 +56,7 @@ python3 -m radar run --pack packs/weak-current/pack.json --seeds seeds/weak-curr
 
 - 仓库：`<radar-repo>`
 - 当前提交：以 `git log -1` 为准
-- 版本：`1.6.0`（tag 由 owner 打）
+- 版本：`1.7.0`（tag 由 owner 打）
 - 运行模式：`run` / `scan --base` / `diff`
 
 ## 还没接

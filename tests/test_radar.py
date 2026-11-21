@@ -20,6 +20,7 @@ from radar.snowball import parse_github_repo, fork_source, snowball as run_snowb
 from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes
 from radar.verify import source_text, verify_source, verify_sources
 from radar.model import level_for_source
+from radar.adapters import infer_covers
 from radar.claims import compute_confidence, evaluate_claims, write_claims
 from radar.diff import diff_runs
 from radar.model import (RadarError, canonical_url, enforce_web_verification, load_pack,
@@ -55,6 +56,18 @@ class TestModel(unittest.TestCase):
                          canonical_url("https://example.com/a"))
         self.assertEqual(canonical_url("https://example.com:443/a"),
                          canonical_url("https://example.com/a"))
+
+    def test_infer_covers_short_keywords(self):
+        pack = {"modules": [
+            {"id": "M01", "name": "AI", "keywords": ["ai"]},
+            {"id": "M02", "name": "DC", "keywords": ["dc"]},
+            {"id": "M03", "name": "UPS", "keywords": ["ups"]},
+        ], "subsystems": []}
+        self.assertEqual(infer_covers("maintain container", pack), [])
+        self.assertEqual(infer_covers("docs and broadcast", pack), [])
+        self.assertEqual(infer_covers("groups", pack), [])
+        self.assertEqual(infer_covers("edge ai gateway", pack), ["M01"])
+        self.assertEqual(infer_covers("UPS status", pack), ["M03"])
 
     def test_infer_platform_exact_host(self):
         self.assertEqual(_infer_platform("https://notgithub.com/a/b"), "web")
@@ -661,9 +674,9 @@ class TestCLI(unittest.TestCase):
             state = json.loads((scan_out / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(state["mode"], "scan")
             self.assertEqual(state["since"], str(out1))
-            self.assertEqual(state["radar_version"], "1.6.0")
+            self.assertEqual(state["radar_version"], "1.7.0")
             self.assertIn("radar_commit", state)
-            self.assertIn("Radar: v1.6.0", (scan_out / "report.md").read_text(encoding="utf-8"))
+            self.assertIn("Radar: v1.7.0", (scan_out / "report.md").read_text(encoding="utf-8"))
 
             claims_file = tmp / "claims.json"
             claims_file.write_text(json.dumps({
@@ -678,7 +691,7 @@ class TestCLI(unittest.TestCase):
                            capture_output=True, text=True)
             self.assertTrue((claims_out / "claims.md").exists())
             self.assertTrue((claims_out / "review.csv").exists())
-            self.assertEqual(json.loads((claims_out / "state.json").read_text())["radar_version"], "1.6.0")
+            self.assertEqual(json.loads((claims_out / "state.json").read_text())["radar_version"], "1.7.0")
 
 
 class TestVerify(unittest.TestCase):

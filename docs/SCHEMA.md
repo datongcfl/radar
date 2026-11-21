@@ -35,7 +35,7 @@ JSON Schema 使用 draft 2020-12，只作为契约文档；运行时不依赖第
 ## 兼容规则
 
 - `schema_version` 是**数据格式版本**，当前冻结为 `1`；
-- `__version__` 是**软件版本**，当前 `1.6.0`；
+- `__version__` 是**软件版本**，当前 `1.7.0`；
 - 新增可选字段不升 `schema_version`；
 - 删除字段、改字段语义、改必填集合必须升 `schema_version` 并提供迁移脚本；
 - 旧 run 缺 `radar_version` / `quote_verified` 时按 `?` / `unknown` 读取。

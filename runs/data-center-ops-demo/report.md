@@ -1,6 +1,6 @@
 # 数据中心动环/DCIM · 雷达运行报告
 
-Run: `20261120-151808` · Pack: `data-center-ops` v0.1.0 · Radar: v1.6.0
+Run: `20261121-081437` · Pack: `data-center-ops` v0.1.0 · Radar: v1.7.0
 
 ## 一句话
 
