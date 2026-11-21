@@ -154,7 +154,7 @@ def convert_legacy_sources(
                 })
                 continue
             evidence_key = json.dumps(
-                [asset_id, index, quote_text, locator], ensure_ascii=False, sort_keys=True)
+                [asset_id, index, quote_text, locator, captured_at], ensure_ascii=False, sort_keys=True)
             artifact = str(legacy.get("artifact_type") or "")
             evidence_kind = "code" if artifact == "code" else (
                 "documentation" if artifact in ("readme", "docs", "manual", "prd") else "observation")
