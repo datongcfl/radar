@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "workspace": {
+    "name": "弱电工程管理系统需求发现演练",
+    "description": "以工程管理业务需求验证 Radar 的需求驱动发现流程"
+  },
+  "requirements": [
+    {
+      "key": "D01",
+      "version": 1,
+      "title": "工程量清单与报价版本管理",
+      "description": "支持 BOQ、工程量清单、综合单价分析及报价版本留痕。",
+      "status": "active",
+      "priority": "high",
+      "pack_unit_ids": [
+        "M04",
+        "M06"
+      ],
+      "terms": {
+        "canonical": [
+          "工程量清单",
+          "BOQ",
+          "Bill of Quantities",
+          "报价版本"
+        ],
+        "aliases": [
+          "清单报价",
+          "Rate Analysis"
+        ],
+        "languages": [
+          "zh-CN",
+          "en"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "D01-C1",
+          "description": "可维护工程量清单项目、单位、工程量和综合单价",
+          "required": true,
+          "kind": "functional",
+          "severity": "high"
+        },
+        {
+          "id": "D01-C2",
+          "description": "报价修改形成可追溯版本并保留历史差异",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "key": "D02",
+      "version": 1,
+      "title": "项目预算与成本核算",
+      "description": "区分项目预算、实际成本和采购承诺成本，支持项目成本汇总。",
+      "status": "active",
+      "priority": "high",
+      "pack_unit_ids": [
+        "M05",
+        "M11"
+      ],
+      "terms": {
+        "canonical": [
+          "项目预算",
+          "Project Budget",
+          "Actual Cost",
+          "Committed Cost"
+        ],
+        "aliases": [
+          "成本归集",
+          "项目毛利"
+        ],
+        "languages": [
+          "zh-CN",
+          "en"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "D02-C1",
+          "description": "分别记录预算成本、实际成本和承诺成本",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        },
+        {
+          "id": "D02-C2",
+          "description": "成本可追溯到采购、领料、人工或分包业务",
+          "required": true,
+          "kind": "workflow",
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "key": "D03",
+      "version": 1,
+      "title": "材料采购与现场流转",
+      "description": "覆盖材料申请、询价比价、审批、采购订单、到货、入库、领料、退料和现场调拨。",
+      "status": "active",
+      "priority": "critical",
+      "pack_unit_ids": [
+        "M04",
+        "M08"
+      ],
+      "terms": {
+        "canonical": [
+          "材料采购",
+          "Material Request",
+          "Purchase Order",
+          "Purchase Receipt",
+          "Material Return",
+          "Site Transfer"
+        ],
+        "aliases": [
+          "采购申请",
+          "到货入库",
+          "现场调拨"
+        ],
+        "languages": [
+          "zh-CN",
+          "en"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "D03-C1",
+          "description": "材料申请能够关联项目、需求数量、申请人和审批状态",
+          "required": true,
+          "kind": "workflow",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C2",
+          "description": "询价比价结果能够关联供应商、报价和审批记录",
+          "required": true,
+          "kind": "workflow",
+          "severity": "high"
+        },
+        {
+          "id": "D03-C3",
+          "description": "采购订单、到货、入库和领料数量可追溯",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C4",
+          "description": "退料和现场调拨保留来源、去向、数量及责任人",
+          "required": true,
+          "kind": "exception",
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "key": "D04",
+      "version": 1,
+      "title": "人工与分包成本管理",
+      "description": "记录施工人员工时、人工成本、分包合同及分包结算。",
+      "status": "active",
+      "priority": "high",
+      "pack_unit_ids": [
+        "M09",
+        "M11"
+      ],
+      "terms": {
+        "canonical": [
+          "人工成本",
+          "Timesheet",
+          "Labour Cost",
+          "Subcontract"
+        ],
+        "aliases": [
+          "工时登记",
+          "分包成本"
+        ],
+        "languages": [
+          "zh-CN",
+          "en"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "D04-C1",
+          "description": "工时记录关联人员、项目、工作内容和日期",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "high"
+        },
+        {
+          "id": "D04-C2",
+          "description": "人工和分包成本可归集到项目成本",
+          "required": true,
+          "kind": "workflow",
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "key": "D05",
+      "version": 1,
+      "title": "弱电专业施工与验收",
+      "description": "覆盖弱电专业施工任务、设备点位、调试测试和分系统验收。",
+      "status": "active",
+      "priority": "high",
+      "pack_unit_ids": [
+        "M03",
+        "M09",
+        "M10"
+      ],
+      "terms": {
+        "canonical": [
+          "弱电工程",
+          "ELV",
+          "CCTV",
+          "Access Control",
+          "Testing",
+          "Acceptance"
+        ],
+        "aliases": [
+          "系统调试",
+          "分项验收"
+        ],
+        "languages": [
+          "zh-CN",
+          "en"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "D05-C1",
+          "description": "施工任务可关联图纸、点位、设备和工程量",
+          "required": true,
+          "kind": "workflow",
+          "severity": "high"
+        },
+        {
+          "id": "D05-C2",
+          "description": "测试结果、整改记录和验收结论可追溯",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        }
+      ]
+    }
+  ]
+}
