@@ -168,6 +168,34 @@ class JsonWorkspaceStore:
         _atomic_write(path, raw)
         return digest
 
+    def append_pending_quote(self, quote: dict[str, Any]) -> None:
+        """Persist a legacy quote that lacks enough location data to become Evidence."""
+        self._ensure_initialized()
+        data = dict(quote)
+        data["workspace_id"] = self.workspace_id
+        stable = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        data["id"] = "pqt_" + hashlib.sha256(stable.encode("utf-8")).hexdigest()[:32]
+        path = self.root / "pending_quotes.jsonl"
+        existing = []
+        if path.exists():
+            existing = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if any(item.get("id") == data["id"] for item in existing):
+            return
+        if "created_at" not in data:
+            from datetime import datetime, timezone
+            data["created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        with path.open("ab") as stream:
+            stream.write(_json_bytes(data))
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    def list_pending_quotes(self) -> list[dict[str, Any]]:
+        self._ensure_initialized()
+        path = self.root / "pending_quotes.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
     def read_snapshot(self, digest: str) -> bytes:
         if not re.match(r"^[a-f0-9]{64}$", digest or ""):
             raise StorageError("invalid SHA-256 digest")
