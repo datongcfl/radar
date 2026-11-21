@@ -113,6 +113,9 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
     workspace = validate_record(workspace, "workspace")
     store = JsonWorkspaceStore(workspace_root, workspace_id)
     store.initialize(workspace)
+    persisted_workspace = store.list_records("workspace")[0]
+    if persisted_workspace.get("pack_refs") != pack_refs:
+        raise StorageError("Workspace Pack version lock differs; create a new Workspace or explicitly migrate it")
 
     valid_units = {item["id"] for item in pack["modules"] + pack["subsystems"]}
     requirements = []
@@ -173,8 +176,10 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         counts={"sources": len(converted["sources"]), "assets": len(converted["assets"]),
                 "evidence": len(converted["evidence"]), "relationships": len(converted["relationships"]) + len(new_relationships),
                 "pending_quotes": len(converted["pending_quotes"]), "requirements": len(requirements)},
-        errors=[], parameters={"pack_path": str(pack_path), "seeds_path": str(seeds_path),
-                               "requirements_path": str(requirements_path)},
+        errors=[], parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
+                               "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
+                               "requirements_path": str(requirements_path),
+                               "requirements_sha256": sha256_file(requirements_path)},
         radar_version=__version__).to_dict()
 
     assessments = []
@@ -183,7 +188,8 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         status = "not_assessed" if evidence_ids else "no_evidence"
         criterion_results = [{
             "criterion_id": criterion["id"], "status": status,
-            "evidence_ids": evidence_ids,
+            "evidence_ids": [],
+            "notes": "Candidate evidence requires Agent/human assessment" if evidence_ids else "",
             "gap": None if evidence_ids else "No locatable evidence found in the selected assets",
         } for criterion in requirement.get("acceptance_criteria", [])]
         assessment = new_record("assessment", workspace_id=workspace_id,
