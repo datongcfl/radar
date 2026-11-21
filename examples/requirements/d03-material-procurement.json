@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "workspace": {
+    "name": "D03 材料采购与现场流转端到端验证",
+    "description": "将弱电工程材料采购需求拆解为可验收业务条件，并验证 Radar 能否建立代码、文档、Issue、PR 和测试证据链"
+  },
+  "requirements": [
+    {
+      "key": "D03",
+      "version": 2,
+      "title": "材料采购与现场流转",
+      "description": "覆盖项目材料需求、询价比价、审批、采购订单、分批到货、质检与入库、领料、退料、现场调拨及库存和成本追溯。",
+      "status": "active",
+      "priority": "critical",
+      "pack_unit_ids": [
+        "M04",
+        "M08",
+        "M11"
+      ],
+      "terms": {
+        "canonical": [
+          "材料采购",
+          "Material Request",
+          "Supplier Quotation",
+          "Purchase Order",
+          "Purchase Receipt",
+          "Stock Entry",
+          "Material Issue",
+          "Material Transfer",
+          "Purchase Return"
+        ],
+        "aliases": [
+          "采购申请",
+          "询价比价",
+          "采购收货",
+          "到货验收",
+          "材料入库",
+          "材料领用",
+          "退料",
+          "现场调拨",
+          "Rejected Warehouse"
+        ],
+        "languages": [
+          "zh-CN",
+          "en"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "D03-C1",
+          "description": "材料需求记录项目、物料、需求数量、计量单位、需求日期、需求仓库和申请来源，并保留状态变化。",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C2",
+          "description": "询价记录能够关联需求明细、供应商、报价、币种、有效期和报价版本，并支持多供应商比价。",
+          "required": true,
+          "kind": "workflow",
+          "severity": "high"
+        },
+        {
+          "id": "D03-C3",
+          "description": "采购订单能够追溯来源需求和供应商报价，保留物料行映射、项目、单位换算、数量及单价。",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C4",
+          "description": "采购订单提交前校验供应商、来源单据、物料和数量，并执行配置的审批权限控制。",
+          "required": true,
+          "kind": "workflow",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C5",
+          "description": "采购收货逐行关联采购订单及订单明细，支持分批收货并正确更新已收数量和订单状态。",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C6",
+          "description": "到货验收区分实收、合格、拒收数量，关联质检记录，并将拒收材料放入指定拒收仓。",
+          "required": true,
+          "kind": "exception",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C7",
+          "description": "材料数量按采购单位和库存基本单位换算，支持序列号/批次等追踪信息，避免累计数量超过申请或订单允许范围。",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "high"
+        },
+        {
+          "id": "D03-C8",
+          "description": "材料领用、发料和现场调拨记录来源仓库、目标仓库、物料、数量及关联需求/项目，并更新库存流水。",
+          "required": true,
+          "kind": "workflow",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C9",
+          "description": "退料或采购退货必须关联原始收货单，校验供应商、物料、可退数量及已退数量，并区分合格品与拒收品退回。",
+          "required": true,
+          "kind": "exception",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C10",
+          "description": "采购收货、退货和调拨对库存数量、库存价值及总账产生一致影响，支持单位换算、精度舍入和后续重估。",
+          "required": true,
+          "kind": "data_integrity",
+          "severity": "critical"
+        },
+        {
+          "id": "D03-C11",
+          "description": "采购申请、采购承诺、收货入库、领料消耗和退料能够关联项目成本；预算成本、承诺成本和实际成本不得混为一项。",
+          "required": true,
+          "kind": "workflow",
+          "severity": "high"
+        }
+      ]
+    }
+  ]
+}
