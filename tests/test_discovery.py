@@ -1,4 +1,6 @@
 import unittest
+import json
+from pathlib import Path
 
 from radar.discovery import (
     DiscoveryValidationError,
@@ -124,3 +126,14 @@ class TestRevisionAndImmutability(unittest.TestCase):
             status="active", priority="high", acceptance_criteria=[])
         with self.assertRaises(DiscoveryValidationError):
             new_requirement_revision(first.to_dict(), key="D04")
+
+
+class TestDiscoverySchema(unittest.TestCase):
+    def test_schema_defines_all_eight_domain_objects(self):
+        schema_path = Path(__file__).resolve().parents[1] / "schemas" / "discovery.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        definitions = schema["$defs"]
+        for name in ("Workspace", "Requirement", "Source", "Asset", "Evidence",
+                     "Relationship", "Assessment", "DiscoveryRun"):
+            self.assertIn(name, definitions)
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
