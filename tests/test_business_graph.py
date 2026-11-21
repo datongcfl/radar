@@ -1,8 +1,12 @@
 import json
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from radar.business_graph import BusinessModelError, build_business_graph, validate_business_model
 from radar.model import load_pack
+from radar.discover import run_discovery
 
 class TestBusinessGraph(unittest.TestCase):
     def _data(self):
@@ -46,6 +50,34 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertTrue(declared)
         self.assertTrue(all(e["status"] == "declared_not_verified" for e in declared))
         self.assertTrue(all(not e["evidence_ids"] for e in declared))
+
+    def test_process_steps_and_criterion_entity_links_are_explicit_candidates(self):
+        _, pack, model = self._data()
+        requirement = {"id":"req_d03","key":"D03","version":1,"title":"材料采购",
+            "acceptance_criteria":[{"id":"D03-C5","description":"采购收货逐行关联采购订单，支持分批收货。","required":True}]}
+        graph = build_business_graph(model, pack, requirements=[requirement])
+        self.assertTrue(any(e["relation"] == "has_step" for e in graph["edges"]))
+        candidates = [e for e in graph["edges"] if e["relation"] == "candidate_requires"]
+        self.assertTrue(candidates)
+        self.assertTrue(all(e["status"] == "candidate_only" for e in candidates))
+
+    def test_business_graph_cli_reads_workspace_and_writes_projection(self):
+        root, pack, model = self._data()
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace_root = Path(tmp) / "store"
+            pack_path = root / "packs/weak-current/pack.json"
+            run_discovery("ws_business_graph_cli", str(root / "examples/requirements/weak-current.json"),
+                str(pack_path), str(root / "seeds/weak-current.json"), str(workspace_root))
+            output = Path(tmp) / "business-graph.json"
+            proc = subprocess.run([sys.executable, "-m", "radar", "business-graph",
+                "--workspace", "ws_business_graph_cli", "--workspace-root", str(workspace_root),
+                "--pack", str(pack_path), "--business-model", str(root / "packs/weak-current/business-model.json"),
+                "--out", str(output)], cwd=str(root), capture_output=True, text=True, timeout=30)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            graph = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(graph["counts"]["entities"], 7)
+            self.assertEqual(graph["counts"]["evidence"], 0)
+            self.assertEqual(graph["counts"]["candidate_entity_mentions"], 0)
 
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()

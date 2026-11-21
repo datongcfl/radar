@@ -122,6 +122,13 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
     for process in model["processes"]:
         pid = node("business_process", process["id"], business_id=process["id"],
                    name=process["name"], description=process["description"])
+        for step_index, entity_id in enumerate(process["steps"]):
+            _add_edge(edges, pid, entity_nodes[entity_id], "has_step",
+                "%s.S%02d" % (process["id"], step_index + 1),
+                {"source":"industry_pack","pack":model["pack"],
+                 "business_model_version":model["version"],"process_id":process["id"],
+                 "step_order":step_index + 1},
+                "declared_not_verified", 1.0)
         for index, transition in enumerate(process["transitions"]):
             _add_edge(edges, entity_nodes[transition["from"]], entity_nodes[transition["to"]],
                 "declared_transition", "%s.T%02d" % (process["id"], index + 1),
@@ -186,6 +193,16 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             _add_edge(edges, rid, cid, "has_criterion", "CORE.REQUIREMENT_CRITERION",
                 {"source":"requirement_record","requirement_id":requirement["id"]},
                 "source_backed", 1.0)
+            criterion_text = criterion["description"]
+            for entity in model["entities"]:
+                terms = entity["aliases"] + [entity["name"]] + entity["evidence_terms"]
+                matched = [term for term in terms if _contains(criterion_text, term)]
+                if matched:
+                    _add_edge(edges, cid, entity_nodes[entity["id"]], "candidate_requires",
+                        "CRITERION.ENTITY_TERM_MATCH",
+                        {"source":"acceptance_criterion","requirement_id":requirement["id"],
+                         "criterion_id":criterion["id"],"matching_policy":"casefold_substring"},
+                        "candidate_only", 0.5, [], matched)
     nodes.sort(key=lambda item: (item["kind"], item["id"]))
     edges.sort(key=lambda item: item["id"])
     return {"schema_version":1,"projection_type":"pack_driven_business_graph",
