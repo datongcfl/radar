@@ -6,6 +6,7 @@ from pathlib import Path
 
 from radar.discover import run_discovery
 from radar.discovery_store import JsonWorkspaceStore
+from radar.discovery import new_record
 
 
 class TestDiscoverWorkflow(unittest.TestCase):
@@ -44,6 +45,42 @@ class TestDiscoverWorkflow(unittest.TestCase):
             self.assertEqual(len(store.list_pending_quotes()), 23)
             self.assertEqual(len(store.list_records("discovery_run")), 2)
             self.assertNotEqual(first["run_id"], second["run_id"])
+
+    def test_github_candidates_and_evidence_join_the_workspace_run(self):
+        requirements, pack, seeds = self._paths()
+        with tempfile.TemporaryDirectory() as tmp:
+            def fake_github(requirement_rows, pack_data, workspace_id, **kwargs):
+                requirement_id = requirement_rows[0]["id"]
+                source = new_record("source", provider="github",
+                    uri="https://github.com", name="github.com",
+                    access_status="public").to_dict()
+                asset = new_record("asset", source_id=source["id"],
+                    asset_type="file", uri="https://github.com/acme/app/blob/abc/app.py",
+                    title="app.py", version_ref="abc", status="active").to_dict()
+                evidence = new_record("evidence", workspace_id=workspace_id,
+                    asset_id=asset["id"], evidence_kind="code",
+                    statement="create_purchase_order()", locator={
+                        "path": "app.py", "line_start": 12, "line_end": 12, "ref": "abc"},
+                    captured_at="2026-11-22T00:00:00Z",
+                    verification_status="source_confirmed").to_dict()
+                return {
+                    "sources": [source], "assets": [asset], "evidence": [evidence],
+                    "relationships": [], "matches": {requirement_id: [asset["id"]]},
+                    "warnings": [], "counts": {
+                        "code": 1, "issues": 0, "pull_requests": 0, "pr_files": 0},
+                }
+
+            from unittest import mock
+            with mock.patch("radar.discover.discover_github", side_effect=fake_github):
+                result = run_discovery("ws_discover_github", requirements, pack, seeds,
+                                       tmp, github=True)
+            store = JsonWorkspaceStore(tmp, "ws_discover_github")
+            self.assertEqual(len(store.list_records("source")), 8)
+            self.assertEqual(len(store.list_records("asset")), 36)
+            self.assertEqual(len(store.list_records("evidence")), 1)
+            d01 = next(x for x in result["assessments"] if x["requirement_key"] == "D01")
+            self.assertEqual(d01["status"], "not_assessed")
+            self.assertEqual(d01["evidence"], 1)
 
     def test_unknown_pack_unit_is_rejected(self):
         requirements, pack, seeds = self._paths()
