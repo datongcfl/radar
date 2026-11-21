@@ -156,6 +156,9 @@ def validate_record(record: Mapping[str, Any], expected_type: Optional[str] = No
             raise DiscoveryValidationError("requirement.version must be >= 1")
         if not isinstance(data["acceptance_criteria"], list):
             raise DiscoveryValidationError("requirement.acceptance_criteria must be an array")
+        if "pack_unit_ids" in data and (not isinstance(data["pack_unit_ids"], list)
+                or any(not isinstance(item, str) or not item for item in data["pack_unit_ids"])):
+            raise DiscoveryValidationError("requirement.pack_unit_ids must be an array of non-empty strings")
         criterion_ids = []
         for item in data["acceptance_criteria"]:
             if not isinstance(item, dict):
