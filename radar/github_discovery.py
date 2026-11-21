@@ -144,10 +144,17 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     repo_heads: dict[str, str] = {}
     captured_at = _now()
 
+    if not 1 <= limit_per_query <= 10:
+        raise ValueError("github limit_per_query must be between 1 and 10")
+
     for requirement in requirements:
-        for term in _requirement_terms(requirement, pack):
-            for kind in ("code", "issue", "pull_request"):
-                response, error = _search(term, kind, token, limit_per_query, timeout)
+        terms = _requirement_terms(requirement, pack)
+        if not terms:
+            warnings.append("%s has no searchable terms" % requirement.get("key", requirement["id"]))
+            continue
+        query = " OR ".join('"%s"' % term.replace('"', '\\"') for term in terms)
+        for kind in ("code", "issue", "pull_request"):
+                response, error = _search(query, kind, token, limit_per_query, timeout)
                 if error:
                     warnings.append("%s %s search failed: %s" % (requirement["key"], kind, error))
                     continue
@@ -203,7 +210,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                 warnings.append("file content fetch failed for %s: %s" %
                                                 (html_url, fetch_error[:160]))
                             else:
-                                query_terms = [term.lower()]
+                                query_terms = [value.lower() for value in terms]
                                 lines = (body or "").splitlines()
                                 hit_lines = []
                                 for line_no, line in enumerate(lines, 1):
