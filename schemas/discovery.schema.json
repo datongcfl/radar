@@ -45,7 +45,7 @@
           "type": "object"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "status": {
       "type": "string",
