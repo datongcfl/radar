@@ -277,6 +277,47 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(search.call_count, 6)
 
 
+    @mock.patch("radar.github_discovery._curl_text")
+    @mock.patch("radar.github_discovery._api_json")
+    @mock.patch("radar.github_discovery._search")
+    def test_python_ast_finds_import_dependency_and_state_transition(
+            self, search, api_json, curl_text):
+        requirements, pack = self._inputs()
+        order = {"html_url":"https://github.com/acme/erp/blob/main/order.py",
+                 "path":"order.py","sha":"blob_order",
+                 "repository":{"full_name":"acme/erp","default_branch":"main"}}
+        receipt = {"html_url":"https://github.com/acme/erp/blob/main/receipt.py",
+                   "path":"receipt.py","sha":"blob_receipt",
+                   "repository":{"full_name":"acme/erp","default_branch":"main"}}
+        search.side_effect = lambda query, kind, token, limit, timeout: (
+            {"items":[order, receipt] if kind == "code" else []}, None)
+        api_json.side_effect = lambda path, token, timeout: (
+            ({"sha":"commit_ast"}, None) if "/commits/" in path else ({}, None))
+        def source_result(url, headers=None, timeout=25):
+            if "receipt.py" in url:
+                return ('from order import PurchaseOrder\n'
+                        'def submit(doc):\n'
+                        '    if doc.status == "Draft":\n'
+                        '        doc.status = "Submitted"\n', 200, None)
+            return ("class PurchaseOrder: pass\n", 200, None)
+        curl_text.side_effect = source_result
+        result = discover_github(requirements, pack, "ws_ast", token="test-token")
+        by_path = {asset["metadata"].get("path"): asset["id"]
+                   for asset in result["assets"] if asset["asset_type"] == "file"}
+        dependency = next(rel for rel in result["relationships"]
+                          if rel["relation_type"] == "depends_on")
+        self.assertEqual(dependency["from"]["id"], by_path["receipt.py"])
+        self.assertEqual(dependency["to"]["id"], by_path["order.py"])
+        self.assertEqual(dependency["metadata"]["inference_status"], "candidate_only")
+        self.assertEqual(len(dependency["evidence_ids"]), 1)
+        state_evidence = next(ev for ev in result["evidence"]
+                              if (ev.get("metadata") or {}).get("code_analysis", {}).get("kind")
+                              == "state_transition_candidate")
+        self.assertEqual(state_evidence["metadata"]["code_analysis"]["from_state"], "Draft")
+        self.assertEqual(state_evidence["metadata"]["code_analysis"]["to_state"], "Submitted")
+        self.assertEqual(state_evidence["locator"]["line_start"], 3)
+        self.assertEqual(state_evidence["locator"]["line_end"], 4)
+
     @mock.patch("radar.github_discovery._api_json")
     @mock.patch("radar.github_discovery._search")
     def test_d03_search_batches_cover_receipt_transfer_and_return_terms(

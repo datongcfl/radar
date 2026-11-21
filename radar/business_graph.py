@@ -171,6 +171,18 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             _add_edge(edges, enode, asset_node, "located_in", "CORE.EVIDENCE_ASSET",
                 {"source":"discovery_record","evidence_id":eid,"asset_id":ev.get("asset_id"),
                  "locator":ev.get("locator", {})}, "source_backed", 1.0, [eid])
+        analysis = (ev.get("metadata") or {}).get("code_analysis") or {}
+        if analysis.get("kind") == "state_transition_candidate":
+            state_node = node("code_state_transition", eid, evidence_id=eid,
+                from_state=analysis.get("from_state"), to_state=analysis.get("to_state"),
+                scope=analysis.get("scope", []), target=analysis.get("target"),
+                inference_status="candidate_only", locator=ev.get("locator", {}))
+            _add_edge(edges, enode, state_node, "observes_candidate_state_transition",
+                "PYTHON.AST.GUARDED_STATUS_ASSIGNMENT",
+                {"source":"stdlib_python_ast","evidence_id":eid,
+                 "guard_line":analysis.get("guard_line"),
+                 "assignment_line":analysis.get("assignment_line")},
+                "candidate_only", 0.75, [eid])
         asset = assets_by_id.get(ev.get("asset_id"), {})
         evidence_by_asset.setdefault(ev.get("asset_id"), set()).add(eid)
         evidence_entities[eid] = set()
@@ -297,6 +309,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
             "candidate_exception_mentions":sum(1 for e in edges if e["relation"]=="candidate_exception_mention"),
             "candidate_transition_links":sum(1 for e in edges if e["relation"]=="candidate_transition"),
+            "candidate_code_state_transitions":sum(1 for n in nodes if n["kind"]=="code_state_transition"),
             "criterion_candidate_evidence_links":sum(1 for e in edges if e["relation"]=="candidate_evidence_for"),
             "criteria_no_evidence":sum(1 for item in criterion_summaries if item["status"]=="no_evidence"),
             "criteria_with_candidates":sum(1 for item in criterion_summaries if item["status"]=="candidate_evidence")},

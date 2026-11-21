@@ -48,10 +48,10 @@ python -m radar business-graph \
 
 The output is a derived JSON artifact and does not mutate immutable Evidence or historical DiscoveryRun records. The CLI verifies the Workspace Pack name/version/content digest lock before projection. The graph records the Workspace ID, DiscoveryRun IDs, model digest, Pack identity/version, counts, and inference policy.
 
-## M11 first-pass limitations
+## M12 static code analysis (candidate evidence)\n\nThe GitHub adapter analyzes fetched Python source snapshots with the standard-library AST module. It can emit:\n\n- `depends_on` Asset relationships for imports that resolve to another discovered Python file in the same repository.\n- `tests` Asset relationships when an import is found in a conventionally named test file.\n- code Evidence for the exact import line, with repository path and immutable commit ref.\n- guarded status-assignment candidates for narrow patterns such as `if doc.status == "Draft": doc.status = "Submitted"`. These include guard/assignment line ranges and class/function scope.\n\nEvery inferred relationship carries `metadata.inference_status=candidate_only`; state observations carry `metadata.code_analysis.inference_status=candidate_only`. Static AST inspection does not prove that a branch executes, that all states are covered, or that a workflow is correct. The current analyzer only handles Python and only resolves imports among code files already discovered in that run.\n\n## M11 first-pass limitations
 
 - Lexical matching is case-insensitive substring matching, not semantic understanding.
 - The graph does not infer that a transition is complete from adjacent entity mentions.
 - No criterion is marked supported by graph projection.
 - The current D03 offline workspace has no locatable D03 Evidence; its graph should therefore show declared entities/processes/exceptions and zero candidate Evidence links.
-- State-machine reconstruction, quantitative quantity/value invariants, semantic adjudication, and automatic supported/contradicted assessment remain follow-up work. The criterion evidence matrix is a retrieval/triage aid; candidate evidence must be reviewed by an Agent or human before Assessment status changes.
+- Full state-machine reconstruction across branches and files, quantitative quantity/value invariants, semantic adjudication, and automatic supported/contradicted assessment remain follow-up work. The criterion evidence matrix is a retrieval/triage aid; candidate evidence must be reviewed by an Agent or human before Assessment status changes.

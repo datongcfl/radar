@@ -17,6 +17,7 @@ from .adapters import _curl_json
 from .discovery import new_record, validate_record
 from .verify import _curl_text
 from .document_parser import extract_csv_document, extract_office_document
+from .code_analyzer import analyze_python_source
 import base64
 
 
@@ -89,6 +90,19 @@ def _relationship(from_type: str, from_id: str, to_type: str, to_id: str) -> dic
            "to": {"object_type": to_type, "id": to_id},
            "relation_type": "contains", "confidence": 1.0,
            "evidence_ids": [], "status": "active", "created_by": "radar"})
+
+
+def _typed_relationship(from_id: str, to_id: str, relation_type: str,
+                        evidence_ids: list[str], metadata: dict[str, Any],
+                        confidence: float = 0.85) -> dict[str, Any]:
+    key = json.dumps(["asset", from_id, relation_type, "asset", to_id, metadata],
+                     sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return _record("relationship", key,
+        **{"from": {"object_type": "asset", "id": from_id},
+           "to": {"object_type": "asset", "id": to_id},
+           "relation_type": relation_type, "confidence": confidence,
+           "evidence_ids": sorted(set(evidence_ids)), "status": "active",
+           "created_by": "radar", "metadata": {"inference_status": "candidate_only", **metadata}})
 
 
 def _search(query: str, kind: str, token: str, limit: int, timeout: int):
@@ -255,6 +269,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     counted_assets: dict[str, str] = {}
     repo_heads: dict[str, tuple[str, bool]] = {}
     discovered_repos: dict[str, dict[str, Any]] = {}
+    code_files: dict[tuple[str, str], dict[str, Any]] = {}
     captured_at = _now()
 
     if not 1 <= limit_per_query <= 10:
@@ -331,6 +346,11 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                             warnings.append("file content fetch failed for %s: %s" %
                                             (html_url, fetch_error[:160]))
                         else:
+                            extension = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+                            if extension == "py":
+                                code_files[(full_name, path)] = {
+                                    "asset_id": asset["id"], "content": body or "",
+                                    "version_ref": version_ref, "source_id": source_id}
                             query_terms = [value.lower() for value in terms]
                             lines = (body or "").splitlines()
                             hit_lines = []
@@ -339,7 +359,6 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                     hit_lines.append((line_no, line.strip()))
                                 if len(hit_lines) >= 5:
                                     break
-                            extension = path.rsplit(".", 1)[-1].lower() if "." in path else ""
                             evidence_kind = ("documentation" if extension in
                                              ("md", "rst", "txt", "adoc", "html", "yaml", "yml", "json")
                                              else "code")
@@ -675,6 +694,85 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                         locator, tree_ref, captured_at)
                     ev["extractor"] = {"name": "stdlib-office-xml" if is_office_doc else ("stdlib-csv" if is_csv_doc else "github-text"), "version": "1"}
                     evidence[ev["id"]] = ev
+
+    # M12: derive explicit Python import/test dependencies and guarded status
+    # assignments from immutable source snapshots. All inferred links remain candidates.
+    module_index: dict[tuple[str, str], str] = {}
+    for (repository, source_path), record in code_files.items():
+        normalized = source_path.replace("\\", "/")
+        candidates = {normalized}
+        if normalized.startswith("src/"):
+            candidates.add(normalized[4:])
+        if normalized.startswith("lib/"):
+            candidates.add(normalized[4:])
+        for candidate in candidates:
+            if candidate.endswith(".py"):
+                module = candidate[:-3].replace("/", ".")
+                if module.endswith(".__init__"):
+                    module = module[:-9]
+                module_index[(repository, module)] = record["asset_id"]
+
+    def resolve_module(repository: str, module: str) -> Optional[str]:
+        direct = module_index.get((repository, module))
+        if direct:
+            return direct
+        # Resolve a submodule imported from a package when its file was discovered.
+        suffix = module.replace(".", "/") + ".py"
+        matches_found = sorted(record["asset_id"] for (repo_name, source_path), record
+                               in code_files.items()
+                               if repo_name == repository and source_path.endswith(suffix))
+        return matches_found[0] if len(set(matches_found)) == 1 else None
+
+    for (repository, source_path), record in sorted(code_files.items()):
+        parsed = analyze_python_source(record["content"], source_path)
+        if parsed["status"] != "parsed":
+            warnings.append("Python AST analysis skipped for %s: %s" %
+                            (source_path, parsed.get("reason", "parse failed")))
+            continue
+        importer_id = record["asset_id"]
+        is_test_file = (source_path.lower().startswith(("test/", "tests/"))
+                        or source_path.rsplit("/", 1)[-1].lower().startswith("test_")
+                        or source_path.lower().endswith("_test.py"))
+        for imported in parsed["imports"]:
+            target_id = resolve_module(repository, imported["module"])
+            if not target_id or target_id == importer_id:
+                continue
+            line_no = imported["line"]
+            statement = "Python %s dependency: %s" % (imported["kind"], imported["module"])
+            ev = _evidence(workspace_id, importer_id, "code", statement,
+                {"path": source_path, "line_start": line_no, "line_end": line_no,
+                 "ref": record["version_ref"], "analysis": "python_import"},
+                record["version_ref"], captured_at)
+            ev["extractor"] = {"name": "stdlib-python-ast", "version": "1"}
+            evidence[ev["id"]] = ev
+            rel_type = "tests" if is_test_file else "depends_on"
+            relation = _typed_relationship(importer_id, target_id, rel_type, [ev["id"]], {
+                "rule_id": "PYTHON.IMPORT_DEPENDENCY",
+                "repository": repository, "source_path": source_path,
+                "target_module": imported["module"], "line": line_no,
+                "import_kind": imported["kind"]})
+            relationships[relation["id"]] = relation
+        for transition in parsed["state_transitions"]:
+            start = min(transition["guard_line"], transition["assignment_line"])
+            end = max(transition["guard_line"], transition["assignment_line"])
+            scope = ".".join(transition["scope"])
+            statement = "Candidate guarded state transition: %s -> %s%s" % (
+                transition["from_state"], transition["to_state"],
+                (" in " + scope) if scope else "")
+            ev = _evidence(workspace_id, importer_id, "code", statement,
+                {"path": source_path, "line_start": start, "line_end": end,
+                 "ref": record["version_ref"], "analysis": "guarded_status_assignment"},
+                record["version_ref"], captured_at)
+            ev["extractor"] = {"name": "stdlib-python-ast", "version": "1"}
+            ev["metadata"] = {"code_analysis": {
+                "kind": "state_transition_candidate",
+                "from_state": transition["from_state"],
+                "to_state": transition["to_state"],
+                "scope": transition["scope"], "target": transition["target"],
+                "guard_line": transition["guard_line"],
+                "assignment_line": transition["assignment_line"],
+                "inference_status": "candidate_only"}}
+            evidence[ev["id"]] = ev
 
     return {
         "sources": list(sources.values()), "assets": list(assets.values()),

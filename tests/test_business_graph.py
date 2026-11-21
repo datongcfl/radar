@@ -120,6 +120,23 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(matrix["status"], "no_evidence")
         self.assertEqual(matrix["candidate_evidence_ids"], [])
 
+    def test_code_state_transition_is_exposed_as_unverified_candidate(self):
+        _, pack, model = self._data()
+        evidence = [{"id":"evd_state","asset_id":"ast_code","statement":"Draft -> Submitted",
+            "locator":{"path":"receipt.py","line_start":4,"line_end":5},
+            "metadata":{"code_analysis":{"kind":"state_transition_candidate",
+                "from_state":"Draft","to_state":"Submitted","scope":["function:submit"],
+                "inference_status":"candidate_only"}}}]
+        graph = build_business_graph(model, pack,
+            assets=[{"id":"ast_code","title":"receipt.py","asset_type":"file","uri":"https://x/receipt.py"}],
+            evidence=evidence)
+        state_nodes = [n for n in graph["nodes"] if n["kind"] == "code_state_transition"]
+        self.assertEqual(len(state_nodes), 1)
+        self.assertEqual(state_nodes[0]["from_state"], "Draft")
+        self.assertEqual(state_nodes[0]["to_state"], "Submitted")
+        self.assertEqual(state_nodes[0]["inference_status"], "candidate_only")
+        self.assertEqual(graph["counts"]["candidate_code_state_transitions"], 1)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
