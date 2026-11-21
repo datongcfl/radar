@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, Optional, Union
 import hashlib
 import json
 import os
@@ -18,9 +18,9 @@ class StorageError(RuntimeError):
 
 class Storage(Protocol):
     def append(self, record: dict[str, Any]) -> None: ...
-    def get(self, object_type: str, record_id: str) -> dict[str, Any] | None: ...
+    def get(self, object_type: str, record_id: str) -> Optional[dict[str, Any]]: ...
     def list_records(self, object_type: str) -> list[dict[str, Any]]: ...
-    def save_snapshot(self, content: bytes | str) -> str: ...
+    def save_snapshot(self, content: Union[bytes, str]) -> str: ...
 
 
 _COLLECTIONS = {
@@ -57,7 +57,7 @@ def _atomic_write(path: Path, content: bytes) -> None:
 class JsonWorkspaceStore:
     """One Workspace boundary; records and snapshots are never shared implicitly."""
 
-    def __init__(self, root: str | Path, workspace_id: str):
+    def __init__(self, root: Union[str, Path], workspace_id: str):
         if not re.match(r"^ws_[A-Za-z0-9][A-Za-z0-9._-]{1,127}$", workspace_id or ""):
             raise StorageError("invalid workspace id")
         self.root = Path(root).expanduser().resolve() / "workspaces" / workspace_id
