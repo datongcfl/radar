@@ -196,6 +196,8 @@ def cmd_scan(args):
 
 
 def cmd_discover(args):
+    if args.github and not shutil.which("curl"):
+        raise RadarError("--github 需要 curl；请先安装 curl 或去掉 --github")
     return run_discovery(args.workspace, args.requirements, args.pack,
                          args.seeds, workspace_root=args.workspace_root,
                          github=args.github, github_limit=args.github_limit)
