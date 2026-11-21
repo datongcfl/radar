@@ -1,6 +1,8 @@
 import json
 import tempfile
 import unittest
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -60,6 +62,23 @@ class TestD03MaterialProcurementCase(unittest.TestCase):
         self.assertEqual(result["assessments"][0]["requirement_key"], "D03")
         self.assertEqual(result["assessments"][0]["status"], "no_evidence")
         self.assertGreater(result["assessments"][0]["candidate_assets"], 0)
+
+
+    def test_d03_runs_through_discover_cli_without_github_token(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = subprocess.run([
+                sys.executable, "-m", "radar", "discover",
+                "--workspace", "ws_d03_cli_test",
+                "--workspace-root", tmp,
+                "--requirements", str(ROOT / "examples" / "requirements" / "d03-material-procurement.json"),
+                "--pack", str(ROOT / "packs" / "weak-current" / "pack.json"),
+                "--seeds", str(ROOT / "seeds" / "weak-current.json"),
+            ], cwd=str(ROOT), capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["run_status"], "partial")
+        self.assertEqual(result["assessments"][0]["requirement_key"], "D03")
+        self.assertEqual(result["assessments"][0]["status"], "no_evidence")
 
 
 if __name__ == "__main__":
