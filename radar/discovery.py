@@ -7,6 +7,7 @@ from copy import deepcopy
 import re
 import uuid
 from typing import Any, Mapping
+from types import MappingProxyType
 
 SCHEMA_VERSION = 1
 PREFIXES = {
@@ -67,6 +68,26 @@ class DiscoveryValidationError(ValueError):
     """A discovery record violates the v1 domain contract."""
 
 
+def _freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    if isinstance(value, set):
+        return frozenset(_freeze(item) for item in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_thaw(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_thaw(item) for item in value]
+    return deepcopy(value)
+
+
 @dataclass(frozen=True)
 class DomainRecord:
     """Immutable in-memory envelope; payload is copied at construction."""
@@ -77,7 +98,7 @@ class DomainRecord:
     payload: Mapping[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
-        result = deepcopy(dict(self.payload))
+        result = _thaw(self.payload)
         result.update({
             "object_type": self.object_type,
             "id": self.id,
@@ -216,7 +237,7 @@ def new_record(object_type: str, **fields: Any) -> DomainRecord:
     }
     validate_record(record, object_type)
     return DomainRecord(object_type, record["id"], SCHEMA_VERSION,
-                        record["created_at"], deepcopy(fields))
+                        record["created_at"], _freeze(fields))
 
 
 def validate_evidence_unchanged(original: Mapping[str, Any], candidate: Mapping[str, Any]) -> None:
@@ -225,3 +246,17 @@ def validate_evidence_unchanged(original: Mapping[str, Any], candidate: Mapping[
     new = validate_record(candidate, "evidence")
     if old != new:
         raise DiscoveryValidationError("Evidence is immutable; create a new evidence record")
+
+
+def new_requirement_revision(previous: Mapping[str, Any], **changes: Any) -> DomainRecord:
+    """Append a new requirement version; preserve its business key and link its predecessor."""
+    old = validate_record(previous, "requirement")
+    managed = {"workspace_id", "key", "version", "supersedes_requirement_id"}
+    if managed.intersection(changes):
+        raise DiscoveryValidationError("workspace_id/key/version/supersedes are managed by revisioning")
+    fields = {key: value for key, value in old.items()
+              if key not in {"object_type", "id", "schema_version", "created_at", "updated_at"}}
+    fields.update(changes)
+    fields["version"] = old["version"] + 1
+    fields["supersedes_requirement_id"] = old["id"]
+    return new_record("requirement", **fields)
