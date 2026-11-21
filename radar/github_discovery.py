@@ -205,7 +205,6 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                         content_path = "/repos/%s/contents/%s?ref=%s" % (
                             full_name, quote(path, safe="/"), quote(version_ref, safe=""))
                         raw_url = API + content_path
-                        from .verify import _curl_text
                         body, status, fetch_error = _curl_text(
                             raw_url, headers=["Accept: application/vnd.github.raw",
                                               "Authorization: Bearer %s" % token],
@@ -222,11 +221,15 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                     hit_lines.append((line_no, line.strip()))
                                 if len(hit_lines) >= 5:
                                     break
+                            extension = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+                            evidence_kind = ("documentation" if extension in
+                                             ("md", "rst", "txt", "adoc", "html", "yaml", "yml", "json")
+                                             else "code")
                             for line_no, line in hit_lines:
                                 if not line:
                                     continue
                                 ev = _evidence(
-                                    workspace_id, asset["id"], "code", line,
+                                    workspace_id, asset["id"], evidence_kind, line,
                                     {"path": path, "line_start": line_no,
                                      "line_end": line_no, "ref": version_ref},
                                     version_ref, captured_at)
