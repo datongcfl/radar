@@ -26,8 +26,20 @@ def _number(value: Any) -> Decimal:
     return result
 
 
+def _locator_identity(locator: Any) -> tuple:
+    if not isinstance(locator, dict):
+        return ()
+    if locator.get("cell"):
+        return ("xlsx", str(locator.get("path", "")), str(locator.get("sheet", "")),
+                str(locator.get("cell", "")).upper())
+    if "row" in locator and "column" in locator:
+        return ("csv", str(locator.get("path", "")), int(locator["row"]), int(locator["column"]))
+    return ()
+
+
 def aggregate_observations(rule: dict[str, Any],
-                           observations: Iterable[dict[str, Any]]) -> dict[str, Any]:
+                           observations: Iterable[dict[str, Any]],
+                           evidence_records: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
     """Aggregate one declared numeric field by exact business scope keys.
 
     rule keys: id, source_invariant_id, source_field, group_by, operation
@@ -47,6 +59,7 @@ def aggregate_observations(rule: dict[str, Any],
             or len(set(group_by)) != len(group_by)):
         raise ObservationAggregationError("group_by must contain unique non-empty field names")
 
+    evidence_by_id = {item.get("id"): item for item in evidence_records if isinstance(item, dict)}
     grouped = {}
     seen_observation_ids = set()
     skipped = []
@@ -76,8 +89,35 @@ def aggregate_observations(rule: dict[str, Any],
             continue
         evidence_id = provenance[field].get("evidence_id")
         asset_id = row.get("asset_id")
-        if not isinstance(evidence_id, str) or not evidence_id or not isinstance(asset_id, str) or not asset_id:
-            skipped.append({"observation_id": row_id, "reason": "missing_provenance_identity"})
+        source_evidence = evidence_by_id.get(evidence_id)
+        source_locator = _locator_identity(provenance[field].get("locator"))
+        if (not isinstance(evidence_id, str) or not evidence_id
+                or not isinstance(asset_id, str) or not asset_id
+                or source_evidence is None
+                or source_evidence.get("asset_id") != asset_id
+                or not source_locator
+                or _locator_identity(source_evidence.get("locator")) != source_locator):
+            skipped.append({"observation_id": row_id, "reason": "unverified_source_field_provenance"})
+            continue
+        scope_provenance = row.get("scope_provenance")
+        verified_scope_provenance = {}
+        scope_invalid = False
+        for name in group_by:
+            item = scope_provenance.get(name) if isinstance(scope_provenance, dict) else None
+            scope_evidence_id = item.get("evidence_id") if isinstance(item, dict) else None
+            scope_evidence = evidence_by_id.get(scope_evidence_id)
+            scope_locator = _locator_identity(item.get("locator")) if isinstance(item, dict) else ()
+            if (not isinstance(scope_evidence_id, str) or not scope_evidence_id
+                    or scope_evidence is None
+                    or scope_evidence.get("asset_id") != asset_id
+                    or not scope_locator
+                    or _locator_identity(scope_evidence.get("locator")) != scope_locator):
+                scope_invalid = True
+                break
+            verified_scope_provenance[name] = {
+                "evidence_id": scope_evidence_id, "locator": item["locator"]}
+        if scope_invalid:
+            skipped.append({"observation_id": row_id, "reason": "unverified_group_key_provenance"})
             continue
         key_values = {name: scope[name] for name in group_by}
         key = tuple(key_values[name] for name in group_by)
@@ -85,6 +125,7 @@ def aggregate_observations(rule: dict[str, Any],
             "observation_id": row_id, "asset_id": asset_id,
             "evidence_id": evidence_id, "value": _number(values[field]),
             "field_provenance": provenance[field], "business_scope": key_values,
+            "scope_provenance": verified_scope_provenance,
         })
 
     results = []
@@ -117,6 +158,7 @@ def aggregate_observations(rule: dict[str, Any],
                 "asset_id": item["asset_id"], "evidence_id": item["evidence_id"],
                 "value": str(item["value"]),
                 "field_provenance": item["field_provenance"],
+                "scope_provenance": item["scope_provenance"],
             } for item in unique],
             "contribution_count": len(unique),
             "evidence_ids": sorted(by_evidence),
