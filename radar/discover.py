@@ -12,6 +12,7 @@ from .discovery import new_record, new_requirement_revision, validate_record
 from .discovery_store import JsonWorkspaceStore, StorageError
 from .legacy import convert_legacy_sources, read_legacy_sources
 from .model import load_json, load_pack, sha256_file
+from .github_discovery import discover_github
 
 
 def _now() -> str:
@@ -86,8 +87,9 @@ def _mention_relationship(from_type: str, from_id: str, to_type: str, to_id: str
 
 
 def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
-                  seeds_path: str, workspace_root: str = ".") -> dict[str, Any]:
-    """Run the first offline discover loop from requirements + existing Seeds."""
+                  seeds_path: str, workspace_root: str = ".",
+                  github: bool = False, github_limit: int = 5) -> dict[str, Any]:
+    """Run requirement discovery from existing Seeds and optional GitHub search."""
     started_at = _now()
     spec = load_json(requirements_path)
     if not isinstance(spec, dict) or spec.get("schema_version") != 1:
@@ -125,10 +127,21 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         requirements.append(record)
 
     converted = convert_legacy_sources(seeds, workspace_id, captured_at=started_at)
+    github_result = (discover_github(requirements, pack, workspace_id,
+                                     limit_per_query=github_limit)
+                     if github else {"sources": [], "assets": [], "evidence": [],
+                                     "matches": {}, "warnings": [],
+                                     "counts": {"code": 0, "issues": 0, "pull_requests": 0}})
+    all_sources = converted["sources"] + github_result["sources"]
+    all_assets = converted["assets"] + github_result["assets"]
+    all_evidence = converted["evidence"] + github_result["evidence"]
     for kind in ("sources", "assets", "relationships", "evidence"):
         object_type = {"sources": "source", "assets": "asset",
                        "relationships": "relationship", "evidence": "evidence"}[kind]
-        for record in converted[kind]:
+        rows = {"sources": all_sources, "assets": all_assets,
+                "relationships": converted["relationships"],
+                "evidence": all_evidence}[kind]
+        for record in rows:
             _append_idempotent(store, record)
     for quote in converted["pending_quotes"]:
         store.append_pending_quote(quote)
@@ -140,6 +153,10 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
 
     candidate_assets: dict[str, set[str]] = {r["id"]: set() for r in requirements}
     candidate_evidence: dict[str, set[str]] = {r["id"]: set() for r in requirements}
+    requirements_by_id = {r["id"]: r for r in requirements}
+    for requirement_id, asset_ids in github_result["matches"].items():
+        if requirement_id in candidate_assets:
+            candidate_assets[requirement_id].update(asset_ids)
     new_relationships = []
     for asset in converted["assets"]:
         covers = set(asset.get("metadata", {}).get("legacy_covers", []))
@@ -150,7 +167,7 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
             relation = _mention_relationship("asset", asset["id"], "requirement", req_id)
             _append_idempotent(store, relation)
             new_relationships.append(relation)
-    for evidence in converted["evidence"]:
+    for evidence in all_evidence:
         for req_id, asset_ids in candidate_assets.items():
             if evidence["asset_id"] in asset_ids:
                 candidate_evidence[req_id].add(evidence["id"])
@@ -166,6 +183,9 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         stages=[
             {"name": "load_requirements", "status": "succeeded"},
             {"name": "load_legacy_seeds", "status": "succeeded"},
+            {"name": "github_file_issue_pr_discovery",
+             "status": ("partial" if github_result["warnings"] else "succeeded") if github else "skipped",
+             "errors": github_result["warnings"]},
             {"name": "convert_assets", "status": "succeeded"},
             {"name": "persist_records", "status": "succeeded"},
             {"name": "map_candidates", "status": "succeeded"},
@@ -173,13 +193,17 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
             {"name": "locate_legacy_quotes", "status": "partial" if converted["pending_quotes"] else "succeeded",
              "errors": ["legacy quote lacks precise locator"] if converted["pending_quotes"] else []},
         ],
-        counts={"sources": len(converted["sources"]), "assets": len(converted["assets"]),
-                "evidence": len(converted["evidence"]), "relationships": len(converted["relationships"]) + len(new_relationships),
-                "pending_quotes": len(converted["pending_quotes"]), "requirements": len(requirements)},
-        errors=[], parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
+        counts={"sources": len(all_sources), "assets": len(all_assets),
+                "evidence": len(all_evidence), "relationships": len(converted["relationships"]) + len(new_relationships),
+                "pending_quotes": len(converted["pending_quotes"]), "requirements": len(requirements),
+                "github_code": github_result["counts"]["code"],
+                "github_issues": github_result["counts"]["issues"],
+                "github_pull_requests": github_result["counts"]["pull_requests"]},
+        errors=list(github_result["warnings"]), parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
                                "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
                                "requirements_path": str(requirements_path),
-                               "requirements_sha256": sha256_file(requirements_path)},
+                               "requirements_sha256": sha256_file(requirements_path),
+                               "github_enabled": bool(github), "github_limit": github_limit},
         radar_version=__version__).to_dict()
 
     assessments = []
@@ -206,7 +230,7 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
     return {
         "workspace_id": workspace_id, "workspace_path": str(store.root),
         "run_id": run["id"], "run_status": run["status"],
-        "counts": run["counts"],
+        "counts": run["counts"], "warnings": github_result["warnings"],
         "assessments": [{"requirement_key": r["key"], "status": a["overall_status"],
                          "candidate_assets": len(candidate_assets[r["id"]]),
                          "evidence": len(a["evidence_ids"])}
