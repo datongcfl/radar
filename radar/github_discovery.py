@@ -16,6 +16,8 @@ import os
 from .adapters import _curl_json
 from .discovery import new_record, validate_record
 from .verify import _curl_text
+from .document_parser import extract_office_document
+import base64
 
 
 API = "https://api.github.com"
@@ -184,7 +186,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     if not token:
         return {"sources": [], "assets": [], "evidence": [], "matches": {},
                 "warnings": ["GitHub discovery skipped: GITHUB_TOKEN is not configured"],
-                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0},
+                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0},
                                      "relationships": []}
     sources: dict[str, dict[str, Any]] = {}
     assets: dict[str, dict[str, Any]] = {}
@@ -380,6 +382,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     # not depend on GitHub Code Search indexing or README-only repository metadata.
     document_extensions = {"md", "rst", "txt", "adoc", "html", "htm", "yaml", "yml"}
     binary_document_extensions = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"}
+    office_extensions = {"docx", "xlsx", "pptx"}
     for full_name, repo_hint in sorted(discovered_repos.items()):
         branch_name = str(repo_hint.get("default_branch") or "")
         if not branch_name:
@@ -428,40 +431,76 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
             uri = "https://github.com/%s/blob/%s/%s" % (
                 full_name, tree_ref, quote(path, safe="/"))
             is_text_doc = ext in document_extensions
+            is_office_doc = ext in office_extensions
             metadata = {
                 "path": path, "repository": full_name, "version_ref": tree_ref,
                 "blob_sha": entry.get("sha"), "size": entry.get("size", 0),
                 "matched_by": "github_recursive_tree",
                 "document_format": ext,
-                "content_extraction": "text" if is_text_doc else "unsupported_binary",
+                "content_extraction": "pending" if is_office_doc else ("text" if is_text_doc else "unsupported_binary"),
             }
             asset = _asset(source_id, "file", uri, path, metadata)
             if asset["id"] not in assets:
                 assets[asset["id"]] = asset
-                counts["documents" if is_text_doc else "unsupported_documents"] += 1
-            if not is_text_doc:
+                counts["documents" if (is_text_doc or is_office_doc) else "unsupported_documents"] += 1
+            if is_text_doc:
+                raw_url = "https://raw.githubusercontent.com/%s/%s/%s" % (
+                    full_name, tree_ref, quote(path, safe="/"))
+                body, status, fetch_error = _curl_text(
+                    raw_url, headers=["Authorization: Bearer %s" % token], timeout=timeout)
+                if fetch_error:
+                    warnings.append("document fetch failed for %s: %s" % (uri, fetch_error[:160]))
+                    continue
+                chunks = [{"text": line.strip(), "locator": {
+                    "line_start": line_no, "line_end": line_no, "block": "line"}}
+                    for line_no, line in enumerate((body or "").splitlines(), 1) if line.strip()]
+                asset["metadata"]["content_extraction"] = "text"
+            elif is_office_doc:
+                blob_data, blob_error = _api_json(
+                    "/repos/%s/git/blobs/%s" % (full_name, entry.get("sha")), token, timeout)
+                if blob_error or not (blob_data or {}).get("content"):
+                    counts["parse_failures"] += 1
+                    asset["metadata"]["content_extraction"] = "failed"
+                    warnings.append("Office document blob fetch failed for %s: %s" %
+                                    (uri, (blob_error or "missing blob content")[:160]))
+                    continue
+                try:
+                    raw_bytes = base64.b64decode(blob_data["content"])
+                except (ValueError, TypeError) as exc:
+                    counts["parse_failures"] += 1
+                    asset["metadata"]["content_extraction"] = "failed"
+                    warnings.append("Office document base64 decode failed for %s: %s" %
+                                    (uri, str(exc)[:120]))
+                    continue
+                parsed = extract_office_document(raw_bytes, ext)
+                asset["metadata"]["content_extraction"] = parsed["status"]
+                asset["metadata"]["parser"] = "stdlib-office-xml"
+                if parsed["status"] != "parsed":
+                    counts["parse_failures"] += 1
+                    warnings.append("Office document parsing %s for %s: %s" %
+                                    (parsed["status"], uri, parsed.get("reason") or "no reason"))
+                    continue
+                counts["parsed_documents"] += 1
+                chunks = parsed["chunks"]
+            else:
                 continue
-            raw_url = "https://raw.githubusercontent.com/%s/%s/%s" % (
-                full_name, tree_ref, quote(path, safe="/"))
-            body, status, fetch_error = _curl_text(
-                raw_url, headers=["Authorization: Bearer %s" % token], timeout=timeout)
-            if fetch_error:
-                warnings.append("document fetch failed for %s: %s" % (uri, fetch_error[:160]))
-                continue
-            lines = (body or "").splitlines()
+
             for requirement in requirements:
                 terms = _requirement_terms(requirement, pack)
-                hits = [(line_no, line.strip()) for line_no, line in enumerate(lines, 1)
-                        if line.strip() and any(term.lower() in line.lower() for term in terms)]
+                hits = [chunk for chunk in chunks if any(
+                    term.lower() in chunk["text"].lower() for term in terms)]
                 if not hits:
                     continue
                 matches[requirement["id"]].add(asset["id"])
-                for line_no, line in hits[:5]:
+                for chunk in hits[:10]:
+                    locator = dict(chunk["locator"])
+                    locator.update({"path": path, "ref": tree_ref,
+                                    "blob_sha": entry.get("sha")})
                     ev = _evidence(
-                        workspace_id, asset["id"], "documentation", line,
-                        {"path": path, "line_start": line_no, "line_end": line_no,
-                         "ref": tree_ref, "blob_sha": entry.get("sha")},
-                        tree_ref, captured_at)
+                        workspace_id, asset["id"], "documentation", chunk["text"],
+                        locator, tree_ref, captured_at)
+                    ev["extractor"] = {"name": "stdlib-office-xml" if is_office_doc
+                                       else "github-text", "version": "1"}
                     evidence[ev["id"]] = ev
 
     return {
