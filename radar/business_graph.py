@@ -257,7 +257,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         if observations is not None:
             for rule in model.get("aggregations", []):
                 aggregation_results.append(aggregate_observations(
-                    rule, observations.get("observations", [])))
+                    rule, observations.get("observations", []), evidence_records=evidence))
     except ObservationAggregationError as exc:
         raise BusinessModelError("observation aggregation failed: %s" % exc)
     nodes: list[dict[str, Any]] = []
@@ -423,6 +423,18 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          "asset_id":contribution["asset_id"],
                          "field_provenance":contribution["field_provenance"]},
                         "source_backed", 1.0, [evidence_id])
+                for scope_field, scope_source in contribution["scope_provenance"].items():
+                    scope_evidence_id = scope_source["evidence_id"]
+                    if scope_evidence_id in {item["id"] for item in evidence}:
+                        _add_edge(edges, aid, _node_id("evidence", scope_evidence_id),
+                            "grouped_by_evidence", "AGGREGATION.SCOPE_PROVENANCE",
+                            {"source":"observation_aggregation",
+                             "aggregation_id":rule_id,
+                             "observation_id":contribution["observation_id"],
+                             "asset_id":contribution["asset_id"],
+                             "scope_field":scope_field,
+                             "locator":scope_source["locator"]},
+                            "source_backed", 1.0, [scope_evidence_id])
                 if contribution["asset_id"] in asset_nodes:
                     _add_edge(edges, aid, asset_nodes[contribution["asset_id"]],
                         "aggregated_from_asset", "AGGREGATION.ASSET_PROVENANCE",
