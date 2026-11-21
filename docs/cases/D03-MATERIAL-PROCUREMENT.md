@@ -87,6 +87,19 @@
 
 已将 D03 需求文件实际送入 Radar 的 `run_discovery()`，并通过 `python -m radar discover` CLI 再执行一次。该验证使用仓库现有 Seeds 和 weak-current Pack，未启用 GitHub 在线适配器。
 
+可复现的离线 CLI 命令：
+
+```bash
+python -m radar discover \
+  --workspace ws_d03_material_procurement \
+  --workspace-root .radar-d03-workspace \
+  --requirements examples/requirements/d03-material-procurement.json \
+  --pack packs/weak-current/pack.json \
+  --seeds seeds/weak-current.json
+```
+
+该命令刻意不传入 `--github`，因此不会调用 GitHub API，也不需要 `GITHUB_TOKEN`。
+
 - 需求版本：D03 v1，11 个验收条件。
 - 流程结果：`partial`，原因是既有 Seeds 中仍有缺少精确定位的旧 Quote。
 - 需求候选资产：大于 0（来自 Pack 单元映射的既有资产）。
