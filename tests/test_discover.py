@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import subprocess
+import sys
 from pathlib import Path
 
 from radar.discover import run_discovery
@@ -57,3 +59,17 @@ class TestDiscoverWorkflow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDiscoverCLI(unittest.TestCase):
+    def test_discover_command_is_available(self):
+        root = Path(__file__).resolve().parents[1]
+        requirements, pack, seeds = TestDiscoverWorkflow()._paths()
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = subprocess.run([
+                sys.executable, "-m", "radar", "discover",
+                "--workspace", "ws_cli_test", "--workspace-root", tmp,
+                "--requirements", requirements, "--pack", pack, "--seeds", seeds,
+            ], cwd=str(root), capture_output=True, text=True, timeout=30)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn('"run_status": "partial"', proc.stdout)
