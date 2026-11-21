@@ -358,7 +358,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                 assets[file_asset["id"]] = file_asset
                                 counts["pr_files"] += 1
                             matches[requirement["id"]].add(file_asset["id"])
-                            rel = _relationship("pull_request", asset["id"], "asset", file_asset["id"])
+                            rel = _relationship("asset", asset["id"], "asset", file_asset["id"])
                             relationships[rel["id"]] = rel
                             extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
                             evidence_kind = ("documentation" if extension in
