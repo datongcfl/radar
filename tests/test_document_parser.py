@@ -45,7 +45,7 @@ class TestOfficeDocumentParser(unittest.TestCase):
 
 
     def test_csv_rows_keep_header_and_cell_coordinates(self):
-        result = extract_csv_document("Item,Quantity,Unit\\nCable,12,m\\nSwitch,2,pcs\\n")
+        result = extract_csv_document("Item,Quantity,Unit" + chr(10) + "Cable,12,m" + chr(10) + "Switch,2,pcs" + chr(10))
         self.assertEqual(result["status"], "parsed")
         self.assertEqual(result["chunks"][3]["locator"], {
             "row": 2, "column": 1, "block": "cell", "header": "Item"})
