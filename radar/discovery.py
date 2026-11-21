@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from copy import deepcopy
 import re
 import uuid
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 from types import MappingProxyType
 
 SCHEMA_VERSION = 1
@@ -124,7 +124,7 @@ def _nonempty(value: Any, field: str) -> None:
         raise DiscoveryValidationError("%s must be a non-empty string" % field)
 
 
-def validate_record(record: Mapping[str, Any], expected_type: str | None = None) -> dict[str, Any]:
+def validate_record(record: Mapping[str, Any], expected_type: Optional[str] = None) -> dict[str, Any]:
     """Validate the core v1 invariants without third-party JSON Schema packages."""
     if not isinstance(record, Mapping):
         raise DiscoveryValidationError("record must be an object")
