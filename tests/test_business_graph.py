@@ -153,6 +153,7 @@ class TestBusinessGraph(unittest.TestCase):
             "operator":"sum_equals","scope":"receipt_item","fields":["accepted","rejected"],
             "target_field":"received","related_entities":["purchase_receipt"],
             "required_evidence":["receipt lines","quality record"],"risk":"quantity mismatch"}]
+        model["aggregations"] = []  # This fixture replaces the Pack invariant set.
         graph = build_business_graph(model, pack)
         invariant_nodes = [n for n in graph["nodes"] if n["kind"] == "business_invariant"]
         self.assertEqual(len(invariant_nodes), 1)
