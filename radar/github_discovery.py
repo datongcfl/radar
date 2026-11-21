@@ -169,10 +169,6 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                 source_id = _repo_source(repo, sources)
                 if kind == "code":
                     branch = str(repo.get("default_branch") or "HEAD")
-                    uri = "https://github.com/%s/blob/%s/%s" % (
-                        full_name, version_ref or branch, quote(path, safe="/"))
-                    asset_kind = "file"
-                    title = path or html_url
                     version_ref = str(repo_heads.get(full_name) or "")
                     if not version_ref:
                         head_data, head_error = _api_json(
@@ -185,6 +181,10 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                         else:
                             version_ref = str(head_data.get("sha") or branch)
                         repo_heads[full_name] = version_ref
+                    uri = "https://github.com/%s/blob/%s/%s" % (
+                        full_name, version_ref, quote(path, safe="/"))
+                    asset_kind = "file"
+                    title = path or html_url
                     asset_metadata = {"path": path, "repository": full_name,
                                       "default_branch": branch, "version_ref": version_ref,
                                       "matched_by": "github_code_search"}
