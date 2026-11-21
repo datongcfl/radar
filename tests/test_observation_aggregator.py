@@ -238,6 +238,7 @@ class TestObservationAggregator(unittest.TestCase):
         result = self._aggregate_transactional([
             self._transactional_row("obs1", "PO-1", "LINE-1", 5,
                                     is_return="1", return_against="PR-MISSING",
+                                    return_against_item_id="PR-MISSING-ITEM",
                                     receipt="RET-1", receipt_item="RET-1-1")
         ])
         self.assertEqual(result["results"], [])
