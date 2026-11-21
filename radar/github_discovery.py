@@ -64,7 +64,7 @@ def _added_patch_lines(patch: str) -> list[tuple[int, str]]:
     found = []
     for line in (patch or "").splitlines():
         if line.startswith("@@"):
-            match = re.search(r"\\+(\\d+)(?:,\\d+)?", line)
+            match = re.search(r"\+(\d+)(?:,\d+)?", line)
             current_line = int(match.group(1)) if match else None
         elif line.startswith(("+++", "---")):
             continue
