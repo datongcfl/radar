@@ -37,7 +37,7 @@ class TestLegacyConversion(unittest.TestCase):
             "platform": "github", "title": "Acme App", "artifact_type": "code",
             "access_status": "public", "covers": ["M01"], "evidence_level": "real_artifact",
             "license": "MIT", "license_status": "clear", "status": "selected",
-            "quote_verified": "true", "quote_verified_by": "web",
+            "quote_verified": "true", "quote_verified_by": "web", "quote_verified_this_run": True,
             "quotes": [{"text": "create_purchase_order()", "locator": {"path": "purchase.py", "line_start": 12}}],
         }]
         converted = convert_legacy_sources(rows, "ws_demo")
@@ -51,8 +51,8 @@ class TestLegacyConversion(unittest.TestCase):
                  "title":"Acme App","artifact_type":"code","access_status":"public",
                  "covers":["M01"],"evidence_level":"real_artifact","license":"MIT",
                  "license_status":"clear","status":"selected","quotes":[]}]
-        a = convert_legacy_sources(rows, "ws_demo")
-        b = convert_legacy_sources(rows, "ws_demo")
+        a = convert_legacy_sources(rows, "ws_demo", captured_at="2026-11-22T00:00:00Z")
+        b = convert_legacy_sources(rows, "ws_demo", captured_at="2026-11-22T00:00:00Z")
         self.assertEqual(a["sources"][0]["id"], b["sources"][0]["id"])
         self.assertEqual(a["assets"][0]["id"], b["assets"][0]["id"])
 
@@ -69,3 +69,17 @@ class TestLegacyConversion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_stale_seed_verification_is_not_promoted(self):
+        rows = [{
+            "id": "SRC-005", "url": "https://github.com/acme/app",
+            "platform": "github", "title": "Acme App", "artifact_type": "code",
+            "access_status": "public", "covers": ["M01"], "evidence_level": "real_artifact",
+            "license": "MIT", "license_status": "clear", "status": "selected",
+            "quote_verified": "true", "quote_verified_by": "web",
+            "quote_verified_this_run": False,
+            "quotes": [{"text": "x()", "locator": {"path": "app.py", "line_start": 2}}],
+        }]
+        converted = convert_legacy_sources(rows, "ws_demo", captured_at="2026-11-22T00:00:00Z")
+        self.assertEqual(converted["evidence"][0]["verification_status"], "unverified")
