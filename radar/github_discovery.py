@@ -14,6 +14,7 @@ import os
 
 from .adapters import _curl_json
 from .discovery import new_record, validate_record
+from .verify import _curl_text
 
 
 API = "https://api.github.com"
