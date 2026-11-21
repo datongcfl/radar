@@ -67,11 +67,16 @@ class TestGitHubDiscovery(unittest.TestCase):
                 return {"head": {"sha": "prhead123"}}, None
             return {}, None
         api_json.side_effect = api_result
+        patch_text = "\n".join([
+            "@@ -1,1 +1,2 @@",
+            " existing = True",
+            "+if approved: create_purchase_order()",
+        ])
         api_list.return_value = ([{
             "filename": "erpnext/buying/purchase_order.py",
             "status": "modified", "additions": 1, "deletions": 0,
             "blob_url": "https://github.com/acme/erp/blob/prhead123/erpnext/buying/purchase_order.py",
-            "patch": "@@ -1,1 +1,2 @@\\n existing = True\\n+if approved: create_purchase_order()",
+            "patch": patch_text,
         }], None)
         result = discover_github(requirements, pack, "ws_demo", token="test-token",
                                  limit_per_query=2)
@@ -79,7 +84,8 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(len(result["sources"]), 1)
         self.assertEqual({x["asset_type"] for x in result["assets"]},
                          {"file", "issue", "pull_request"})
-        self.assertEqual(len(result["evidence"]), 4)
+        self.assertEqual(len(result["evidence"]), 4,
+                         [(x["evidence_kind"], x["locator"]) for x in result["evidence"]])
         code_evidence = next(x for x in result["evidence"] if x["evidence_kind"] == "code")
         self.assertEqual(code_evidence["locator"]["line_start"], 1)
         self.assertEqual(code_evidence["locator"]["ref"], "commit123")
