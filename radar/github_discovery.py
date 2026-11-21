@@ -31,7 +31,8 @@ def _stable_id(prefix: str, key: str) -> str:
 
 def _record(kind: str, stable_key: str, **fields: Any) -> dict[str, Any]:
     item = new_record(kind, **fields).to_dict()
-    item["id"] = _stable_id({"source": "src", "asset": "ast", "evidence": "evd"}[kind], stable_key)
+    item["id"] = _stable_id({"source": "src", "asset": "ast", "evidence": "evd",
+                              "relationship": "rel"}[kind], stable_key)
     return validate_record(item, kind)
 
 
@@ -45,6 +46,47 @@ def _api_json(path: str, token: str, timeout: int) -> tuple[Optional[dict[str, A
     if data.get("message") and "items" not in data:
         return None, str(data.get("message"))[:240]
     return data, None
+
+
+def _api_list(path: str, token: str, timeout: int) -> tuple[Optional[list[dict[str, Any]]], Optional[str]]:
+    data, error = _curl_json(API + path, token=token,
+                             accept="application/vnd.github+json", timeout=timeout)
+    if error:
+        return None, error
+    if not isinstance(data, list):
+        return None, "GitHub API returned a non-array response"
+    return data, None
+
+
+def _added_patch_lines(patch: str) -> list[tuple[int, str]]:
+    """Return added lines with their new-file line numbers from a unified diff."""
+    current_line = None
+    found = []
+    for line in (patch or "").splitlines():
+        if line.startswith("@@"):
+            match = re.search(r"\\+(\\d+)(?:,\\d+)?", line)
+            current_line = int(match.group(1)) if match else None
+        elif line.startswith(("+++", "---")):
+            continue
+        elif line.startswith("+"):
+            if current_line is not None and line[1:].strip():
+                found.append((current_line, line[1:].strip()))
+            if current_line is not None:
+                current_line += 1
+        elif line.startswith("-"):
+            continue
+        elif current_line is not None and line.startswith(" "):
+            current_line += 1
+    return found[:20]
+
+
+def _relationship(from_type: str, from_id: str, to_type: str, to_id: str) -> dict[str, Any]:
+    key = json.dumps([from_type, from_id, "contains", to_type, to_id], separators=(",", ":"))
+    return _record("relationship", key,
+        **{"from": {"object_type": from_type, "id": from_id},
+           "to": {"object_type": to_type, "id": to_id},
+           "relation_type": "contains", "confidence": 1.0,
+           "evidence_ids": [], "status": "active", "created_by": "radar"})
 
 
 def _search(query: str, kind: str, token: str, limit: int, timeout: int):
@@ -142,13 +184,15 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     if not token:
         return {"sources": [], "assets": [], "evidence": [], "matches": {},
                 "warnings": ["GitHub discovery skipped: GITHUB_TOKEN is not configured"],
-                "counts": {"code": 0, "issues": 0, "pull_requests": 0}}
+                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0},
+                                     "relationships": []}
     sources: dict[str, dict[str, Any]] = {}
     assets: dict[str, dict[str, Any]] = {}
     evidence: dict[str, dict[str, Any]] = {}
+    relationships: dict[str, dict[str, Any]] = {}
     matches: dict[str, set[str]] = {item["id"]: set() for item in requirements}
     warnings: list[str] = []
-    counts = {"code": 0, "issues": 0, "pull_requests": 0}
+    counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0}
     counted_assets: dict[str, str] = {}
     repo_heads: dict[str, tuple[str, bool]] = {}
     captured_at = _now()
@@ -279,9 +323,59 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                        text, locator, version_ref, captured_at)
                         evidence[ev["id"]] = ev
 
+                    if is_pr:
+                        pr_data, pr_error = _api_json(
+                            "/repos/%s/pulls/%s" % (full_name, number), token, timeout)
+                        if pr_error:
+                            warnings.append("PR details fetch failed for %s: %s" %
+                                            (html_url, pr_error[:160]))
+                            continue
+                        head_sha = str((pr_data.get("head") or {}).get("sha") or "")
+                        files, files_error = _api_list(
+                            "/repos/%s/pulls/%s/files?per_page=10" % (full_name, number),
+                            token, timeout)
+                        if files_error:
+                            warnings.append("PR files fetch failed for %s: %s" %
+                                            (html_url, files_error[:160]))
+                            continue
+                        for changed in files or []:
+                            filename = str(changed.get("filename") or "")
+                            if not filename:
+                                continue
+                            file_uri = ("https://github.com/%s/blob/%s/%s" %
+                                        (full_name, head_sha, quote(filename, safe="/"))
+                                        if head_sha else str(changed.get("blob_url") or html_url))
+                            file_metadata = {
+                                "path": filename, "repository": full_name,
+                                "version_ref": head_sha or None,
+                                "derived_from_pull_request": number,
+                                "change_status": changed.get("status"),
+                                "additions": changed.get("additions", 0),
+                                "deletions": changed.get("deletions", 0),
+                            }
+                            file_asset = _asset(source_id, "file", file_uri, filename, file_metadata)
+                            if file_asset["id"] not in assets:
+                                assets[file_asset["id"]] = file_asset
+                                counts["pr_files"] += 1
+                            matches[requirement["id"]].add(file_asset["id"])
+                            rel = _relationship("pull_request", asset["id"], "asset", file_asset["id"])
+                            relationships[rel["id"]] = rel
+                            extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+                            evidence_kind = ("documentation" if extension in
+                                             ("md", "rst", "txt", "adoc", "html", "yaml", "yml", "json")
+                                             else "code")
+                            for line_no, added_line in _added_patch_lines(changed.get("patch") or ""):
+                                ev = _evidence(
+                                    workspace_id, file_asset["id"], evidence_kind, added_line,
+                                    {"path": filename, "line_start": line_no,
+                                     "line_end": line_no, "ref": head_sha,
+                                     "pull_request": number},
+                                    head_sha or None, captured_at)
+                                evidence[ev["id"]] = ev
+
     return {
         "sources": list(sources.values()), "assets": list(assets.values()),
-        "evidence": list(evidence.values()),
+        "evidence": list(evidence.values()), "relationships": list(relationships.values()),
         "matches": {key: sorted(value) for key, value in matches.items()},
         "warnings": warnings, "counts": counts,
     }
