@@ -1,0 +1,94 @@
+import unittest
+from unittest import mock
+
+from radar.github_discovery import discover_github
+
+
+class TestGitHubDiscovery(unittest.TestCase):
+    def _inputs(self):
+        requirement = {
+            "id": "req_demo", "key": "D03", "title": "材料采购",
+            "description": "采购订单流程", "pack_unit_ids": ["M08"],
+            "terms": {"canonical": ["Purchase Order"], "aliases": []},
+        }
+        pack = {"modules": [{"id": "M08", "name": "采购与材料设备",
+                             "keywords": ["采购", "材料"]}], "subsystems": []}
+        return [requirement], pack
+
+    def test_missing_token_returns_explicit_warning(self):
+        requirements, pack = self._inputs()
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = discover_github(requirements, pack, "ws_demo", token=None)
+        self.assertEqual(result["assets"], [])
+        self.assertTrue(any("GITHUB_TOKEN" in item for item in result["warnings"]))
+
+    @mock.patch("radar.github_discovery._curl_text",
+                return_value=("Purchase Order creation", 200, None))
+    @mock.patch("radar.github_discovery._api_json", return_value=({"sha": "commit123"}, None))
+    @mock.patch("radar.github_discovery._search")
+    def test_discovers_code_issue_and_pr_with_precise_locators(
+            self, search, api_json, curl_text):
+        requirements, pack = self._inputs()
+        code = {
+            "html_url": "https://github.com/acme/erp/blob/main/purchase.py",
+            "path": "purchase.py", "sha": "blobsha",
+            "repository": {"full_name": "acme/erp", "default_branch": "main"},
+        }
+        issue = {
+            "html_url": "https://github.com/acme/erp/issues/7",
+            "repository_url": "https://api.github.com/repos/acme/erp",
+            "number": 7, "title": "Purchase Order approval",
+            "body": "Purchase Order requires manager approval",
+            "state": "closed", "updated_at": "2026-11-20T00:00:00Z",
+            "labels": [{"name": "procurement"}],
+        }
+        pr = {
+            "html_url": "https://github.com/acme/erp/pull/9",
+            "repository_url": "https://api.github.com/repos/acme/erp",
+            "number": 9, "title": "Fix Purchase Order receipt",
+            "body": "Add receipt validation tests",
+            "state": "closed", "updated_at": "2026-11-21T00:00:00Z",
+            "labels": [],
+        }
+
+        def search_result(term, kind, token, limit, timeout):
+            if kind == "code":
+                return {"items": [code]}, None
+            if kind == "issue":
+                return {"items": [issue]}, None
+            return {"items": [pr]}, None
+
+        search.side_effect = search_result
+        result = discover_github(requirements, pack, "ws_demo", token="test-token",
+                                 limit_per_query=2)
+        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1})
+        self.assertEqual(len(result["sources"]), 1)
+        self.assertEqual({x["asset_type"] for x in result["assets"]},
+                         {"file", "issue", "pull_request"})
+        self.assertEqual(len(result["evidence"]), 3)
+        code_evidence = next(x for x in result["evidence"] if x["evidence_kind"] == "code")
+        self.assertEqual(code_evidence["locator"]["line_start"], 1)
+        self.assertEqual(code_evidence["locator"]["ref"], "commit123")
+        self.assertEqual(len(result["matches"]["req_demo"]), 3)
+        self.assertEqual(result["warnings"], [])
+
+    @mock.patch("radar.github_discovery._curl_text",
+                return_value=("Purchase Order", 200, None))
+    @mock.patch("radar.github_discovery._api_json", return_value=({"sha": "commit123"}, None))
+    @mock.patch("radar.github_discovery._search")
+    def test_same_asset_found_by_multiple_terms_is_deduplicated(
+            self, search, api_json, curl_text):
+        requirements, pack = self._inputs()
+        code = {
+            "html_url": "https://github.com/acme/erp/blob/main/purchase.py",
+            "path": "purchase.py", "sha": "blobsha",
+            "repository": {"full_name": "acme/erp", "default_branch": "main"},
+        }
+        search.return_value = ({"items": [code]}, None)
+        result = discover_github(requirements, pack, "ws_demo", token="test-token")
+        self.assertEqual(len(result["assets"]), 1)
+        self.assertEqual(result["counts"]["code"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
