@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlsplit
 import json
 
@@ -64,7 +64,7 @@ def _verification_status(source: dict[str, Any]) -> str:
 def convert_legacy_sources(
     sources: list[dict[str, Any]],
     workspace_id: str,
-    captured_at: str | None = None,
+    captured_at: Optional[str] = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Convert conflated legacy Source rows into Source + Asset + locatable Evidence.
 
