@@ -59,10 +59,15 @@ class TestObservationAggregator(unittest.TestCase):
         self.assertTrue(all(len(item["scope_provenance"]) == 2 for item in first["contributions"]))
 
     def test_duplicate_evidence_is_counted_once_and_reported(self):
-        result = self._aggregate([
-            row("obs1", "PO-1", "LINE-1", 40, evidence="ev_shared"),
-            row("obs2", "PO-1", "LINE-1", 40, evidence="ev_shared"),
-        ])
+        first = row("obs1", "PO-1", "LINE-1", 40, evidence="ev_shared", asset="asset_shared")
+        second = row("obs2", "PO-1", "LINE-1", 40, evidence="ev_shared", asset="asset_shared")
+        second[0]["field_provenance"]["received_qty"]["locator"] = first[0]["field_provenance"]["received_qty"]["locator"]
+        for field in ("purchase_order_id", "purchase_order_item_id"):
+            second[0]["scope_provenance"][field]["locator"] = first[0]["scope_provenance"][field]["locator"]
+        for record in second[1]:
+            match = next(item for item in first[1] if item["id"] == record["id"])
+            record["locator"] = match["locator"]
+        result = self._aggregate([first, second])
         self.assertEqual(result["results"][0]["values"]["cumulative_received_qty"], "40")
         self.assertEqual(result["summary"]["duplicate_evidence"], 1)
 
