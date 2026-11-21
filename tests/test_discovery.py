@@ -5,6 +5,7 @@ from radar.discovery import (
     new_record,
     validate_evidence_unchanged,
     validate_record,
+    new_requirement_revision,
 )
 
 
@@ -90,3 +91,36 @@ class TestDiscoveryDomain(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class TestRevisionAndImmutability(unittest.TestCase):
+    def test_domain_payload_is_deeply_immutable(self):
+        record = new_record("workspace", name="demo", status="active",
+                            pack_refs=[{"pack": "weak-current", "version": "1.0"}])
+        with self.assertRaises(TypeError):
+            record.payload["name"] = "changed"
+        with self.assertRaises(TypeError):
+            record.payload["pack_refs"][0]["pack"] = "other"
+        exported = record.to_dict()
+        exported["pack_refs"][0]["pack"] = "changed"
+        self.assertEqual(record.to_dict()["pack_refs"][0]["pack"], "weak-current")
+
+    def test_requirement_revision_appends_new_id_and_version(self):
+        first = new_record("requirement", workspace_id="ws_demo", key="D03",
+            version=1, title="材料采购", description="材料申请至入库",
+            status="active", priority="high",
+            acceptance_criteria=[{"id": "C1", "description": "可申请", "required": True}])
+        second = new_requirement_revision(first.to_dict(), description="材料申请、审批至入库")
+        self.assertNotEqual(first.id, second.id)
+        self.assertEqual(second.to_dict()["version"], 2)
+        self.assertEqual(second.to_dict()["key"], "D03")
+        self.assertEqual(second.to_dict()["supersedes_requirement_id"], first.id)
+        self.assertEqual(first.to_dict()["version"], 1)
+
+    def test_requirement_revision_cannot_change_identity(self):
+        first = new_record("requirement", workspace_id="ws_demo", key="D03",
+            version=1, title="材料采购", description="材料申请至入库",
+            status="active", priority="high", acceptance_criteria=[])
+        with self.assertRaises(DiscoveryValidationError):
+            new_requirement_revision(first.to_dict(), key="D04")
