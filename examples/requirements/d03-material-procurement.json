@@ -7,7 +7,7 @@
   "requirements": [
     {
       "key": "D03",
-      "version": 2,
+      "version": 1,
       "title": "材料采购与现场流转",
       "description": "覆盖项目材料需求、询价比价、审批、采购订单、分批到货、质检与入库、领料、退料、现场调拨及库存和成本追溯。",
       "status": "active",

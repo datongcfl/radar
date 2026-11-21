@@ -4,7 +4,7 @@
 
 ## 1. 验证目标与输入
 
-- Requirement：`D03`，版本 2；机器可读定义见 `examples/requirements/d03-material-procurement.json`。
+- Requirement：`D03`，版本 1；机器可读定义见 `examples/requirements/d03-material-procurement.json`。
 - 行业 Pack：`weak-current`，涉及询价与产品库（M04）、采购与材料设备（M08）、实际成本与毛利（M11）。
 - 参考实现：`frappe/erpnext`。
 - 固定源码 Commit：`a8ea38cb75dd00f51212d4072de24ec580ad6c84`。

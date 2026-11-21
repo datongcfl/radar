@@ -1,9 +1,12 @@
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+from radar.discover import run_discovery
 
 
 class TestD03MaterialProcurementCase(unittest.TestCase):
@@ -23,7 +26,7 @@ class TestD03MaterialProcurementCase(unittest.TestCase):
         self.assertEqual(len(requirements), 1)
         requirement = requirements[0]
         self.assertEqual(requirement["key"], "D03")
-        self.assertEqual(requirement["version"], 2)
+        self.assertEqual(requirement["version"], 1)
         criteria = requirement["acceptance_criteria"]
         self.assertGreaterEqual(len(criteria), 10)
         ids = [criterion["id"] for criterion in criteria]
@@ -40,6 +43,23 @@ class TestD03MaterialProcurementCase(unittest.TestCase):
         self.assertIn("GITHUB_TOKEN", self.case)
         self.assertIn("GPL-3.0", self.case)
         self.assertIn("a8ea38cb75dd00f51212d4072de24ec580ad6c84", self.case)
+
+
+    def test_d03_requirement_runs_through_real_offline_discover_pipeline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_discovery(
+                "ws_d03_offline_test",
+                str(ROOT / "examples" / "requirements" / "d03-material-procurement.json"),
+                str(ROOT / "packs" / "weak-current" / "pack.json"),
+                str(ROOT / "seeds" / "weak-current.json"),
+                workspace_root=tmp,
+                github=False,
+            )
+        self.assertEqual(result["run_status"], "partial")
+        self.assertEqual(len(result["assessments"]), 1)
+        self.assertEqual(result["assessments"][0]["requirement_key"], "D03")
+        self.assertEqual(result["assessments"][0]["status"], "no_evidence")
+        self.assertGreater(result["assessments"][0]["candidate_assets"], 0)
 
 
 if __name__ == "__main__":
