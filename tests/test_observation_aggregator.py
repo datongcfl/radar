@@ -169,6 +169,11 @@ class TestObservationAggregator(unittest.TestCase):
                                     return_against="PR-1", receipt="RET-1", receipt_item="RET-1-1"),
         ])
         self.assertEqual(result["results"][0]["values"]["cumulative_received_qty"], "35")
+        contribution = result["results"][0]["contributions"][0]
+        self.assertEqual(set(contribution["scope_provenance"]), {
+            "purchase_order_id", "purchase_order_item_id", "receipt_id", "receipt_item_id"})
+        self.assertEqual(set(contribution["transaction_provenance"]), {
+            "document_status", "is_return", "return_against"})
 
     def test_return_without_original_reference_is_unresolved(self):
         item, records = self._transactional_row("obs1", "PO-1", "LINE-1", 5,
