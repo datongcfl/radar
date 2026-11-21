@@ -124,9 +124,10 @@ class TestObservationAggregator(unittest.TestCase):
             locator = {"path": identifier + ".csv", "row": 2, "column": index}
             item["scope_provenance"][field] = {"evidence_id": evidence_id, "locator": locator}
             records.append({"id": evidence_id, "asset_id": item["asset_id"], "locator": locator})
-        tx = {"document_status": status, "is_return": is_return, "return_against": return_against}
+        tx = {"document_status": status, "is_return": is_return,
+              "return_against": return_against, "document_type": "Purchase Receipt"}
         txp = {}
-        for index, field in enumerate(("document_status", "is_return", "return_against"), 20):
+        for index, field in enumerate(("document_status", "is_return", "return_against", "document_type"), 20):
             if field == "return_against" and not return_against:
                 continue
             evidence_id = "ev_" + identifier + "_" + field
@@ -147,7 +148,11 @@ class TestObservationAggregator(unittest.TestCase):
             "return_values": ["1", "true", "yes"],
             "normal_values": ["0", "false", "no", ""],
             "return_reference_field": "return_against",
-            "deduplicate_by": ["receipt_id", "receipt_item_id"],
+            "deduplicate_by": ["receipt_id", "receipt_item_id", "purchase_order_item_id"],
+            "document_type_field": "document_type",
+            "allowed_document_types": ["Purchase Receipt"],
+            "return_reference_target_field": "receipt_id",
+            "return_reference_match_fields": ["purchase_order_item_id"],
         }
         observations = [item[0] for item in rows]
         evidence = [record for item in rows for record in item[1]]
@@ -175,7 +180,7 @@ class TestObservationAggregator(unittest.TestCase):
         return_contribution = next(item for item in contributions
                                    if item["transaction"]["is_return"] == "1")
         self.assertEqual(set(return_contribution["transaction_provenance"]), {
-            "document_status", "is_return", "return_against"})
+            "document_status", "is_return", "return_against", "document_type"})
 
     def test_return_without_original_reference_is_unresolved(self):
         item, records = self._transactional_row("obs1", "PO-1", "LINE-1", 5,
@@ -213,6 +218,22 @@ class TestObservationAggregator(unittest.TestCase):
         result = self._aggregate_transactional([first, second])
         self.assertEqual(result["results"], [])
         self.assertEqual(result["summary"]["skipped"], 2)
+
+    def test_debit_note_is_not_counted_as_a_physical_receipt(self):
+        item, records = self._transactional_row("obs1", "PO-1", "LINE-1", 5)
+        item["transaction"]["document_type"] = "Purchase Invoice"
+        result = self._aggregate_transactional([(item, records)])
+        self.assertEqual(result["results"], [])
+        self.assertEqual(result["skipped"][0]["reason"], "unsupported_transaction_document_type")
+
+    def test_return_must_reference_an_existing_posted_original_receipt_line(self):
+        result = self._aggregate_transactional([
+            self._transactional_row("obs1", "PO-1", "LINE-1", 5,
+                                    is_return="1", return_against="PR-MISSING",
+                                    receipt="RET-1", receipt_item="RET-1-1")
+        ])
+        self.assertEqual(result["results"], [])
+        self.assertEqual(result["skipped"][0]["reason"], "unresolved_return_target")
 
     def test_non_finite_values_rejected(self):
         item, evidence = row("obs1", "PO-1", "LINE-1", "NaN")

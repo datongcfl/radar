@@ -138,7 +138,8 @@ def aggregate_observations(rule: dict[str, Any],
             status_field = semantics.get("status_field")
             return_field = semantics.get("return_flag_field")
             return_reference_field = semantics.get("return_reference_field")
-            required_transaction_fields = [status_field, return_field]
+            document_type_field = semantics.get("document_type_field")
+            required_transaction_fields = [status_field, return_field, document_type_field]
             if any(not isinstance(name, str) or not name for name in required_transaction_fields):
                 raise ObservationAggregationError("transaction semantics require status and return fields")
             transaction_invalid = False
@@ -159,6 +160,15 @@ def aggregate_observations(rule: dict[str, Any],
             if transaction_invalid:
                 skipped.append({"observation_id": row_id, "reason": "unverified_transaction_metadata"})
                 continue
+            document_type = transaction[document_type_field].strip().casefold()
+            allowed_document_types = {str(value).strip().casefold()
+                                      for value in semantics.get("allowed_document_types", [])}
+            if document_type not in allowed_document_types:
+                skipped.append({"observation_id": row_id,
+                                "reason": "unsupported_transaction_document_type",
+                                "document_type": transaction[document_type_field]})
+                continue
+            transaction_metadata[document_type_field] = transaction[document_type_field]
             state = transaction[status_field].strip().casefold()
             posted_values = {str(value).strip().casefold() for value in semantics.get("posted_values", [])}
             non_posted_values = {str(value).strip().casefold() for value in semantics.get("non_posted_values", [])}
@@ -245,6 +255,37 @@ def aggregate_observations(rule: dict[str, Any],
             "transaction_provenance": verified_transaction_provenance,
             "transaction_identity": transaction_identity,
         })
+
+    if semantics:
+        return_field = semantics["return_flag_field"]
+        return_values = {str(value).strip().casefold() for value in semantics["return_values"]}
+        normal_values = {str(value).strip().casefold() for value in semantics["normal_values"]}
+        target_field = semantics["return_reference_target_field"]
+        match_fields = semantics["return_reference_match_fields"]
+        original_receipts = set()
+        for contributions in grouped.values():
+            for item in contributions:
+                flag = item["transaction"].get(return_field, "").strip().casefold()
+                if flag in normal_values:
+                    identity = item["transaction_identity"]
+                    if target_field in identity and all(name in identity for name in match_fields):
+                        original_receipts.add((identity[target_field],) +
+                                              tuple(identity[name] for name in match_fields))
+        for key, contributions in list(grouped.items()):
+            retained = []
+            for item in contributions:
+                flag = item["transaction"].get(return_field, "").strip().casefold()
+                if flag in return_values:
+                    reference = item["transaction"].get(semantics["return_reference_field"], "")
+                    identity = item["transaction_identity"]
+                    reference_key = (reference,) + tuple(identity.get(name, "") for name in match_fields)
+                    if reference_key not in original_receipts:
+                        skipped.append({"observation_id": item["observation_id"],
+                                        "reason": "unresolved_return_target",
+                                        "return_reference": reference})
+                        continue
+                retained.append(item)
+            grouped[key] = retained
 
     results = []
     duplicate_evidence = []

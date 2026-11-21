@@ -272,7 +272,8 @@ class TestBusinessGraph(unittest.TestCase):
                     "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
                 scope_provenance[scope_field] = {"evidence_id":scope_evidence_id,"locator":scope_locator}
             transaction, transaction_provenance = {}, {}
-            for tx_index, (field, value) in enumerate((("document_status","1"),("is_return","0")),20):
+            for tx_index, (field, value) in enumerate((("document_status","1"),("is_return","0"),
+                                                        ("document_type","Purchase Receipt")),20):
                 tx_evidence_id = evidence_id + "_" + field
                 tx_locator = {"path":"receipt%d.csv" % index,"row":2,"column":tx_index}
                 evidence.append({"id":tx_evidence_id,"asset_id":asset_id,"statement":"transaction",

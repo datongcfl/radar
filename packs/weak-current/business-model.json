@@ -609,6 +609,13 @@
           "original receipt",
           "原收货单号",
           "退货关联收货单"
+        ],
+        "document_type": [
+          "doctype",
+          "document type",
+          "transaction type",
+          "单据类型",
+          "业务单据类型"
         ]
       }
     },
@@ -1058,7 +1065,17 @@
         "return_reference_field": "return_against",
         "deduplicate_by": [
           "receipt_id",
-          "receipt_item_id"
+          "receipt_item_id",
+          "purchase_order_item_id"
+        ],
+        "document_type_field": "document_type",
+        "allowed_document_types": [
+          "Purchase Receipt",
+          "采购收货单"
+        ],
+        "return_reference_target_field": "receipt_id",
+        "return_reference_match_fields": [
+          "purchase_order_item_id"
         ]
       }
     }

@@ -236,20 +236,29 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
                 raise BusinessModelError("%s.transaction_semantics must be an object" % where)
             for key in ("status_field", "posted_values", "non_posted_values",
                         "return_flag_field", "return_values", "normal_values",
-                        "return_reference_field", "deduplicate_by"):
+                        "return_reference_field", "deduplicate_by",
+                        "document_type_field", "allowed_document_types",
+                        "return_reference_target_field", "return_reference_match_fields"):
                 if key not in semantics:
                     raise BusinessModelError("%s.transaction_semantics missing %s" % (where, key))
             transaction_fields = set(source.get("transaction_fields", {}))
-            for key in ("status_field", "return_flag_field", "return_reference_field"):
+            for key in ("status_field", "return_flag_field", "return_reference_field", "document_type_field"):
                 if semantics[key] not in transaction_fields:
                     raise BusinessModelError("%s transaction semantics references undeclared transaction field" % where)
-            for key in ("posted_values", "non_posted_values", "return_values", "normal_values"):
+            for key in ("posted_values", "non_posted_values", "return_values", "normal_values",
+                        "allowed_document_types"):
                 _strings(semantics[key], where + ".transaction_semantics." + key)
                 if not semantics[key]:
                     raise BusinessModelError("%s.transaction_semantics.%s cannot be empty" % (where, key))
             _strings(semantics["deduplicate_by"], where + ".transaction_semantics.deduplicate_by")
             if not semantics["deduplicate_by"] or set(semantics["deduplicate_by"]) - declared_scope:
                 raise BusinessModelError("%s deduplicate_by must reference declared scope fields" % where)
+            if semantics["return_reference_target_field"] not in declared_scope:
+                raise BusinessModelError("%s return_reference_target_field must reference a declared scope field" % where)
+            _strings(semantics["return_reference_match_fields"], where + ".transaction_semantics.return_reference_match_fields")
+            if (not semantics["return_reference_match_fields"]
+                    or set(semantics["return_reference_match_fields"]) - set(semantics["deduplicate_by"])):
+                raise BusinessModelError("%s return_reference_match_fields must be included in deduplicate_by" % where)
     return data
 
 def _node_id(kind: str, key: str) -> str:
