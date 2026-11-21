@@ -250,20 +250,25 @@ class TestBusinessGraph(unittest.TestCase):
             asset_id = "ast_receipt_%d" % index
             evidence_id = "evd_receipt_%d" % index
             evidence.append({"id":evidence_id,"asset_id":asset_id,"statement":"receipt",
-                "locator":{"path":"receipt%d.csv" % index,"row":2},
+                "locator":{"path":"receipt%d.csv" % index,"row":2,"column":3},
                 "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
             fields = {"received_qty":str(qty)}
             provenance = {"received_qty":{"evidence_id":evidence_id,
                 "locator":{"path":"receipt%d.csv" % index,"row":2,"column":3},
                 "verification_level":"test_fixture","runtime_observed":False}}
+            scope_provenance = {}
+            for scope_index, scope_field in enumerate(("purchase_order_id","purchase_order_item_id"),1):
+                scope_evidence_id = evidence_id + "_scope_" + str(scope_index)
+                scope_locator = {"path":"receipt%d.csv" % index,"row":2,"column":scope_index}
+                evidence.append({"id":scope_evidence_id,"asset_id":asset_id,"statement":"scope",
+                    "locator":scope_locator,
+                    "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
+                scope_provenance[scope_field] = {"evidence_id":scope_evidence_id,"locator":scope_locator}
             observations_rows.append({"id":"obs_%d" % index,"asset_id":asset_id,
                 "invariant_id":"receipt_quantity_balance","scope_key":"receipt-%d" % index,
                 "origin":"test","values":fields,"field_provenance":provenance,
                 "business_scope":{"purchase_order_id":"PO-1","purchase_order_item_id":"LINE-1"},
-                "scope_provenance":{"purchase_order_id":{"evidence_id":evidence_id,
-                    "locator":{"path":"receipt%d.csv" % index,"row":2}},
-                    "purchase_order_item_id":{"evidence_id":evidence_id,
-                    "locator":{"path":"receipt%d.csv" % index,"row":2}}}})
+                "scope_provenance":scope_provenance})
         # The invariant itself requires all declared fields; use a complete, balanced observation.
         for row in observations_rows:
             qty = int(row["values"]["received_qty"])
@@ -280,8 +285,10 @@ class TestBusinessGraph(unittest.TestCase):
         agg = next(n for n in graph["nodes"] if n["kind"] == "business_aggregation")
         self.assertEqual(agg["values"]["cumulative_received_qty"], "105")
         links = [e for e in graph["edges"] if e["relation"] == "aggregated_from_evidence"]
+        scope_links = [e for e in graph["edges"] if e["relation"] == "grouped_by_evidence"]
         self.assertEqual(len(links), 3)
-        self.assertTrue(all(e["status"] == "source_backed" for e in links))
+        self.assertEqual(len(scope_links), 6)
+        self.assertTrue(all(e["status"] == "source_backed" for e in links + scope_links))
 
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
