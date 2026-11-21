@@ -175,7 +175,8 @@ class TestBusinessGraph(unittest.TestCase):
                      "verification_level":"ci_check_success","runtime_observed":False}
                      for field in values}
         observations = {"schema_version":1,"observations":[{
-            "id":"obs_receipt_1","invariant_id":invariant["id"],"scope_key":"receipt-item-1",
+            "id":"obs_receipt_1","asset_id":"ast_receipt",
+            "invariant_id":invariant["id"],"scope_key":"receipt-item-1",
             "origin":"test","values":values,"field_provenance":provenance}]}
         requirement = {"id":"req_d03","key":"D03","version":1,"title":"材料采购",
             "acceptance_criteria":[{"id":"D03-C6","description":"区分实收、合格和拒收数量。",

@@ -34,7 +34,8 @@ class TestBusinessInvariantEvaluation(unittest.TestCase):
                 "metadata":{"verification":{"level":level,"runtime_observed":runtime}},
             })
         bundle = {"schema_version":1,"observations":[{
-            "id":"obs_1","invariant_id":invariant["id"],"scope_key":"record-1",
+            "id":"obs_1","asset_id":"asset_fixture",
+            "invariant_id":invariant["id"],"scope_key":"record-1",
             "origin":origin,"values":values,"field_provenance":provenance,
             "captured_at":"2026-11-22T10:00:00Z"}]}
         return bundle, evidence
