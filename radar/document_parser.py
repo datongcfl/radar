@@ -103,12 +103,10 @@ def _pptx(data):
 def extract_csv_document(text):
     """Extract CSV cells with row, column, and optional header locators."""
     try:
-        sample = (text or "")[:4096]
-        try:
-            dialect = csv.Sniffer().sniff(sample, delimiters=",;\\t|")
-        except csv.Error:
-            dialect = csv.excel
-        rows = list(csv.reader(StringIO(text or ""), dialect))
+        first_line = (text or "").splitlines()[0] if (text or "").splitlines() else ""
+        delimiters = [",", ";", "\\t", "|"]
+        delimiter = max(delimiters, key=lambda item: first_line.count(item))
+        rows = list(csv.reader(StringIO(text or ""), delimiter=delimiter))
     except csv.Error as exc:
         return {"status": "failed", "chunks": [], "reason": str(exc)[:240]}
     if not rows:
