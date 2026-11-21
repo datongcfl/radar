@@ -227,6 +227,13 @@
               "items": {
                 "type": "string"
               }
+            },
+            "pack_unit_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
             }
           },
           "required": [
