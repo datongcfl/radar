@@ -185,16 +185,30 @@ def aggregate_observations(rule: dict[str, Any],
                 ref_id = ref_item.get("evidence_id") if isinstance(ref_item, dict) else None
                 ref_evidence = evidence_by_id.get(ref_id)
                 ref_locator = _locator_identity(ref_item.get("locator")) if isinstance(ref_item, dict) else ()
+                item_reference_field = semantics["return_reference_item_field"]
+                item_reference = transaction.get(item_reference_field)
+                item_ref = transaction_provenance.get(item_reference_field) if isinstance(transaction_provenance, dict) else None
+                item_ref_id = item_ref.get("evidence_id") if isinstance(item_ref, dict) else None
+                item_ref_evidence = evidence_by_id.get(item_ref_id)
+                item_ref_locator = _locator_identity(item_ref.get("locator")) if isinstance(item_ref, dict) else ()
                 if (not isinstance(reference, str) or not reference.strip()
                         or not isinstance(ref_id, str) or not ref_id
                         or ref_evidence is None or ref_evidence.get("asset_id") != asset_id
-                        or not ref_locator or _locator_identity(ref_evidence.get("locator")) != ref_locator):
+                        or not ref_locator or _locator_identity(ref_evidence.get("locator")) != ref_locator
+                        or not isinstance(item_reference, str) or not item_reference.strip()
+                        or not isinstance(item_ref_id, str) or not item_ref_id
+                        or item_ref_evidence is None or item_ref_evidence.get("asset_id") != asset_id
+                        or not item_ref_locator
+                        or _locator_identity(item_ref_evidence.get("locator")) != item_ref_locator):
                     skipped.append({"observation_id": row_id, "reason": "unresolved_return_reference"})
                     continue
                 signed_value = -abs(amount)
                 transaction_metadata[return_reference_field] = reference
+                transaction_metadata[item_reference_field] = item_reference
                 verified_transaction_provenance[return_reference_field] = {
                     "evidence_id": ref_id, "locator": ref_item["locator"]}
+                verified_transaction_provenance[item_reference_field] = {
+                    "evidence_id": item_ref_id, "locator": item_ref["locator"]}
             elif return_value in normal_values:
                 if amount < 0:
                     skipped.append({"observation_id": row_id, "reason": "negative_value_without_return_semantics"})
@@ -261,6 +275,7 @@ def aggregate_observations(rule: dict[str, Any],
         return_values = {str(value).strip().casefold() for value in semantics["return_values"]}
         normal_values = {str(value).strip().casefold() for value in semantics["normal_values"]}
         target_field = semantics["return_reference_target_field"]
+        item_target_field = semantics["return_reference_item_target_field"]
         match_fields = semantics["return_reference_match_fields"]
         original_receipts = set()
         for contributions in grouped.values():
@@ -268,8 +283,9 @@ def aggregate_observations(rule: dict[str, Any],
                 flag = item["transaction"].get(return_field, "").strip().casefold()
                 if flag in normal_values:
                     identity = item["transaction_identity"]
-                    if target_field in identity and all(name in identity for name in match_fields):
-                        original_receipts.add((identity[target_field],) +
+                    if (target_field in identity and item_target_field in identity
+                            and all(name in identity for name in match_fields)):
+                        original_receipts.add((identity[target_field], identity[item_target_field]) +
                                               tuple(identity[name] for name in match_fields))
         for key, contributions in list(grouped.items()):
             retained = []
@@ -277,8 +293,10 @@ def aggregate_observations(rule: dict[str, Any],
                 flag = item["transaction"].get(return_field, "").strip().casefold()
                 if flag in return_values:
                     reference = item["transaction"].get(semantics["return_reference_field"], "")
+                    item_reference = item["transaction"].get(semantics["return_reference_item_field"], "")
                     identity = item["transaction_identity"]
-                    reference_key = (reference,) + tuple(identity.get(name, "") for name in match_fields)
+                    reference_key = (reference, item_reference) + tuple(
+                        identity.get(name, "") for name in match_fields)
                     if reference_key not in original_receipts:
                         skipped.append({"observation_id": item["observation_id"],
                                         "reason": "unresolved_return_target",

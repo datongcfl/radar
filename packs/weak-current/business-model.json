@@ -616,6 +616,13 @@
           "transaction type",
           "单据类型",
           "业务单据类型"
+        ],
+        "return_against_item_id": [
+          "purchase_receipt_item",
+          "return_against_item_id",
+          "original receipt item",
+          "原收货明细行ID",
+          "原收货明细行号"
         ]
       }
     },
@@ -1076,7 +1083,9 @@
         "return_reference_target_field": "receipt_id",
         "return_reference_match_fields": [
           "purchase_order_item_id"
-        ]
+        ],
+        "return_reference_item_field": "return_against_item_id",
+        "return_reference_item_target_field": "receipt_item_id"
       }
     }
   ]
