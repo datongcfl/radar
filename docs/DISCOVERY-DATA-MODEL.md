@@ -215,7 +215,23 @@ python3 -m radar discover \
 4. Issue/PR Evidence 定位到原始 URL 和 title/body 字段；它证明讨论内容存在，不自动证明修复已合并或代码已部署。
 5. 文件 Asset 以 Commit SHA 版本化；Issue/PR Asset 以更新时间版本化。重复搜索同一版本会复用 Asset 身份，新的内容版本产生新的 Asset/Evidence。
 6. 访问失败、API 限流、无权限或单个文件读取失败记录为阶段警告；已有 Seeds 和已成功发现的结果继续保存，Run 标记为 `partial`。
-7. 当前读取 PR 文件列表和文件 diff，但尚不读取 PR review comments、review threads、CI checks，也不解析 PDF/Office 文件；这些属于后续适配器扩展。
+7. 当前已读取 PR 文件列表和文件 diff，但尚不读取 PR review comments、review threads、CI checks。M7 增加递归 Git Tree 文档发现，文本类文档可生成行级 Evidence；PDF/Office 当前仅登记为候选 Asset，不声称已解析内容。
 8. 只支持公开可访问且 Token 有权访问的仓库；不会绕过仓库权限、登录限制或 GitHub API 限制。
 
 `github-discovery` 当前是 opt-in 来源适配器，不改变旧 `run --github` 仓库元数据发现行为，也不改变离线 Discover 默认行为。
+
+
+## 9. GitHub 仓库文档资产发现（M7）
+
+启用 `--github` 后，Radar 不再只依赖 Code Search 返回的文件结果。对本轮需求搜索命中的仓库，适配器会：
+
+1. 解析仓库默认分支并固定到不可变 Commit SHA；
+2. 调用 Git Trees API 的递归模式读取仓库文件树；
+3. 按文档扩展名、文件路径语义和文件大小筛选候选，避免把 node_modules、vendor、构建产物和超大文件纳入；
+4. 对 Markdown、RST、TXT、AsciiDoc、HTML、YAML 等文本文档读取固定 Commit 版本正文；
+5. 根据需求术语提取真实行号，生成 documentation Evidence，定位包含路径、行号、Commit SHA 和 Blob SHA；
+6. 对 PDF、Word、Excel、PowerPoint 文件登记候选 Asset，并明确标注 `content_extraction=unsupported_binary`，不伪造正文证据。
+
+新增 DiscoveryRun 计数：`github_documents` 和 `github_unsupported_documents`。Git Trees 返回 truncated 时记录警告，不能把部分文件树宣称为完整发现。
+
+重要限制：当前 Tree 扫描的仓库范围来自本轮需求检索命中的 GitHub 仓库，不是对 GitHub 全站或所有 Seeds 仓库进行无边界扫描。PDF/Office 的内容解析仍需独立 Parser 适配器；后续应保留页码、段落、Sheet、单元格等原生定位信息。

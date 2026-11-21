@@ -132,7 +132,7 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                      if github else {"sources": [], "assets": [], "evidence": [],
                                      "relationships": [], "matches": {}, "warnings": [],
                                      "counts": {"code": 0, "issues": 0, "pull_requests": 0,
-                                                "pr_files": 0}})
+                                                "pr_files": 0, "documents": 0, "unsupported_documents": 0}})
     all_sources = converted["sources"] + github_result["sources"]
     all_assets = converted["assets"] + github_result["assets"]
     all_evidence = converted["evidence"] + github_result["evidence"]
@@ -189,7 +189,7 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         stages=[
             {"name": "load_requirements", "status": "succeeded"},
             {"name": "load_legacy_seeds", "status": "succeeded"},
-            {"name": "github_file_issue_pr_discovery",
+            {"name": "github_code_issue_pr_and_tree_document_discovery",
              "status": ("partial" if github_result["warnings"] else "succeeded") if github else "skipped",
              "errors": github_result["warnings"]},
             {"name": "convert_assets", "status": "succeeded"},
@@ -205,7 +205,9 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 "github_code": github_result["counts"]["code"],
                 "github_issues": github_result["counts"]["issues"],
                 "github_pull_requests": github_result["counts"]["pull_requests"],
-                "github_pr_files": github_result["counts"]["pr_files"]},
+                "github_pr_files": github_result["counts"]["pr_files"],
+                "github_documents": github_result["counts"].get("documents", 0),
+                "github_unsupported_documents": github_result["counts"].get("unsupported_documents", 0)},
         errors=list(github_result["warnings"]), parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
                                "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
                                "requirements_path": str(requirements_path),

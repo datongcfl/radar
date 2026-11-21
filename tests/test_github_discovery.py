@@ -99,6 +99,55 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(search.call_count, 3,
                          "synonyms should be combined into one query per search type")
 
+
+    @mock.patch("radar.github_discovery._curl_text")
+    @mock.patch("radar.github_discovery._api_json")
+    @mock.patch("radar.github_discovery._search")
+    def test_recursive_tree_finds_document_not_returned_by_code_search(
+            self, search, api_json, curl_text):
+        requirements, pack = self._inputs()
+        code = {
+            "html_url": "https://github.com/acme/erp/blob/main/purchase.py",
+            "path": "purchase.py", "sha": "blobsha",
+            "repository": {"full_name": "acme/erp", "default_branch": "main"},
+        }
+        def search_result(query, kind, token, limit, timeout):
+            return ({"items": [code] if kind == "code" else []}, None)
+        search.side_effect = search_result
+        def api_result(path, token, timeout):
+            if "/commits/" in path:
+                return {"sha": "treecommit123"}, None
+            if "/git/trees/" in path:
+                return {"tree": [
+                    {"path": "docs/procurement-process.md", "type": "blob",
+                     "sha": "docblob123", "size": 120},
+                    {"path": "docs/legacy-guide.pdf", "type": "blob",
+                     "sha": "pdfblob123", "size": 500},
+                    {"path": "src/purchase.py", "type": "blob",
+                     "sha": "codeblob123", "size": 300},
+                ], "truncated": False}, None
+            return {}, None
+        api_json.side_effect = api_result
+        def text_result(url, headers=None, timeout=25):
+            if "raw.githubusercontent.com" in url:
+                return ("# Procurement\nPurchase Order requires manager approval.\n", 200, None)
+            return ("purchase_order()", 200, None)
+        curl_text.side_effect = text_result
+        result = discover_github(requirements, pack, "ws_docs", token="test-token")
+        doc = next(x for x in result["assets"] if x["title"].endswith(".md"))
+        self.assertEqual(doc["metadata"]["matched_by"], "github_recursive_tree")
+        self.assertIn(doc["id"], result["matches"]["req_demo"])
+        doc_evidence = next(x for x in result["evidence"]
+                            if x["asset_id"] == doc["id"])
+        self.assertEqual(doc_evidence["evidence_kind"], "documentation")
+        self.assertEqual(doc_evidence["locator"]["path"], "docs/procurement-process.md")
+        self.assertEqual(doc_evidence["locator"]["line_start"], 2)
+        self.assertEqual(doc_evidence["locator"]["ref"], "treecommit123")
+        pdf = next(x for x in result["assets"] if x["title"].endswith(".pdf"))
+        self.assertEqual(pdf["metadata"]["content_extraction"], "unsupported_binary")
+        self.assertEqual(result["counts"]["documents"], 1)
+        self.assertEqual(result["counts"]["unsupported_documents"], 1)
+
     @mock.patch("radar.github_discovery._curl_text",
                 return_value=("Purchase Order", 200, None))
     @mock.patch("radar.github_discovery._api_json", return_value=({"sha": "commit123"}, None))

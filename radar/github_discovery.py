@@ -184,7 +184,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     if not token:
         return {"sources": [], "assets": [], "evidence": [], "matches": {},
                 "warnings": ["GitHub discovery skipped: GITHUB_TOKEN is not configured"],
-                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0},
+                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0},
                                      "relationships": []}
     sources: dict[str, dict[str, Any]] = {}
     assets: dict[str, dict[str, Any]] = {}
@@ -195,6 +195,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0}
     counted_assets: dict[str, str] = {}
     repo_heads: dict[str, tuple[str, bool]] = {}
+    discovered_repos: dict[str, dict[str, Any]] = {}
     captured_at = _now()
 
     if not 1 <= limit_per_query <= 10:
@@ -219,6 +220,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                 html_url = str(item.get("html_url") or "")
                 if not full_name or not html_url:
                     continue
+                discovered_repos.setdefault(full_name, repo)
                 source_id = _repo_source(repo, sources)
                 if kind == "code":
                     branch = str(repo.get("default_branch") or "HEAD")
@@ -372,6 +374,95 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                      "pull_request": number},
                                     head_sha or None, captured_at)
                                 evidence[ev["id"]] = ev
+
+
+    # M7: recursively inspect repository trees so documentation discovery does
+    # not depend on GitHub Code Search indexing or README-only repository metadata.
+    document_extensions = {"md", "rst", "txt", "adoc", "html", "htm", "yaml", "yml"}
+    binary_document_extensions = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"}
+    for full_name, repo_hint in sorted(discovered_repos.items()):
+        branch_name = str(repo_hint.get("default_branch") or "")
+        if not branch_name:
+            repo_data, repo_error = _api_json("/repos/%s" % full_name, token, timeout)
+            if repo_error:
+                warnings.append("repository metadata fetch failed for %s: %s" %
+                                (full_name, repo_error[:160]))
+                continue
+            branch_name = str(repo_data.get("default_branch") or "HEAD")
+        head_data, head_error = _api_json(
+            "/repos/%s/commits/%s" % (full_name, quote(branch_name, safe="")), token, timeout)
+        if head_error or not (head_data or {}).get("sha"):
+            warnings.append("document tree skipped for %s: immutable revision unavailable" % full_name)
+            continue
+        tree_ref = str(head_data["sha"])
+        tree_data, tree_error = _api_json(
+            "/repos/%s/git/trees/%s?recursive=1" % (full_name, tree_ref), token, timeout)
+        if tree_error:
+            warnings.append("repository tree fetch failed for %s: %s" %
+                            (full_name, tree_error[:160]))
+            continue
+        if tree_data.get("truncated"):
+            warnings.append("repository tree is truncated for %s; document discovery is incomplete" % full_name)
+        source_id = _repo_source(repo_hint, sources)
+        doc_candidates = []
+        for entry in tree_data.get("tree") or []:
+            if entry.get("type") != "blob":
+                continue
+            path = str(entry.get("path") or "")
+            ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+            if ext not in document_extensions | binary_document_extensions:
+                continue
+            lowered = path.lower()
+            if any(part in lowered.split("/") for part in
+                   (".git", "node_modules", "vendor", "dist", "build", "__pycache__")):
+                continue
+            if int(entry.get("size") or 0) > 2_000_000:
+                continue
+            doc_candidates.append((path, ext, entry))
+        doc_candidates.sort(key=lambda row: (
+            0 if row[1] in document_extensions else 1,
+            0 if any(token in row[0].lower() for token in
+                     ("design", "architecture", "requirement", "workflow", "process", "manual", "spec")) else 1,
+            row[0].lower()))
+        for path, ext, entry in doc_candidates[:max(10, limit_per_query * 4)]:
+            uri = "https://github.com/%s/blob/%s/%s" % (
+                full_name, tree_ref, quote(path, safe="/"))
+            is_text_doc = ext in document_extensions
+            metadata = {
+                "path": path, "repository": full_name, "version_ref": tree_ref,
+                "blob_sha": entry.get("sha"), "size": entry.get("size", 0),
+                "matched_by": "github_recursive_tree",
+                "document_format": ext,
+                "content_extraction": "text" if is_text_doc else "unsupported_binary",
+            }
+            asset = _asset(source_id, "file", uri, path, metadata)
+            if asset["id"] not in assets:
+                assets[asset["id"]] = asset
+                counts["documents" if is_text_doc else "unsupported_documents"] += 1
+            if not is_text_doc:
+                continue
+            raw_url = "https://raw.githubusercontent.com/%s/%s/%s" % (
+                full_name, tree_ref, quote(path, safe="/"))
+            body, status, fetch_error = _curl_text(
+                raw_url, headers=["Authorization: Bearer %s" % token], timeout=timeout)
+            if fetch_error:
+                warnings.append("document fetch failed for %s: %s" % (uri, fetch_error[:160]))
+                continue
+            lines = (body or "").splitlines()
+            for requirement in requirements:
+                terms = _requirement_terms(requirement, pack)
+                hits = [(line_no, line.strip()) for line_no, line in enumerate(lines, 1)
+                        if line.strip() and any(term.lower() in line.lower() for term in terms)]
+                if not hits:
+                    continue
+                matches[requirement["id"]].add(asset["id"])
+                for line_no, line in hits[:5]:
+                    ev = _evidence(
+                        workspace_id, asset["id"], "documentation", line,
+                        {"path": path, "line_start": line_no, "line_end": line_no,
+                         "ref": tree_ref, "blob_sha": entry.get("sha")},
+                        tree_ref, captured_at)
+                    evidence[ev["id"]] = ev
 
     return {
         "sources": list(sources.values()), "assets": list(assets.values()),
