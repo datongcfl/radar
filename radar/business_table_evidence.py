@@ -77,6 +77,23 @@ def select_required_table_chunks(invariants: Iterable[dict[str, Any]],
                 break
         if not normalized:
             continue
+        scope_fields = list(invariant.get("scope_fields", []))
+        scope_aliases = invariant.get("scope_aliases", {})
+        for field in scope_fields:
+            values = scope_aliases.get(field, [])
+            if not isinstance(values, list):
+                normalized = {}
+                break
+            for alias in values:
+                key = _norm(alias)
+                if not key or (key in normalized and normalized[key] != field):
+                    normalized = {}
+                    break
+                normalized[key] = field
+            if not normalized:
+                break
+        if not normalized:
+            continue
         for table_key, table_rows in groups.items():
             header_row = min(table_rows)
             columns: dict[str, int] = {}
@@ -86,17 +103,18 @@ def select_required_table_chunks(invariants: Iterable[dict[str, Any]],
                     columns[field] = column
             if not set(required).issubset(columns):
                 continue
+            selected_fields = required + [field for field in scope_fields if field in columns]
             # Keep header cells so the downstream extractor can reconstruct the
             # same table schema from the selected, provenance-backed subset.
-            for field in required:
+            for field in selected_fields:
                 column = columns[field]
                 header_chunk = table_rows[header_row][column]
                 selected.setdefault((table_key, header_row, column), header_chunk)
             for row_number, cells in table_rows.items():
                 if row_number == header_row:
                     continue
-                # Select only fields needed by this invariant; do not collect unrelated cells.
-                for field in required:
+                # Select required numeric fields and any optional scope keys present.
+                for field in selected_fields:
                     chunk = cells.get(columns[field])
                     if chunk is None or not str(chunk.get("text", "")).strip():
                         continue

@@ -26,6 +26,11 @@ def receipt_invariant():
             "rejected_qty":["rejected_qty","拒收数量"],
             "received_qty":["received_qty","received quantity","实收数量"],
         },
+        "scope_fields":["purchase_order_id","receipt_id"],
+        "scope_aliases":{
+            "purchase_order_id":["purchase_order_id","采购订单号"],
+            "receipt_id":["receipt_id","收货单号"],
+        },
     }
 
 
@@ -97,6 +102,24 @@ class TestBusinessObservationExtractor(unittest.TestCase):
             [receipt_invariant()], chunks, evidence_for_chunks(chunks), ASSET)
         self.assertEqual(result["summary"]["observations"], 1)
         self.assertEqual(result["observations"][0]["values"]["received_qty"], "10")
+
+    def test_business_scope_keys_keep_cell_evidence_provenance(self):
+        parsed = extract_csv_document(
+            "purchase_order_id,receipt_id,accepted_qty,rejected_qty,received_qty\nPO-42,PR-8,8,2,10\n")
+        chunks = parsed["chunks"]
+        for chunk in chunks:
+            chunk["locator"]["path"] = "receipts.csv"
+        evidence = evidence_for_chunks(chunks)
+        result = extract_table_observations(
+            [receipt_invariant()], chunks, evidence, ASSET)
+        self.assertEqual(result["summary"]["observations"], 1)
+        observation = result["observations"][0]
+        self.assertEqual(observation["business_scope"], {
+            "purchase_order_id":"PO-42","receipt_id":"PR-8"})
+        self.assertEqual(set(observation["scope_provenance"]), {
+            "purchase_order_id","receipt_id"})
+        self.assertTrue(all(item["evidence_id"] for item in
+                            observation["scope_provenance"].values()))
 
     def test_xlsx_sheet_and_cell_evidence_is_matched_exactly(self):
         chunks = [

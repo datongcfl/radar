@@ -225,6 +225,15 @@ class TestBusinessGraph(unittest.TestCase):
         with self.assertRaises(BusinessModelError):
             validate_business_model(model, pack)
 
+    def test_scope_aliases_must_be_declared_and_unambiguous(self):
+        _, pack, model = self._data()
+        model["invariants"][0]["scope_fields"] = ["purchase_order_id"]
+        model["invariants"][0]["scope_aliases"] = {
+            "purchase_order_id":["合格数量"],
+        }
+        with self.assertRaises(BusinessModelError):
+            validate_business_model(model, pack)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]

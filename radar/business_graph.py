@@ -117,6 +117,7 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
         if len(set(invariant["fields"])) != len(invariant["fields"]):
             raise BusinessModelError("%s.fields must be unique" % where)
         aliases = invariant.get("field_aliases")
+        normalized_aliases = {}
         if aliases is not None:
             if not isinstance(aliases, dict):
                 raise BusinessModelError("%s.field_aliases must be an object" % where)
@@ -125,7 +126,6 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
                 allowed_alias_fields.add(invariant["target_field"])
             if set(aliases) - allowed_alias_fields:
                 raise BusinessModelError("%s.field_aliases references undeclared fields" % where)
-            normalized_aliases = {}
             for alias_field, alias_values in aliases.items():
                 if not isinstance(alias_values, list) or not alias_values:
                     raise BusinessModelError("%s.field_aliases.%s must be a non-empty array" %
@@ -138,6 +138,28 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
                             (normalized in normalized_aliases and normalized_aliases[normalized] != alias_field)):
                         raise BusinessModelError("%s.field_aliases contains empty or ambiguous aliases" % where)
                     normalized_aliases[normalized] = alias_field
+        scope_fields = invariant.get("scope_fields", [])
+        if not isinstance(scope_fields, list):
+            raise BusinessModelError("%s.scope_fields must be an array" % where)
+        _strings(scope_fields, where + ".scope_fields", allow_empty=True)
+        if len(set(scope_fields)) != len(scope_fields):
+            raise BusinessModelError("%s.scope_fields must be unique" % where)
+        scope_aliases = invariant.get("scope_aliases", {})
+        if not isinstance(scope_aliases, dict):
+            raise BusinessModelError("%s.scope_aliases must be an object" % where)
+        if set(scope_aliases) - set(scope_fields):
+            raise BusinessModelError("%s.scope_aliases references undeclared scope fields" % where)
+        for alias_field, alias_values in scope_aliases.items():
+            if not isinstance(alias_values, list) or not alias_values:
+                raise BusinessModelError("%s.scope_aliases.%s must be a non-empty array" %
+                                         (where, alias_field))
+            _strings(alias_values, where + ".scope_aliases." + alias_field)
+            for alias in alias_values:
+                normalized = "".join(char.casefold() for char in alias if char.isalnum())
+                if (not normalized or
+                        (normalized in normalized_aliases and normalized_aliases[normalized] != alias_field)):
+                    raise BusinessModelError("%s field and scope aliases are ambiguous" % where)
+                normalized_aliases[normalized] = alias_field
         if invariant.get("target_field") is not None and (
                 not isinstance(invariant["target_field"], str) or not invariant["target_field"].strip()):
             raise BusinessModelError("%s.target_field must be a non-empty string" % where)

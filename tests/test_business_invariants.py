@@ -97,6 +97,14 @@ class TestBusinessInvariantEvaluation(unittest.TestCase):
         with self.assertRaises(ObservationError):
             evaluate_business_invariants([invariant], bundle, evidence)
 
+    def test_evidence_from_another_asset_cannot_back_an_observation(self):
+        invariant = self._invariant("sum_equals", ["accepted","rejected"], "received")
+        bundle, evidence = self._bundle(invariant, {
+            "accepted":8,"rejected":2,"received":10})
+        evidence[0]["asset_id"] = "asset_other"
+        with self.assertRaises(ObservationError):
+            validate_observation_bundle(bundle, [invariant], evidence)
+
     def test_no_observation_is_not_pass_or_fail(self):
         invariant = self._invariant("less_than_or_equal", ["actual","limit"])
         result = evaluate_business_invariants([invariant], None)

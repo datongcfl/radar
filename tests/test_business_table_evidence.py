@@ -45,6 +45,26 @@ class TestBusinessTableEvidence(unittest.TestCase):
         self.assertEqual([item["locator"]["cell"] for item in selected],
                          ["A1","B1","C1","A2","B2","C2"])
 
+    def test_optional_scope_identifier_cells_are_selected(self):
+        invariant = dict(self.invariant)
+        invariant["scope_fields"] = ["purchase_order_id"]
+        invariant["scope_aliases"] = {
+            "purchase_order_id":["purchase_order_id","采购订单号"]}
+        chunks = [
+            {"text":"采购订单号","locator":{"path":"receipts.csv","row":1,"column":1}},
+            {"text":"accepted_qty","locator":{"path":"receipts.csv","row":1,"column":2}},
+            {"text":"rejected_qty","locator":{"path":"receipts.csv","row":1,"column":3}},
+            {"text":"received_qty","locator":{"path":"receipts.csv","row":1,"column":4}},
+            {"text":"PO-42","locator":{"path":"receipts.csv","row":2,"column":1}},
+            {"text":"8","locator":{"path":"receipts.csv","row":2,"column":2}},
+            {"text":"2","locator":{"path":"receipts.csv","row":2,"column":3}},
+            {"text":"10","locator":{"path":"receipts.csv","row":2,"column":4}},
+        ]
+        selected = select_required_table_chunks([invariant], chunks)
+        self.assertEqual([item["text"] for item in selected],
+                         ["采购订单号","accepted_qty","rejected_qty","received_qty",
+                          "PO-42","8","2","10"])
+
     def test_unrelated_or_incomplete_tables_produce_no_selected_cells(self):
         chunks = [
             {"text":"description","locator":{"path":"other.csv","row":1,"column":1}},

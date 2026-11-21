@@ -99,6 +99,21 @@ def extract_table_observations(invariants: Iterable[dict[str, Any]],
                 alias_to_field[key] = field
             if ambiguous:
                 break
+        scope_fields = list(invariant.get("scope_fields", []))
+        scope_aliases = invariant.get("scope_aliases", {})
+        for field in scope_fields:
+            aliases_for_scope = scope_aliases.get(field, [])
+            if not isinstance(aliases_for_scope, list):
+                ambiguous = True
+                break
+            for alias in aliases_for_scope:
+                key = _normalize_header(alias)
+                if not key or (key in alias_to_field and alias_to_field[key] != field):
+                    ambiguous = True
+                    break
+                alias_to_field[key] = field
+            if ambiguous:
+                break
         if ambiguous:
             skipped.append({"invariant_id": invariant.get("id"), "reason": "missing_or_ambiguous_field_aliases"})
             continue
@@ -165,14 +180,38 @@ def extract_table_observations(invariants: Iterable[dict[str, Any]],
                                     "scope_key": "%s:%s" % (table_key, row_number),
                                     "reason": "incomplete_row_or_missing_cell_evidence"})
                     continue
+                business_scope, scope_provenance = {}, {}
+                for field in scope_fields:
+                    column = header_map.get(field)
+                    if column is None:
+                        continue
+                    chunk = cells.get(column)
+                    if chunk is None or not str(chunk.get("text", "")).strip():
+                        continue
+                    locator = dict(chunk.get("locator", {}))
+                    locator.setdefault("path", table_key[1])
+                    evidence_item = evidence_by_cell.get(_cell_identity(locator))
+                    if evidence_item is None:
+                        continue
+                    business_scope[field] = str(chunk.get("text", "")).strip()
+                    scope_provenance[field] = {
+                        "evidence_id": evidence_item["id"],
+                        "locator": locator,
+                        "verification_level": (evidence_item.get("metadata") or {}).get(
+                            "verification", {}).get("level", "document_text"),
+                        "runtime_observed": False,
+                    }
                 scope_key = "%s:%s" % (table_key, row_number)
                 observation_id = "obs_" + sha256(
                     (asset_id + "|" + invariant["id"] + "|" + scope_key).encode("utf-8")
                 ).hexdigest()[:20]
                 observations.append({
-                    "id": observation_id, "invariant_id": invariant["id"],
+                    "id": observation_id, "asset_id": asset_id,
+                    "invariant_id": invariant["id"],
                     "scope_key": scope_key, "origin": origin,
                     "values": values, "field_provenance": provenance,
+                    "business_scope": business_scope,
+                    "scope_provenance": scope_provenance,
                     "captured_at": None,
                 })
     observations.sort(key=lambda item: (item["invariant_id"], item["scope_key"]))

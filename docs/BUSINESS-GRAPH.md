@@ -143,3 +143,6 @@ For parsed CSV/XLSX documents, the Pack's exact `field_aliases` identify tables 
 The selected cells are passed to the observation extractor in the same Discovery Run. A versioned bundle is written under the Workspace's `observations/` directory and its path and counts are included in the CLI result. Pass it to `radar business-graph --observations <path>`.
 
 This remains conservative: only exact declared aliases and complete numeric rows are considered. It does not aggregate across multiple receipts/orders, infer document identity, prove that a document is authoritative, or turn a static document calculation into runtime verification. Missing tokens, unavailable repository trees, unsupported formats, and missing business models cannot silently produce successful observations.
+
+
+Observation records now also carry their source `asset_id`; validation rejects Evidence whose `asset_id` differs from the observation's source Asset. Optional `business_scope` values (for example `purchase_order_id`, `receipt_id`, `project_id`, and `item_code`) have a parallel `scope_provenance` map. Scope aliases are validated against numeric field aliases to prevent ambiguous header interpretation. This establishes traceable join keys but does not yet perform joins or totals across different files.

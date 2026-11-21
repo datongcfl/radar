@@ -45,7 +45,7 @@ def validate_observation_bundle(data: dict[str, Any], invariants: Iterable[dict[
         for key in ("id", "invariant_id", "scope_key", "origin", "values", "field_provenance"):
             if key not in row:
                 raise ObservationError("%s missing %s" % (where, key))
-        for key in ("id", "invariant_id", "scope_key"):
+        for key in ("id", "asset_id", "invariant_id", "scope_key"):
             if not isinstance(row[key], str) or not row[key].strip():
                 raise ObservationError("%s.%s must be a non-empty string" % (where, key))
         if row["id"] in seen:
@@ -87,6 +87,8 @@ def validate_observation_bundle(data: dict[str, Any], invariants: Iterable[dict[
                 if source is None:
                     raise ObservationError("%s.%s references unknown Evidence %s" %
                                            (where, field, item["evidence_id"]))
+                if source.get("asset_id") != row["asset_id"]:
+                    raise ObservationError("%s.%s Evidence belongs to a different Asset" % (where, field))
                 source_verification = (source.get("metadata") or {}).get("verification", {})
                 declared_runtime = bool(item.get("runtime_observed", False))
                 actual_runtime = bool(source_verification.get("runtime_observed", False))
@@ -113,6 +115,41 @@ def validate_observation_bundle(data: dict[str, Any], invariants: Iterable[dict[
                 level = provenance[field].get("verification_level", "")
                 if level and level not in ("static_source", "document_text", "unknown"):
                     raise ObservationError("%s static_source has incompatible verification level" % where)
+        scope_values = row.get("business_scope", {})
+        scope_provenance = row.get("scope_provenance", {})
+        if not isinstance(scope_values, dict) or not isinstance(scope_provenance, dict):
+            raise ObservationError("%s business_scope and scope_provenance must be objects" % where)
+        if set(scope_values) != set(scope_provenance):
+            raise ObservationError("%s scope values and provenance keys must match" % where)
+        declared_scope_fields = set(invariant.get("scope_fields", []))
+        if set(scope_values) - declared_scope_fields:
+            raise ObservationError("%s contains undeclared business scope fields" % where)
+        for field, value in scope_values.items():
+            if not isinstance(value, str) or not value.strip():
+                raise ObservationError("%s.business_scope.%s must be a non-empty string" % (where, field))
+            item = scope_provenance[field]
+            if (not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str)
+                    or not item.get("evidence_id").strip()):
+                raise ObservationError("%s.business_scope.%s requires evidence_id provenance" % (where, field))
+            locator = item.get("locator")
+            if not isinstance(locator, dict) or not locator_keys.intersection(locator):
+                raise ObservationError("%s.business_scope.%s requires a precise locator" % (where, field))
+            if evidence_map is not None:
+                source = evidence_map.get(item["evidence_id"])
+                if source is None:
+                    raise ObservationError("%s.business_scope.%s references unknown Evidence %s" %
+                                           (where, field, item["evidence_id"]))
+                if source.get("asset_id") != row["asset_id"]:
+                    raise ObservationError("%s.business_scope.%s Evidence belongs to a different Asset" % (where, field))
+                source_verification = (source.get("metadata") or {}).get("verification", {})
+                if bool(item.get("runtime_observed", False)) != bool(
+                        source_verification.get("runtime_observed", False)):
+                    raise ObservationError("%s.business_scope.%s runtime flag conflicts with Evidence" %
+                                           (where, field))
+                if item.get("verification_level") not in (
+                        None, source_verification.get("level", "unknown")):
+                    raise ObservationError("%s.business_scope.%s verification level conflicts with Evidence" %
+                                           (where, field))
     return rows
 
 

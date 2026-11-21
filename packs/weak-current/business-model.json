@@ -529,6 +529,56 @@
           "收货数量",
           "本次收货数量"
         ]
+      },
+      "scope_fields": [
+        "receipt_id",
+        "purchase_order_id",
+        "purchase_order_item_id",
+        "project_id",
+        "item_code"
+      ],
+      "scope_aliases": {
+        "receipt_id": [
+          "receipt_id",
+          "purchase_receipt_id",
+          "receipt number",
+          "收货单号",
+          "收货单编号"
+        ],
+        "purchase_order_id": [
+          "purchase_order_id",
+          "purchase order id",
+          "purchase_order_no",
+          "po number",
+          "po no",
+          "采购订单号",
+          "采购单号",
+          "订单编号"
+        ],
+        "purchase_order_item_id": [
+          "purchase_order_item_id",
+          "purchase order item id",
+          "po line id",
+          "order line number",
+          "采购订单明细号",
+          "采购订单行号",
+          "订单行号"
+        ],
+        "project_id": [
+          "project_id",
+          "project code",
+          "project number",
+          "项目编号",
+          "项目编码"
+        ],
+        "item_code": [
+          "item_code",
+          "material_code",
+          "item number",
+          "material number",
+          "物料编码",
+          "材料编码"
+        ]
       }
     },
     {
@@ -567,6 +617,48 @@
           "订单数量",
           "订购数量"
         ]
+      },
+      "scope_fields": [
+        "purchase_order_id",
+        "purchase_order_item_id",
+        "project_id",
+        "item_code"
+      ],
+      "scope_aliases": {
+        "purchase_order_id": [
+          "purchase_order_id",
+          "purchase order id",
+          "purchase_order_no",
+          "po number",
+          "po no",
+          "采购订单号",
+          "采购单号",
+          "订单编号"
+        ],
+        "purchase_order_item_id": [
+          "purchase_order_item_id",
+          "purchase order item id",
+          "po line id",
+          "order line number",
+          "采购订单明细号",
+          "采购订单行号",
+          "订单行号"
+        ],
+        "project_id": [
+          "project_id",
+          "project code",
+          "project number",
+          "项目编号",
+          "项目编码"
+        ],
+        "item_code": [
+          "item_code",
+          "material_code",
+          "item number",
+          "material number",
+          "物料编码",
+          "材料编码"
+        ]
       }
     },
     {
@@ -604,6 +696,64 @@
           "实收数量",
           "原收货数量",
           "收货数量"
+        ]
+      },
+      "scope_fields": [
+        "purchase_return_id",
+        "receipt_id",
+        "purchase_order_id",
+        "purchase_order_item_id",
+        "project_id",
+        "item_code"
+      ],
+      "scope_aliases": {
+        "purchase_return_id": [
+          "purchase_return_id",
+          "return_id",
+          "purchase return number",
+          "采购退货单号",
+          "退货单号"
+        ],
+        "receipt_id": [
+          "receipt_id",
+          "purchase_receipt_id",
+          "receipt number",
+          "收货单号",
+          "收货单编号"
+        ],
+        "purchase_order_id": [
+          "purchase_order_id",
+          "purchase order id",
+          "purchase_order_no",
+          "po number",
+          "po no",
+          "采购订单号",
+          "采购单号",
+          "订单编号"
+        ],
+        "purchase_order_item_id": [
+          "purchase_order_item_id",
+          "purchase order item id",
+          "po line id",
+          "order line number",
+          "采购订单明细号",
+          "采购订单行号",
+          "订单行号"
+        ],
+        "project_id": [
+          "project_id",
+          "project code",
+          "project number",
+          "项目编号",
+          "项目编码"
+        ],
+        "item_code": [
+          "item_code",
+          "material_code",
+          "item number",
+          "material number",
+          "物料编码",
+          "材料编码"
         ]
       }
     },
@@ -654,6 +804,71 @@
           "基本单位数量",
           "库存数量"
         ]
+      },
+      "scope_fields": [
+        "purchase_order_id",
+        "purchase_order_item_id",
+        "receipt_id",
+        "project_id",
+        "item_code",
+        "purchase_uom",
+        "base_uom"
+      ],
+      "scope_aliases": {
+        "purchase_order_id": [
+          "purchase_order_id",
+          "purchase order id",
+          "purchase_order_no",
+          "po number",
+          "po no",
+          "采购订单号",
+          "采购单号",
+          "订单编号"
+        ],
+        "purchase_order_item_id": [
+          "purchase_order_item_id",
+          "purchase order item id",
+          "po line id",
+          "order line number",
+          "采购订单明细号",
+          "采购订单行号",
+          "订单行号"
+        ],
+        "receipt_id": [
+          "receipt_id",
+          "purchase_receipt_id",
+          "receipt number",
+          "收货单号",
+          "收货单编号"
+        ],
+        "project_id": [
+          "project_id",
+          "project code",
+          "project number",
+          "项目编号",
+          "项目编码"
+        ],
+        "item_code": [
+          "item_code",
+          "material_code",
+          "item number",
+          "material number",
+          "物料编码",
+          "材料编码"
+        ],
+        "purchase_uom": [
+          "purchase_uom",
+          "purchase unit",
+          "采购单位",
+          "采购计量单位"
+        ],
+        "base_uom": [
+          "base_uom",
+          "stock uom",
+          "basic unit",
+          "库存单位",
+          "基本单位"
+        ]
       }
     },
     {
@@ -695,6 +910,49 @@
           "总账金额",
           "总账余额",
           "会计账面金额"
+        ]
+      },
+      "scope_fields": [
+        "project_id",
+        "item_code",
+        "accounting_period",
+        "warehouse_id",
+        "gl_account"
+      ],
+      "scope_aliases": {
+        "project_id": [
+          "project_id",
+          "project code",
+          "project number",
+          "项目编号",
+          "项目编码"
+        ],
+        "item_code": [
+          "item_code",
+          "material_code",
+          "item number",
+          "material number",
+          "物料编码",
+          "材料编码"
+        ],
+        "accounting_period": [
+          "accounting_period",
+          "posting period",
+          "fiscal period",
+          "会计期间",
+          "财务期间"
+        ],
+        "warehouse_id": [
+          "warehouse_id",
+          "warehouse",
+          "仓库编码",
+          "仓库"
+        ],
+        "gl_account": [
+          "gl_account",
+          "account code",
+          "总账科目",
+          "会计科目"
         ]
       }
     },
