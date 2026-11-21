@@ -181,16 +181,20 @@ def validate_record(record: Mapping[str, Any], expected_type: str | None = None)
         _nonempty(data["title"], "asset.title")
     elif kind == "evidence":
         _nonempty(data["statement"], "evidence.statement")
-        if not isinstance(data["locator"], dict) or not data["locator"]:
+        if not isinstance(data["locator"], dict) or not data["locator"] or not any(
+                value not in (None, "") for value in data["locator"].values()):
             raise DiscoveryValidationError("evidence.locator must identify a location")
         _timestamp(data["captured_at"], "captured_at")
-        if data.get("excerpt") is not None and len(data["excerpt"]) > 2000:
-            raise DiscoveryValidationError("evidence.excerpt exceeds 2000 characters")
+        excerpt = data.get("excerpt")
+        if excerpt is not None and (not isinstance(excerpt, str) or len(excerpt) > 2000):
+            raise DiscoveryValidationError("evidence.excerpt must be text of at most 2000 characters")
     elif kind == "relationship":
         for endpoint in ("from", "to"):
             ref = data[endpoint]
-            if not isinstance(ref, dict) or not {"object_type", "id"} <= set(ref):
-                raise DiscoveryValidationError("relationship.%s must be an object reference" % endpoint)
+            if (not isinstance(ref, dict) or not {"object_type", "id"} <= set(ref)
+                    or ref.get("object_type") not in PREFIXES):
+                raise DiscoveryValidationError("relationship.%s must be a typed object reference" % endpoint)
+            _nonempty(ref.get("id"), "relationship.%s.id" % endpoint)
         confidence = data["confidence"]
         if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
             raise DiscoveryValidationError("relationship.confidence must be between 0 and 1")
@@ -201,6 +205,7 @@ def validate_record(record: Mapping[str, Any], expected_type: str | None = None)
             raise DiscoveryValidationError("assessment.requirement_version must be >= 1")
         if data["overall_status"] not in CRITERION_STATUSES:
             raise DiscoveryValidationError("assessment.overall_status is invalid")
+        _timestamp(data["assessed_at"], "assessed_at")
         if not isinstance(data["criterion_results"], list) or not isinstance(data["evidence_ids"], list):
             raise DiscoveryValidationError("assessment results/evidence_ids must be arrays")
         for result in data["criterion_results"]:
