@@ -265,3 +265,10 @@ PR head commit 的 CI 结果作为独立测试证据：
 - Commit Status：保留 context、state、description、target URL 和 head SHA。
 
 CI 通过只证明该 commit 对应检查报告的状态，不自动证明需求已满足；失败、排队、跳过和缺失结果必须保持各自语义。API 失败记录 warning，不阻断其他来源和资产的发现。
+
+
+## 12. D03 材料采购与现场流转案例（M10）
+
+机器可读验收需求见 `examples/requirements/d03-material-procurement.json`，固定版本源码证据、逐验收项评估和缺口见 `docs/cases/D03-MATERIAL-PROCUREMENT.md`。该案例将 Material Request、Supplier Quotation、Purchase Order、Purchase Receipt、Stock Entry、Purchase Return、Issue、PR 与测试代码映射到 D03 验收条件。
+
+案例文档区分源码存在、测试用例存在和实际 CI 执行结果；未完成在线 Radar Discover 的项目明确保留为未验证，不得把人工证据整理冒充自动发现 Run。
