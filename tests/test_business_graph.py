@@ -137,6 +137,22 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(state_nodes[0]["inference_status"], "candidate_only")
         self.assertEqual(graph["counts"]["candidate_code_state_transitions"], 1)
 
+    def test_pack_invariants_are_declared_not_evaluated(self):
+        _, pack, model = self._data()
+        model["invariants"] = [{
+            "id":"qty_balance","name":"Quantity balance","description":"Accepted plus rejected equals received.",
+            "operator":"sum_equals","scope":"receipt_item","fields":["accepted","rejected"],
+            "target_field":"received","related_entities":["purchase_receipt"],
+            "required_evidence":["receipt lines","quality record"],"risk":"quantity mismatch"}]
+        graph = build_business_graph(model, pack)
+        invariant_nodes = [n for n in graph["nodes"] if n["kind"] == "business_invariant"]
+        self.assertEqual(len(invariant_nodes), 1)
+        self.assertEqual(invariant_nodes[0]["verification_status"], "declared_not_verified")
+        self.assertTrue(any(e["relation"] == "constrains_entity" for e in graph["edges"]))
+        model["invariants"][0]["operator"] = "execute_python"
+        with self.assertRaises(BusinessModelError):
+            build_business_graph(model, pack)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]

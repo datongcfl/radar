@@ -208,6 +208,13 @@ def _evidence(workspace_id: str, asset_id: str, kind: str, statement: str,
         asset_version_ref=version_ref, captured_at=captured_at,
         extractor={"name": "github-discovery", "version": "1"},
         verification_status="source_confirmed", license_status="unknown",
+        metadata={"verification": {
+            "source_status": "source_confirmed",
+            "level": {"code":"static_source", "documentation":"document_text",
+                      "test":"external_ci_observation", "issue":"discussion_observation",
+                      "pull_request":"review_observation"}.get(kind, "source_observation"),
+            "runtime_observed": False,
+        }},
     )
 
 
@@ -528,6 +535,12 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                         {"url": check_uri, "check_run_id": check.get("id"),
                                          "head_sha": head_sha, "field": "check_run"},
                                         head_sha, captured_at)
+                                    conclusion = str(check.get("conclusion") or "pending").lower()
+                                    ev["metadata"]["verification"].update({
+                                        "level": "ci_check_" + conclusion,
+                                        "ci_status": check.get("status"),
+                                        "ci_conclusion": check.get("conclusion"),
+                                        "runtime_observed": False})
                                     evidence[ev["id"]] = ev
                                     counts["ci_checks"] += 1
 
@@ -554,6 +567,10 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                     ev = _evidence(workspace_id, status_asset["id"], "test", statement,
                                         {"url": status_uri, "head_sha": head_sha, "field": "commit_status"},
                                         head_sha, captured_at)
+                                    ev["metadata"]["verification"].update({
+                                        "level": "commit_status_" + state.lower(),
+                                        "commit_status": state,
+                                        "runtime_observed": False})
                                     evidence[ev["id"]] = ev
                                     counts["ci_statuses"] += 1
 

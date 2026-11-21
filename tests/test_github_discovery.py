@@ -158,6 +158,10 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(review["locator"]["commit_id"], "prhead456")
         self.assertTrue(any(e["evidence_kind"] == "test" and "119 tests passed" in e["statement"]
                             for e in result["evidence"]))
+        ci_evidence = next(e for e in result["evidence"]
+                           if e["evidence_kind"] == "test" and "unit tests" in e["statement"])
+        self.assertEqual(ci_evidence["metadata"]["verification"]["level"], "ci_check_success")
+        self.assertFalse(ci_evidence["metadata"]["verification"]["runtime_observed"])
         self.assertTrue(any(e["evidence_kind"] == "test" and "Build passed" in e["statement"]
                             for e in result["evidence"]))
         self.assertGreaterEqual(len(result["relationships"]), 4)

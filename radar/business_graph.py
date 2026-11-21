@@ -78,6 +78,39 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
         exception_ids.add(exception["id"])
         unknown = sorted(set(exception["related_entities"]) - entity_ids)
         if unknown: raise BusinessModelError("%s references unknown entities: %s" % (where, ", ".join(unknown)))
+    invariants = data.get("invariants", [])
+    if not isinstance(invariants, list):
+        raise BusinessModelError("business model invariants must be an array")
+    invariant_ids: set[str] = set()
+    allowed_operators = {"sum_equals", "less_than_or_equal", "multiplication_equals",
+                         "equal_with_tolerance", "separate_fields"}
+    for i, invariant in enumerate(invariants):
+        where = "invariants[%d]" % i
+        if not isinstance(invariant, dict):
+            raise BusinessModelError("%s must be an object" % where)
+        for key in ("id", "name", "description", "operator", "scope", "fields",
+                    "related_entities", "required_evidence", "risk"):
+            if key not in invariant:
+                raise BusinessModelError("%s missing %s" % (where, key))
+        _strings([invariant["id"], invariant["name"], invariant["description"],
+                  invariant["scope"], invariant["risk"]], where)
+        if invariant["operator"] not in allowed_operators:
+            raise BusinessModelError("%s has unsupported operator" % where)
+        _strings(invariant["fields"], where + ".fields")
+        _strings(invariant["related_entities"], where + ".related_entities")
+        _strings(invariant["required_evidence"], where + ".required_evidence")
+        if invariant["id"] in invariant_ids:
+            raise BusinessModelError("duplicate invariant id: %s" % invariant["id"])
+        invariant_ids.add(invariant["id"])
+        unknown = sorted(set(invariant["related_entities"]) - entity_ids)
+        if unknown:
+            raise BusinessModelError("%s references unknown entities: %s" % (where, ", ".join(unknown)))
+        if "tolerance" in invariant and (not isinstance(invariant["tolerance"], (int, float))
+                or invariant["tolerance"] < 0):
+            raise BusinessModelError("%s.tolerance must be a non-negative number" % where)
+        if invariant["operator"] in ("sum_equals", "multiplication_equals",
+                                     "equal_with_tolerance") and not invariant.get("target_field"):
+            raise BusinessModelError("%s.target_field is required for this operator" % where)
     return data
 
 def _node_id(kind: str, key: str) -> str:
@@ -151,6 +184,23 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             _add_edge(edges, xid, entity_nodes[entity_id], "affects_entity", exception["id"] + ".REL",
                 {"source":"industry_pack","pack":model["pack"],"business_model_version":model["version"]},
                 "declared_not_verified", 1.0)
+    invariant_nodes = {}
+    for invariant in model.get("invariants", []):
+        iid = node("business_invariant", invariant["id"], business_id=invariant["id"],
+            name=invariant["name"], description=invariant["description"],
+            operator=invariant["operator"], scope=invariant["scope"],
+            fields=invariant["fields"], target_field=invariant.get("target_field"),
+            tolerance=invariant.get("tolerance"),
+            required_evidence=invariant["required_evidence"], risk=invariant["risk"],
+            verification_status="declared_not_verified")
+        invariant_nodes[invariant["id"]] = iid
+        for entity_id in invariant["related_entities"]:
+            _add_edge(edges, iid, entity_nodes[entity_id], "constrains_entity",
+                "INVARIANT.ENTITY_SCOPE",
+                {"source":"industry_pack","pack":model["pack"],
+                 "business_model_version":model["version"],"invariant_id":invariant["id"]},
+                "declared_not_verified", 1.0)
+
     asset_nodes = {}
     evidence_entities: dict[str, set[str]] = {}
     evidence_exceptions: dict[str, set[str]] = {}
@@ -165,6 +215,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         eid = ev["id"]
         enode = node("evidence", eid, record_id=eid, statement=ev.get("statement", ""),
             locator=ev.get("locator", {}), verification_status=ev.get("verification_status", "unverified"),
+            verification_level=(ev.get("metadata") or {}).get("verification", {}).get("level", "unknown"),
+            runtime_observed=(ev.get("metadata") or {}).get("verification", {}).get("runtime_observed", False),
             asset_id=ev.get("asset_id"))
         asset_node = asset_nodes.get(ev.get("asset_id"))
         if asset_node:
@@ -302,9 +354,12 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         "business_model_version":model["version"],"business_model_sha256":model_digest,
         "inference_policy":{"term_match_is_candidate_only":True,
             "declared_transition_is_not_implementation_evidence":True,
+            "declared_invariant_is_not_validation":True,
+            "ci_result_is_not_runtime_observation":True,
             "no_evidence_does_not_mean_not_implemented":True},
         "counts":{"entities":len(model["entities"]),"processes":len(model["processes"]),
-            "exceptions":len(model["exceptions"]),"assets":len(asset_nodes),"evidence":len(evidence),
+            "exceptions":len(model["exceptions"]),"invariants":len(model.get("invariants", [])),
+            "assets":len(asset_nodes),"evidence":len(evidence),
             "nodes":len(nodes),"edges":len(edges),
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
             "candidate_exception_mentions":sum(1 for e in edges if e["relation"]=="candidate_exception_mention"),
