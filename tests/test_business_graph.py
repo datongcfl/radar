@@ -238,9 +238,7 @@ class TestBusinessGraph(unittest.TestCase):
 
     def test_pack_aggregation_rule_is_validated_and_projected_with_evidence_links(self):
         _, pack, model = self._data()
-        rule = {"id":"po_receipts","source_invariant_id":"receipt_quantity_balance",
-                "source_field":"received_qty","group_by":["purchase_order_id","purchase_order_item_id"],
-                "operation":"sum","output_field":"cumulative_received_qty"}
+        rule = dict(model["aggregations"][0], id="po_receipts")
         model["aggregations"] = [rule]
         with self.assertRaises(BusinessModelError):
             validate_business_model(dict(model, aggregations=[dict(rule, operation="exec")]), pack)
