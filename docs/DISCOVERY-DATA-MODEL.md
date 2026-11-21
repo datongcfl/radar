@@ -126,7 +126,7 @@ Run 创建后保留其输入快照。运行结束后不应修改历史输入版�
 ```text
 workspaces/<workspace-id>/
   workspace.json
-  requirements/<requirement-key>/v<version>-<requirement-id>.json
+  requirements.jsonl
   sources.jsonl
   assets.jsonl
   evidence.jsonl
@@ -136,7 +136,7 @@ workspaces/<workspace-id>/
   snapshots/sha256/<digest>
 ```
 
-JSONL 每行一个完整领域对象；ID 唯一。快照以内容哈希寻址。M2 可以改变物理存储实现，但不能改变本文件定义的领域语义。
+JSONL 每行一个完整领域对象；ID 唯一，Requirement 的 `key + version` 也唯一。Run 单独写入 `runs/<run-id>/run.json`。快照以 SHA-256 内容哈希寻址，读取时重新校验哈希。v1 `JsonWorkspaceStore` 按 Workspace 隔离，采用单写入者约束；暂不承诺多进程并发写入。Source/Asset 当前也保存在 Workspace 内，跨 Workspace 公共资产共享留待后续授权与权限模型完善后实现。M2 可以改变物理存储实现，但不能改变本文件定义的领域语义。
 
 ## 5. 兼容与迁移
 
@@ -145,6 +145,8 @@ JSONL 每行一个完整领域对象；ID 唯一。快照以内容哈希寻址�
 - Legacy Source 可映射为一个 Source 加一个或多个 Asset；旧 Quote 只有在有明确出处定位时才能升级为 Evidence，否则保留为待补定位记录。
 - 迁移过程必须记录来源对象 ID、转换时间和转换器版本；不删除或覆盖旧数据。
 - `schemas/discovery.schema.json` 是 JSON Schema draft 2020-12。运行时校验由标准库实现，不依赖 jsonschema 等第三方库。
+- `radar.legacy.read_legacy_sources()` 复用旧 Seeds 读取逻辑；`convert_legacy_sources()` 将旧 Source 拆成平台 Source 与具体 Asset。旧 Quote 只有同时具有文本和精确 locator 才能升级为 Evidence；没有 locator 的 Quote 保存在 `pending_quotes`，不伪造行号或页码。
+- Legacy 导入采用稳定 ID；重复导入时应复用同一 `captured_at`，以保持记录内容一致。旧的 `quote_verified` 标记只有在 `quote_verified_this_run=true` 且由 web 核验时才会映射为 `source_confirmed`，避免把 Seeds 中的历史声明误当成当前核验事实。
 
 ## 6. M1 完成标准
 
