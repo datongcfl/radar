@@ -69,10 +69,14 @@ class TestBusinessGraph(unittest.TestCase):
             run_discovery("ws_business_graph_cli", str(root / "examples/requirements/d03-material-procurement.json"),
                 str(pack_path), str(root / "seeds/weak-current.json"), str(workspace_root))
             output = Path(tmp) / "business-graph.json"
+            observations_path = Path(tmp) / "observations.json"
+            observations_path.write_text(json.dumps({"schema_version":1,"observations":[]}),
+                                         encoding="utf-8")
             proc = subprocess.run([sys.executable, "-m", "radar", "business-graph",
                 "--workspace", "ws_business_graph_cli", "--workspace-root", str(workspace_root),
                 "--pack", str(pack_path), "--business-model", str(root / "packs/weak-current/business-model.json"),
-                "--out", str(output)], cwd=str(root), capture_output=True, text=True, timeout=30)
+                "--observations", str(observations_path), "--out", str(output)],
+                cwd=str(root), capture_output=True, text=True, timeout=30)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             graph = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(graph["counts"]["entities"], 7)
@@ -80,7 +84,12 @@ class TestBusinessGraph(unittest.TestCase):
             self.assertEqual(graph["counts"]["candidate_entity_mentions"], 0)
             self.assertEqual(graph["counts"]["criteria_no_evidence"], 11)
             self.assertEqual(graph["counts"]["criterion_candidate_evidence_links"], 0)
+            self.assertEqual(graph["counts"]["invariant_evaluations"], 0)
+            self.assertEqual(graph["counts"]["invariants_without_observations"], 6)
+            self.assertEqual(graph["counts"]["criteria_with_invariant_mappings"], 6)
             self.assertEqual(graph["workspace_id"], "ws_business_graph_cli")
+            self.assertTrue(all(item["invariant_status"] == "no_observation"
+                                for item in graph["criterion_evidence_matrix"] if item["invariant_ids"]))
             self.assertEqual(len(graph["discovery_run_ids"]), 1)
             self.assertEqual(len([n for n in graph["nodes"] if n["kind"] == "acceptance_criterion"]), 11)
 
