@@ -80,7 +80,7 @@ class TestGitHubDiscovery(unittest.TestCase):
         }], None)
         result = discover_github(requirements, pack, "ws_demo", token="test-token",
                                  limit_per_query=2)
-        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1, "pr_files": 1, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0})
+        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1, "pr_files": 1, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0, "issue_comments": 0, "pr_review_items": 0, "ci_checks": 0, "ci_statuses": 0})
         self.assertEqual(len(result["sources"]), 1)
         self.assertEqual({x["asset_type"] for x in result["assets"]},
                          {"file", "issue", "pull_request"})
@@ -99,6 +99,68 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(search.call_count, 3,
                          "synonyms should be combined into one query per search type")
 
+
+
+    @mock.patch("radar.github_discovery._api_list")
+    @mock.patch("radar.github_discovery._api_json")
+    @mock.patch("radar.github_discovery._search")
+    def test_issue_comments_pr_reviews_and_ci_become_evidence(
+            self, search, api_json, api_list):
+        requirements, pack = self._inputs()
+        issue = {"number": 5, "title": "Purchase Order approval",
+                 "body": "Approval is required", "html_url": "https://github.com/acme/erp/issues/5",
+                 "repository": {"full_name": "acme/erp", "default_branch": "main"}}
+        pr = {"number": 6, "title": "Add purchase workflow", "body": "Adds approval",
+              "html_url": "https://github.com/acme/erp/pull/6",
+              "repository": {"full_name": "acme/erp", "default_branch": "main"}}
+        def search_result(query, kind, token, limit, timeout):
+            return ({"items": [issue] if kind == "issue" else ([pr] if kind == "pull_request" else [])}, None)
+        search.side_effect = search_result
+        def api_result(path, token, timeout):
+            if "/pulls/6" in path:
+                return {"head": {"sha": "prhead456"}}, None
+            if "/check-runs" in path:
+                return {"check_runs": [{"id": 91, "name": "unit tests", "status": "completed",
+                                        "conclusion": "success", "html_url": "https://github.com/acme/erp/actions/runs/91",
+                                        "output": {"summary": "119 tests passed"}}]}, None
+            if path.endswith("/status"):
+                return {"statuses": [{"state": "success", "context": "ci/build",
+                                      "description": "Build passed",
+                                      "target_url": "https://ci.example/build/91"}]}, None
+            return {}, None
+        api_json.side_effect = api_result
+        def list_result(path, token, timeout):
+            if "/issues/5/comments" in path:
+                return ([{"id": 51, "body": "Use receipt matching before closing PO",
+                          "html_url": "https://github.com/acme/erp/issues/5#issuecomment-51",
+                          "created_at": "2026-01-01T00:00:00Z"}], None)
+            if "/issues/6/comments" in path:
+                return ([{"id": 61, "body": "Please add a rejection path",
+                          "html_url": "https://github.com/acme/erp/pull/6#issuecomment-61"}], None)
+            if "/pulls/6/files" in path:
+                return ([], None)
+            if "/pulls/6/comments" in path:
+                return ([{"id": 62, "body": "This line misses quantity validation",
+                          "html_url": "https://github.com/acme/erp/pull/6#discussion_r62",
+                          "path": "purchase.py", "line": 42, "commit_id": "prhead456"}], None)
+            if "/pulls/6/reviews" in path:
+                return ([{"id": 63, "body": "Changes requested: handle partial receipts",
+                          "html_url": "https://github.com/acme/erp/pull/6#pullrequestreview-63"}], None)
+            return ([], None)
+        api_list.side_effect = list_result
+        result = discover_github(requirements, pack, "ws_discussion", token="test-token")
+        self.assertEqual(result["counts"]["issue_comments"], 2)
+        self.assertEqual(result["counts"]["pr_review_items"], 2)
+        self.assertEqual(result["counts"]["ci_checks"], 1)
+        self.assertEqual(result["counts"]["ci_statuses"], 1)
+        self.assertTrue(any("receipt matching" in e["statement"] for e in result["evidence"]))
+        review = next(e for e in result["evidence"] if e["locator"].get("line") == 42)
+        self.assertEqual(review["locator"]["commit_id"], "prhead456")
+        self.assertTrue(any(e["evidence_kind"] == "test" and "119 tests passed" in e["statement"]
+                            for e in result["evidence"]))
+        self.assertTrue(any(e["evidence_kind"] == "test" and "Build passed" in e["statement"]
+                            for e in result["evidence"]))
+        self.assertGreaterEqual(len(result["relationships"]), 4)
 
     @mock.patch("radar.github_discovery._curl_text")
     @mock.patch("radar.github_discovery._api_json")
