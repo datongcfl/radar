@@ -24,7 +24,7 @@ from .model import (RadarError, enforce_web_verification, load_json, load_pack, 
 from .report import write_run
 from .state import compare_sources, read_sources, write_changes
 from .discover import run_discovery
-from .business_graph import build_business_graph
+from .business_graph import build_business_graph, validate_business_model
 from .business_invariants import validate_observation_bundle
 from .business_observation_extractor import extract_table_observations
 from .document_parser import extract_csv_document, extract_office_document
@@ -210,7 +210,7 @@ def cmd_discover(args):
 
 def cmd_extract_observations(args):
     pack = load_pack(args.pack)
-    model = load_json(args.business_model)
+    model = validate_business_model(load_json(args.business_model), pack)
     store = JsonWorkspaceStore(args.workspace_root, args.workspace)
     workspace_rows = store.list_records("workspace")
     if not workspace_rows:
