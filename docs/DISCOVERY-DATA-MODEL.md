@@ -247,3 +247,21 @@ Radar 使用 Python 标准库 zipfile 与 xml.etree.ElementTree 读取 Office Op
 - 原始文件仍以 Git Blob SHA 和仓库 Commit SHA 固定版本，Evidence 同时保存文件路径及原生位置。
 
 解析状态必须明确区分 parsed、failed 和 unsupported。损坏的 ZIP/XML 不得伪装成空文档解析成功。当前 PDF、DOC/XLS/PPT 二进制旧格式仍标记为 unsupported；不从文件名或元数据生成正文 Evidence。该解析器只提取文本，不代表 OCR、图像理解、公式语义理解或业务规则已核验。
+
+
+## 11. 讨论、评审与 CI 证据（M9）
+
+对需求检索命中的 Issue 和 PR，Radar 进一步采集有限数量的讨论记录：
+
+- Issue 与 PR 的普通讨论评论；
+- PR 行内 Review Comments，保留 changed path、line、commit SHA 和 diff hunk；
+- PR Review 提交意见，保留评论链接和作者/时间元数据。
+
+讨论项作为独立 Asset 保存，并通过 contains 关系关联父 Issue/PR；正文成为 Evidence。没有正文的评论或 Review 不生成空证据。当前每个 API 集合最多读取首批 20 条，超出部分需要后续分页扩展。
+
+PR head commit 的 CI 结果作为独立测试证据：
+
+- Check Runs：保留名称、状态、结论、详情链接、摘要和 head SHA；
+- Commit Status：保留 context、state、description、target URL 和 head SHA。
+
+CI 通过只证明该 commit 对应检查报告的状态，不自动证明需求已满足；失败、排队、跳过和缺失结果必须保持各自语义。API 失败记录 warning，不阻断其他来源和资产的发现。
