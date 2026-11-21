@@ -78,16 +78,13 @@ def _requirement_terms(requirement: dict[str, Any], pack: dict[str, Any]) -> lis
 
 
 def _repo_source(repo: dict[str, Any], sources: dict[str, dict[str, Any]]) -> str:
-    full_name = str(repo.get("full_name") or "")
-    key = "github|" + full_name.lower()
+    key = "github|https://github.com"
     source_id = _stable_id("src", key)
     if source_id not in sources:
         sources[source_id] = _record(
-            "source", key, provider="github",
-            uri="https://github.com/" + full_name,
-            name=full_name, access_status="public",
-            metadata={"default_branch": repo.get("default_branch"),
-                      "license_spdx": (repo.get("license") or {}).get("spdx_id")},
+            "source", key, provider="github", uri="https://github.com",
+            name="github.com", access_status="public",
+            metadata={"imported_from": "legacy_seeds"},
         )
     return source_id
 
@@ -128,6 +125,8 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     matches: dict[str, set[str]] = {item["id"]: set() for item in requirements}
     warnings: list[str] = []
     counts = {"code": 0, "issues": 0, "pull_requests": 0}
+    counted_assets: dict[str, str] = {}
+    repo_heads: dict[str, str] = {}
     captured_at = _now()
 
     for requirement in requirements:
@@ -151,14 +150,32 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                         uri = html_url
                         asset_kind = "file"
                         title = path or html_url
-                        version_ref = str(item.get("sha") or "")
+                        version_ref = str(repo_heads.get(full_name) or "")
+                        if not version_ref:
+                            head_data, head_error = _api_json(
+                                "/repos/%s/commits/%s" % (full_name, quote(branch, safe="")),
+                                token, timeout)
+                            if head_error:
+                                warnings.append("could not resolve repository HEAD for %s: %s" %
+                                                (full_name, head_error[:160]))
+                                version_ref = branch
+                            else:
+                                version_ref = str(head_data.get("sha") or branch)
+                            repo_heads[full_name] = version_ref
                         asset_metadata = {"path": path, "repository": full_name,
                                           "default_branch": branch, "version_ref": version_ref,
                                           "matched_requirement_keys": [requirement["key"]]}
                         asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
-                        assets[asset["id"]] = asset
+                        existing_asset = assets.get(asset["id"])
+                        if existing_asset:
+                            keys = set(existing_asset.get("metadata", {}).get("matched_requirement_keys", []))
+                            keys.add(requirement["key"])
+                            existing_asset["metadata"]["matched_requirement_keys"] = sorted(keys)
+                        else:
+                            assets[asset["id"]] = asset
+                            counted_assets[asset["id"]] = "code"
+                            counts["code"] += 1
                         matches[requirement["id"]].add(asset["id"])
-                        counts["code"] += 1
 
                         # Search result text_matches are excerpts, not reliable line locators.
                         # Fetch the current file and calculate actual line positions.
@@ -210,9 +227,16 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                             "labels": [x.get("name") for x in item.get("labels") or []],
                         }
                         asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
-                        assets[asset["id"]] = asset
+                        existing_asset = assets.get(asset["id"])
+                        if existing_asset:
+                            keys = set(existing_asset.get("metadata", {}).get("matched_requirement_keys", []))
+                            keys.add(requirement["key"])
+                            existing_asset["metadata"]["matched_requirement_keys"] = sorted(keys)
+                        else:
+                            assets[asset["id"]] = asset
+                            counted_assets[asset["id"]] = "pull_requests" if is_pr else "issues"
+                            counts[counted_assets[asset["id"]]] += 1
                         matches[requirement["id"]].add(asset["id"])
-                        counts["pull_requests" if is_pr else "issues"] += 1
                         text = (title + "\n" + body).strip()
                         if text:
                             locator = {"url": html_url, "field": "title+body",
