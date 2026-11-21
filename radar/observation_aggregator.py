@@ -239,6 +239,8 @@ def aggregate_observations(rule: dict[str, Any],
     output_field = rule.get("output_field", "aggregated_value")
     for key in sorted(grouped):
         contributions = grouped[key]
+        if not contributions:
+            continue
         by_evidence = {}
         for item in contributions:
             previous = by_evidence.get(item["evidence_id"])
