@@ -101,6 +101,25 @@ def _search(query: str, kind: str, token: str, limit: int, timeout: int):
     return _api_json(path, token, timeout)
 
 
+def _search_terms(terms: list[str], kind: str, token: str,
+                  limit: int, timeout: int) -> tuple[dict[str, Any], list[str]]:
+    """Search bounded OR batches so long requirement vocabularies are not silently dropped."""
+    items: dict[str, dict[str, Any]] = {}
+    errors = []
+    for offset in range(0, len(terms), 4):
+        batch = terms[offset:offset + 4]
+        query = " OR ".join('"\\"%s\\""' % term.replace('"', '\\\\"') for term in batch)
+        response, error = _search(query, kind, token, limit, timeout)
+        if error:
+            errors.append(error)
+            continue
+        for item in response.get("items") or []:
+            key = str(item.get("html_url") or item.get("url") or item.get("id") or
+                       json.dumps(item, sort_keys=True, ensure_ascii=False))
+            items[key] = item
+    return {"items": list(items.values())}, errors
+
+
 def _requirement_terms(requirement: dict[str, Any], pack: dict[str, Any]) -> list[str]:
     terms = requirement.get("terms") or {}
     candidates = []
@@ -120,7 +139,7 @@ def _requirement_terms(requirement: dict[str, Any], pack: dict[str, Any]) -> lis
         seen.add(term.lower())
         result.append(term)
     # Keep requests bounded; canonical and aliases occur before broad descriptions.
-    return result[:4]
+    return result[:16]
 
 
 def _repo_source(repo: dict[str, Any], sources: dict[str, dict[str, Any]]) -> str:
@@ -246,12 +265,12 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
         if not terms:
             warnings.append("%s has no searchable terms" % requirement.get("key", requirement["id"]))
             continue
-        query = " OR ".join('"%s"' % term.replace('"', '\\"') for term in terms)
         for kind in ("code", "issue", "pull_request"):
-            response, error = _search(query, kind, token, limit_per_query, timeout)
-            if error:
-                warnings.append("%s %s search failed: %s" % (requirement["key"], kind, error))
-                continue
+            response, search_errors = _search_terms(
+                terms, kind, token, limit_per_query, timeout)
+            for error in search_errors:
+                warnings.append("%s %s search failed: %s" %
+                                (requirement["key"], kind, error))
             items = response.get("items") or []
             for item in items:
                 repo = _repository_info(item)

@@ -96,8 +96,8 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(diff_evidence["locator"]["line_start"], 2)
         self.assertEqual(diff_evidence["locator"]["ref"], "prhead123")
         self.assertEqual(result["warnings"], [])
-        self.assertEqual(search.call_count, 3,
-                         "synonyms should be combined into one query per search type")
+        self.assertEqual(search.call_count, 6,
+                         "terms should be searched in bounded batches for each search type")
 
 
 
@@ -274,7 +274,42 @@ class TestGitHubDiscovery(unittest.TestCase):
         result = discover_github(requirements, pack, "ws_demo", token="test-token")
         self.assertEqual(len(result["assets"]), 1)
         self.assertEqual(result["counts"]["code"], 1)
-        self.assertEqual(search.call_count, 3)
+        self.assertEqual(search.call_count, 6)
+
+
+    @mock.patch("radar.github_discovery._api_json")
+    @mock.patch("radar.github_discovery._search")
+    def test_d03_search_batches_cover_receipt_transfer_and_return_terms(
+            self, search, api_json):
+        requirement = {
+            "id": "req_d03", "key": "D03", "title": "材料采购与现场流转",
+            "description": "采购申请、收货、入库、领料、退料和调拨",
+            "pack_unit_ids": ["M04", "M08", "M11"],
+            "terms": {
+                "canonical": ["Material Request", "Supplier Quotation", "Purchase Order",
+                              "Purchase Receipt", "Stock Entry", "Material Issue",
+                              "Material Transfer", "Purchase Return"],
+                "aliases": ["采购申请", "询价比价", "到货验收", "材料入库",
+                            "材料领用", "退料", "现场调拨", "采购退货"],
+            },
+        }
+        pack = {"modules": [
+            {"id": "M04", "name": "询价与产品库", "keywords": ["询价", "比价"]},
+            {"id": "M08", "name": "采购与材料设备", "keywords": ["采购", "材料", "到货"]},
+            {"id": "M11", "name": "实际成本与毛利", "keywords": ["实际成本", "毛利"]},
+        ], "subsystems": []}
+        search.return_value = ({"items": []}, None)
+        result = discover_github([requirement], pack, "ws_d03_terms",
+                                 token="test-token", limit_per_query=5)
+        queries = [call.args[0] for call in search.call_args_list]
+        self.assertEqual(len(queries), 12)
+        for critical_term in ("Purchase Receipt", "Stock Entry",
+                              "Material Transfer", "Purchase Return",
+                              "到货验收", "现场调拨"):
+            self.assertTrue(any(critical_term in query for query in queries),
+                            critical_term)
+        self.assertEqual(result["counts"]["code"], 0)
+        self.assertEqual(result["warnings"], [])
 
 
 if __name__ == "__main__":
