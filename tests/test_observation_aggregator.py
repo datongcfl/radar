@@ -18,20 +18,20 @@ def row(identifier, po, line, qty, evidence=None, asset=None):
     value_locator = {"path": identifier + ".csv", "row": 2, "column": 3}
     scope = {"purchase_order_id": po, "purchase_order_item_id": line}
     scope_provenance, records = {}, [
-        {"id": evidence, "asset_id": asset, "locator": value_locator}
+        {"id": evidence, "asset_id": asset, "locator": dict(value_locator)}
     ]
     for index, field in enumerate(("purchase_order_id", "purchase_order_item_id"), 1):
         scope_id = evidence + "_scope_" + str(index)
         locator = {"path": identifier + ".csv", "row": 2, "column": index}
-        scope_provenance[field] = {"evidence_id": scope_id, "locator": locator}
-        records.append({"id": scope_id, "asset_id": asset, "locator": locator})
+        scope_provenance[field] = {"evidence_id": scope_id, "locator": dict(locator)}
+        records.append({"id": scope_id, "asset_id": asset, "locator": dict(locator)})
     observation = {
         "id": identifier, "asset_id": asset,
         "invariant_id": "receipt_quantity_balance",
         "business_scope": scope, "scope_provenance": scope_provenance,
         "values": {"received_qty": str(qty)},
         "field_provenance": {"received_qty": {
-            "evidence_id": evidence, "locator": value_locator}},
+            "evidence_id": evidence, "locator": dict(value_locator)}},
     }
     return observation, records
 
