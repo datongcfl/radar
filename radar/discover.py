@@ -130,16 +130,18 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
     github_result = (discover_github(requirements, pack, workspace_id,
                                      limit_per_query=github_limit)
                      if github else {"sources": [], "assets": [], "evidence": [],
-                                     "matches": {}, "warnings": [],
-                                     "counts": {"code": 0, "issues": 0, "pull_requests": 0}})
+                                     "relationships": [], "matches": {}, "warnings": [],
+                                     "counts": {"code": 0, "issues": 0, "pull_requests": 0,
+                                                "pr_files": 0}})
     all_sources = converted["sources"] + github_result["sources"]
     all_assets = converted["assets"] + github_result["assets"]
     all_evidence = converted["evidence"] + github_result["evidence"]
+    all_relationships = converted["relationships"] + github_result["relationships"]
     for kind in ("sources", "assets", "relationships", "evidence"):
         object_type = {"sources": "source", "assets": "asset",
                        "relationships": "relationship", "evidence": "evidence"}[kind]
         rows = {"sources": all_sources, "assets": all_assets,
-                "relationships": converted["relationships"],
+                "relationships": all_relationships,
                 "evidence": all_evidence}[kind]
         for record in rows:
             _append_idempotent(store, record)
@@ -198,11 +200,12 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
              "errors": ["legacy quote lacks precise locator"] if converted["pending_quotes"] else []},
         ],
         counts={"sources": len(all_sources), "assets": len(all_assets),
-                "evidence": len(all_evidence), "relationships": len(converted["relationships"]) + len(new_relationships),
+                "evidence": len(all_evidence), "relationships": len(all_relationships) + len(new_relationships),
                 "pending_quotes": len(converted["pending_quotes"]), "requirements": len(requirements),
                 "github_code": github_result["counts"]["code"],
                 "github_issues": github_result["counts"]["issues"],
-                "github_pull_requests": github_result["counts"]["pull_requests"]},
+                "github_pull_requests": github_result["counts"]["pull_requests"],
+                "github_pr_files": github_result["counts"]["pr_files"]},
         errors=list(github_result["warnings"]), parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
                                "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
                                "requirements_path": str(requirements_path),
