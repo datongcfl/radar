@@ -181,7 +181,7 @@ class TestObservationAggregator(unittest.TestCase):
         first = self._transactional_row("obs1", "PO-1", "LINE-1", 40,
                                         receipt="PR-1", receipt_item="PR-1-1")
         second = self._transactional_row("obs2", "PO-1", "LINE-1", 40,
-                                         receipt="PR-1", receipt_item="PR-1-1")
+                                         receipt="PR-1", receipt_item="PR-1-1", asset="asset_obs1")
         # Duplicate imports point to the same source cells and business row identity.
         for field in ("received_qty",):
             second[0]["field_provenance"][field] = first[0]["field_provenance"][field]
@@ -190,7 +190,7 @@ class TestObservationAggregator(unittest.TestCase):
         for field in ("document_status", "is_return"):
             second[0]["transaction_provenance"][field] = first[0]["transaction_provenance"][field]
         records_by_id = {item["id"]: item for item in first[1]}
-        second[1] = [records_by_id.get(item["id"], item) for item in second[1]]
+        second = (second[0], [records_by_id.get(item["id"], item) for item in second[1]])
         result = self._aggregate_transactional([first, second])
         self.assertEqual(result["results"][0]["values"]["cumulative_received_qty"], "40")
         self.assertEqual(result["summary"]["duplicate_transactions"], 1)
@@ -199,7 +199,7 @@ class TestObservationAggregator(unittest.TestCase):
         first = self._transactional_row("obs1", "PO-1", "LINE-1", 40,
                                         receipt="PR-1", receipt_item="PR-1-1")
         second = self._transactional_row("obs2", "PO-1", "LINE-1", 41,
-                                         receipt="PR-1", receipt_item="PR-1-1")
+                                         receipt="PR-1", receipt_item="PR-1-1", asset="asset_obs1")
         for field in ("purchase_order_id", "purchase_order_item_id", "receipt_id", "receipt_item_id"):
             second[0]["scope_provenance"][field] = first[0]["scope_provenance"][field]
         # Same transaction identity but conflicting value: neither version is trusted.
