@@ -194,7 +194,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     relationships: dict[str, dict[str, Any]] = {}
     matches: dict[str, set[str]] = {item["id"]: set() for item in requirements}
     warnings: list[str] = []
-    counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0}
+    counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0}
     counted_assets: dict[str, str] = {}
     repo_heads: dict[str, tuple[str, bool]] = {}
     discovered_repos: dict[str, dict[str, Any]] = {}
