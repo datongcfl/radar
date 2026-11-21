@@ -181,3 +181,41 @@ Discover v1 执行：读取需求和 Seeds → Source/Asset/Evidence 转换 → 
 - 有候选 Evidence 但尚未完成语义核验时，Assessment 是 `not_assessed`。
 - 旧 Quote 缺少精确 locator 时保存在 Workspace 的 `pending_quotes.jsonl`，不会伪造成 Evidence。
 - Discover v1 目前只使用现有 Seeds，不会主动发现 GitHub 文件、Issues、PR 或网页；资产级自动发现属于后续里程碑。
+
+
+## 8. GitHub 主动发现 v1（M6）
+
+在现有离线发现基础上，可选启用 GitHub 搜索：
+
+```bash
+export GITHUB_TOKEN=...   # 使用环境变量，不写入需求文件、Seeds 或 Workspace
+python3 -m radar discover \
+  --workspace ws_weak_current_github \
+  --workspace-root . \
+  --requirements examples/requirements/weak-current.json \
+  --pack packs/weak-current/pack.json \
+  --seeds seeds/weak-current.json \
+  --github \
+  --github-limit 5
+```
+
+当前 GitHub 适配器通过 GitHub Search API 执行三类查询：
+
+- Code Search：定位仓库内部文件；对命中的文本文件再获取固定 Commit 版本的内容，按真实行号生成 Evidence。
+- Issue Search：收集 Issue 标题和正文，locator 指向 Issue URL 及字段。
+- Pull Request Search：收集 PR 标题和正文，locator 指向 PR URL 及字段。
+
+需求 canonical terms、aliases、标题、描述及映射 Pack 单元的术语会合并成一个 OR 查询，避免每个同义词都单独消耗一次 Search API 配额。每条需求、每种搜索类型最多返回 10 个候选，默认 5 个。
+
+边界和安全规则：
+
+1. 必须由调用者提供 `GITHUB_TOKEN`；Radar 不保存 Token，不在日志中输出 Token。未配置 Token 时明确警告并保留离线发现结果。
+2. 搜索命中仅代表候选相关性，不代表需求已实现。Asset 与 Requirement 使用 `mentions` 关系，不自动建立 `supports` 或 `implements`。
+3. 代码文件 Evidence 必须来自二次读取的文件正文，并有路径、行号和 Commit SHA。Search API 的 text_matches 片段本身不作为精确行号证据。
+4. Issue/PR Evidence 定位到原始 URL 和 title/body 字段；它证明讨论内容存在，不自动证明修复已合并或代码已部署。
+5. 文件 Asset 以 Commit SHA 版本化；Issue/PR Asset 以更新时间版本化。重复搜索同一版本会复用 Asset 身份，新的内容版本产生新的 Asset/Evidence。
+6. 访问失败、API 限流、无权限或单个文件读取失败记录为阶段警告；已有 Seeds 和已成功发现的结果继续保存，Run 标记为 `partial`。
+7. 当前不读取 PR review comments、review threads、CI checks、提交 diff，也不解析 PDF/Office 文件；这些属于后续适配器扩展。
+8. 只支持公开可访问且 Token 有权访问的仓库；不会绕过仓库权限、登录限制或 GitHub API 限制。
+
+`github-discovery` 当前是 opt-in 来源适配器，不改变旧 `run --github` 仓库元数据发现行为，也不改变离线 Discover 默认行为。
