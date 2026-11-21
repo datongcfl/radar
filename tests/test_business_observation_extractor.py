@@ -89,7 +89,7 @@ class TestBusinessObservationExtractor(unittest.TestCase):
 
     def test_english_header_whitespace_and_underscores_normalize_equally(self):
         parsed = extract_csv_document(
-            "accepted qty,rejected_qty,received quantity\\n8,2,10\\n")
+            "accepted qty,rejected_qty,received quantity\n8,2,10\n")
         chunks = parsed["chunks"]
         for chunk in chunks:
             chunk["locator"]["path"] = "receipts.csv"
