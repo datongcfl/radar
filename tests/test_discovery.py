@@ -137,3 +137,19 @@ class TestDiscoverySchema(unittest.TestCase):
                      "Relationship", "Assessment", "DiscoveryRun"):
             self.assertIn(name, definitions)
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+
+
+class TestDiscoveryRun(unittest.TestCase):
+    def test_partial_run_keeps_stage_errors(self):
+        run = new_record("discovery_run", workspace_id="ws_demo", status="partial",
+            requirement_refs=[{"requirement_id": "req_demo", "version": 1}],
+            pack_refs=[{"pack": "weak-current", "version": "0.1.0"}],
+            source_scope=["src_github"], started_at="2026-11-22T00:00:00Z",
+            stages=[{"name": "acquire", "status": "succeeded"},
+                    {"name": "parse", "status": "failed"}],
+            counts={"assets": 2, "evidence": 1},
+            errors=[{"stage": "parse", "error_code": "PARSER_FAILED",
+                     "message": "unsupported document", "retryable": False}],
+            parameters={}, radar_version="1.7.0")
+        self.assertEqual(run.to_dict()["status"], "partial")
+        self.assertEqual(len(run.to_dict()["errors"]), 1)
