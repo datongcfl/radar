@@ -71,6 +71,8 @@ class TestGitHubDiscovery(unittest.TestCase):
         self.assertEqual(code_evidence["locator"]["ref"], "commit123")
         self.assertEqual(len(result["matches"]["req_demo"]), 3)
         self.assertEqual(result["warnings"], [])
+        self.assertEqual(search.call_count, 3,
+                         "synonyms should be combined into one query per search type")
 
     @mock.patch("radar.github_discovery._curl_text",
                 return_value=("Purchase Order", 200, None))
@@ -88,6 +90,7 @@ class TestGitHubDiscovery(unittest.TestCase):
         result = discover_github(requirements, pack, "ws_demo", token="test-token")
         self.assertEqual(len(result["assets"]), 1)
         self.assertEqual(result["counts"]["code"], 1)
+        self.assertEqual(search.call_count, 3)
 
 
 if __name__ == "__main__":
