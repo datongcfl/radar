@@ -40,7 +40,7 @@ ID 在 Workspace 内不得冲突。跨 Workspace 的公共 Source/Asset 可通�
 
 版本规则：
 
-1. Requirement 使用单调递增的整数 `version`。修改需求语义、验收条件或关键术语时创建新版本，不原位覆盖旧版本。
+1. Requirement 使用单调递增的整数 `version`。修改需求语义、验收条件或关键术语时创建新版本，不原位覆盖旧版本。每个版本使用新的 `req_` ID，保持相同的 `workspace_id + key`，并通过 `supersedes_requirement_id` 指向上一版本；Assessment 同时保存 Requirement ID 和版本号。
 2. Pack 引用必须锁定 `pack + version`，可附加内容摘要 `digest`。
 3. Asset 的内容或上游版本变化时更新 Asset 的当前观察信息，并生成新的 Evidence；不得把新内容覆盖到旧 Evidence。
 4. DiscoveryRun 固定记录 Requirement 版本、Pack 版本、来源范围和关键执行参数。
@@ -126,7 +126,7 @@ Run 创建后保留其输入快照。运行结束后不应修改历史输入版�
 ```text
 workspaces/<workspace-id>/
   workspace.json
-  requirements/<requirement-id>/v<version>.json
+  requirements/<requirement-key>/v<version>-<requirement-id>.json
   sources.jsonl
   assets.jsonl
   evidence.jsonl
