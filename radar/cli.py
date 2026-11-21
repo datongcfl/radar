@@ -23,6 +23,7 @@ from .model import (RadarError, enforce_web_verification, load_json, load_pack, 
                     merge_sources, sha256_file, write_json)
 from .report import write_run
 from .state import compare_sources, read_sources, write_changes
+from .discover import run_discovery
 
 
 def _now():
@@ -194,6 +195,11 @@ def cmd_scan(args):
     return result
 
 
+def cmd_discover(args):
+    return run_discovery(args.workspace, args.requirements, args.pack,
+                         args.seeds, workspace_root=args.workspace_root)
+
+
 def cmd_diff(args):
     text = diff_runs(args.old, args.new, out=args.out)
     return {"old": args.old, "new": args.new, "out": args.out, "bytes": len(text)}
@@ -253,6 +259,14 @@ def build_parser():
     v.add_argument("--seeds", required=True)
     v.add_argument("--strict", action="store_true", help="要求 v0.1 的完整 12 字段")
     v.set_defaults(func=cmd_validate)
+
+    ds = sub.add_parser("discover", help="从需求出发执行资产发现、证据整理和初步评价")
+    ds.add_argument("--workspace", required=True, help="稳定 Workspace ID，必须使用 ws_ 前缀")
+    ds.add_argument("--workspace-root", default=".", help="Workspace 存储根目录")
+    ds.add_argument("--requirements", required=True, help="schema_version=1 的需求文件")
+    ds.add_argument("--pack", required=True)
+    ds.add_argument("--seeds", required=True, help="兼容现有 Seeds 来源账本")
+    ds.set_defaults(func=cmd_discover)
 
     d = sub.add_parser("diff", help="比较两次 run")
     d.add_argument("--from", dest="old", required=True)
