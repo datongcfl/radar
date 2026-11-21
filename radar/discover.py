@@ -23,6 +23,13 @@ def _append_idempotent(store: JsonWorkspaceStore, record: dict[str, Any]) -> Non
     existing = store.get(kind, record["id"])
     if existing is None:
         store.append(record)
+    elif kind in ("source", "asset", "relationship"):
+        old = dict(existing)
+        new = dict(record)
+        old.pop("created_at", None)
+        new.pop("created_at", None)
+        if old != new:
+            raise StorageError("existing %s record differs from deterministic import: %s" % (kind, record["id"]))
     elif existing != record:
         raise StorageError("existing %s record differs from deterministic import: %s" % (kind, record["id"]))
 
@@ -81,6 +88,7 @@ def _mention_relationship(from_type: str, from_id: str, to_type: str, to_id: str
 def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                   seeds_path: str, workspace_root: str = ".") -> dict[str, Any]:
     """Run the first offline discover loop from requirements + existing Seeds."""
+    started_at = _now()
     spec = load_json(requirements_path)
     if not isinstance(spec, dict) or spec.get("schema_version") != 1:
         raise ValueError("requirements file schema_version must be 1")
@@ -113,7 +121,7 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         _append_idempotent(store, record)
         requirements.append(record)
 
-    converted = convert_legacy_sources(seeds, workspace_id, captured_at=_now())
+    converted = convert_legacy_sources(seeds, workspace_id, captured_at=started_at)
     for kind in ("sources", "assets", "relationships", "evidence"):
         object_type = {"sources": "source", "assets": "asset",
                        "relationships": "relationship", "evidence": "evidence"}[kind]
@@ -147,7 +155,6 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 _append_idempotent(store, relation)
                 new_relationships.append(relation)
 
-    started_at = _now()
     run = new_record("discovery_run", workspace_id=workspace_id, status="partial"
                      if converted["pending_quotes"] else "succeeded",
         requirement_refs=[{"requirement_id": r["id"], "version": r["version"]} for r in requirements],
