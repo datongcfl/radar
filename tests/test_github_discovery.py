@@ -80,7 +80,7 @@ class TestGitHubDiscovery(unittest.TestCase):
         }], None)
         result = discover_github(requirements, pack, "ws_demo", token="test-token",
                                  limit_per_query=2)
-        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1, "pr_files": 1, "documents": 0, "unsupported_documents": 0})
+        self.assertEqual(result["counts"], {"code": 1, "issues": 1, "pull_requests": 1, "pr_files": 1, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0})
         self.assertEqual(len(result["sources"]), 1)
         self.assertEqual({x["asset_type"] for x in result["assets"]},
                          {"file", "issue", "pull_request"})
