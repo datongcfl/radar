@@ -241,7 +241,7 @@ python3 -m radar discover \
 
 Radar 使用 Python 标准库 zipfile 与 xml.etree.ElementTree 读取 Office Open XML：
 
-- DOCX：段落、表格单元格，定位到 paragraph 或 table/row/column；
+- CSV：按行列提取单元格，定位包含 row/column/header；\n- DOCX：段落、表格单元格，定位到 paragraph 或 table/row/column；
 - XLSX：工作表、共享字符串/内联字符串，定位到 sheet/cell；
 - PPTX：幻灯片段落，定位到 slide/paragraph；
 - 原始文件仍以 Git Blob SHA 和仓库 Commit SHA 固定版本，Evidence 同时保存文件路径及原生位置。

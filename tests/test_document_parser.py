@@ -1,7 +1,7 @@
 import unittest
 from io import BytesIO
 from zipfile import ZipFile
-from radar.document_parser import extract_office_document
+from radar.document_parser import extract_csv_document, extract_office_document
 
 def make_zip(files):
     output = BytesIO()
@@ -42,6 +42,14 @@ class TestOfficeDocumentParser(unittest.TestCase):
         self.assertEqual(result["status"], "parsed")
         self.assertEqual(result["chunks"][0]["locator"], {
             "slide": 1, "paragraph": 1, "block": "slide_paragraph"})
+
+
+    def test_csv_rows_keep_header_and_cell_coordinates(self):
+        result = extract_csv_document("Item,Quantity,Unit\\nCable,12,m\\nSwitch,2,pcs\\n")
+        self.assertEqual(result["status"], "parsed")
+        self.assertEqual(result["chunks"][3]["locator"], {
+            "row": 2, "column": 1, "block": "cell", "header": "Item"})
+        self.assertEqual(result["chunks"][4]["locator"]["header"], "Quantity")
 
     def test_pdf_and_legacy_office_are_explicitly_unsupported(self):
         self.assertEqual(extract_office_document(b"%PDF", "pdf")["status"], "unsupported")

@@ -16,7 +16,7 @@ import os
 from .adapters import _curl_json
 from .discovery import new_record, validate_record
 from .verify import _curl_text
-from .document_parser import extract_office_document
+from .document_parser import extract_csv_document, extract_office_document
 import base64
 
 
@@ -380,7 +380,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
 
     # M7: recursively inspect repository trees so documentation discovery does
     # not depend on GitHub Code Search indexing or README-only repository metadata.
-    document_extensions = {"md", "rst", "txt", "adoc", "html", "htm", "yaml", "yml"}
+    document_extensions = {"md", "rst", "txt", "adoc", "html", "htm", "yaml", "yml", "csv"}
     binary_document_extensions = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"}
     office_extensions = {"docx", "xlsx", "pptx"}
     for full_name, repo_hint in sorted(discovered_repos.items()):
@@ -431,6 +431,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
             uri = "https://github.com/%s/blob/%s/%s" % (
                 full_name, tree_ref, quote(path, safe="/"))
             is_text_doc = ext in document_extensions
+            is_csv_doc = ext == "csv"
             is_office_doc = ext in office_extensions
             metadata = {
                 "path": path, "repository": full_name, "version_ref": tree_ref,
@@ -451,10 +452,22 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                 if fetch_error:
                     warnings.append("document fetch failed for %s: %s" % (uri, fetch_error[:160]))
                     continue
-                chunks = [{"text": line.strip(), "locator": {
-                    "line_start": line_no, "line_end": line_no, "block": "line"}}
-                    for line_no, line in enumerate((body or "").splitlines(), 1) if line.strip()]
-                asset["metadata"]["content_extraction"] = "text"
+                if is_csv_doc:
+                    parsed = extract_csv_document(body or "")
+                    asset["metadata"]["content_extraction"] = parsed["status"]
+                    asset["metadata"]["parser"] = "stdlib-csv"
+                    if parsed["status"] != "parsed":
+                        counts["parse_failures"] += 1
+                        warnings.append("CSV parsing failed for %s: %s" %
+                                        (uri, parsed.get("reason") or "no reason"))
+                        continue
+                    counts["parsed_documents"] += 1
+                    chunks = parsed["chunks"]
+                else:
+                    chunks = [{"text": line.strip(), "locator": {
+                        "line_start": line_no, "line_end": line_no, "block": "line"}}
+                        for line_no, line in enumerate((body or "").splitlines(), 1) if line.strip()]
+                    asset["metadata"]["content_extraction"] = "text"
             elif is_office_doc:
                 blob_data, blob_error = _api_json(
                     "/repos/%s/git/blobs/%s" % (full_name, entry.get("sha")), token, timeout)
@@ -499,8 +512,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     ev = _evidence(
                         workspace_id, asset["id"], "documentation", chunk["text"],
                         locator, tree_ref, captured_at)
-                    ev["extractor"] = {"name": "stdlib-office-xml" if is_office_doc
-                                       else "github-text", "version": "1"}
+                    ev["extractor"] = {"name": "stdlib-office-xml" if is_office_doc else ("stdlib-csv" if is_csv_doc else "github-text"), "version": "1"}
                     evidence[ev["id"]] = ev
 
     return {
