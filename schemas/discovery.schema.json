@@ -1,0 +1,1025 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/datongcfl/radar/schemas/discovery.schema.json",
+  "title": "Radar discovery domain records",
+  "description": "Version 1 contract for Workspace, Requirement, Source, Asset, Evidence, Relationship, Assessment and DiscoveryRun.",
+  "$ref": "#/$defs/DiscoveryRecord",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^(ws|req|src|ast|evd|rel|asm|run)_[A-Za-z0-9][A-Za-z0-9._-]{1,127}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "base": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "object_type",
+        "id",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "object_type": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "archived",
+        "superseded",
+        "pending",
+        "running",
+        "partial",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "criterionStatus": {
+      "type": "string",
+      "enum": [
+        "supported",
+        "partially_supported",
+        "contradicted",
+        "no_evidence",
+        "not_applicable",
+        "not_assessed"
+      ]
+    },
+    "Workspace": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "workspace"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "archived"
+              ]
+            },
+            "pack_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PackRef"
+              },
+              "uniqueItems": true
+            },
+            "source_policy": {
+              "type": "object"
+            },
+            "settings": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "name",
+            "status",
+            "pack_refs"
+          ]
+        }
+      ]
+    },
+    "PackRef": {
+      "type": "object",
+      "required": [
+        "pack",
+        "version"
+      ],
+      "properties": {
+        "pack": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/hash"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Requirement": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "requirement"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "superseded",
+                "archived"
+              ]
+            },
+            "priority": {
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "critical"
+              ]
+            },
+            "terms": {
+              "type": "object",
+              "properties": {
+                "canonical": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "languages": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "acceptance_criteria": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AcceptanceCriterion"
+              }
+            },
+            "supersedes_requirement_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "workspace_id",
+            "key",
+            "version",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "acceptance_criteria"
+          ]
+        }
+      ]
+    },
+    "AcceptanceCriterion": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "functional",
+            "workflow",
+            "exception",
+            "data_integrity",
+            "security",
+            "compliance",
+            "performance",
+            "operational"
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0
+        },
+        "verification_hint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Source": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "source"
+            },
+            "provider": {
+              "enum": [
+                "github",
+                "gitee",
+                "web",
+                "filesystem",
+                "enterprise",
+                "package_registry",
+                "other"
+              ]
+            },
+            "external_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri": {
+              "type": "string",
+              "format": "uri"
+            },
+            "name": {
+              "type": "string"
+            },
+            "access_status": {
+              "enum": [
+                "public",
+                "api_limited",
+                "login_required",
+                "paywalled",
+                "proprietary",
+                "blocked",
+                "deleted",
+                "unreachable",
+                "unknown"
+              ]
+            },
+            "trust_policy": {
+              "type": "object"
+            },
+            "license_policy": {
+              "type": "object"
+            },
+            "metadata": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "provider",
+            "uri",
+            "name",
+            "access_status"
+          ]
+        }
+      ]
+    },
+    "Asset": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "asset"
+            },
+            "source_id": {
+              "type": "string"
+            },
+            "asset_type": {
+              "enum": [
+                "repository",
+                "file",
+                "directory",
+                "issue",
+                "pull_request",
+                "document",
+                "web_page",
+                "package",
+                "release",
+                "dataset",
+                "other"
+              ]
+            },
+            "external_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parent_asset_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri": {
+              "type": "string",
+              "format": "uri"
+            },
+            "title": {
+              "type": "string"
+            },
+            "media_type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "version_ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "content_hash": {
+              "$ref": "#/$defs/hash"
+            },
+            "observed_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "deleted",
+                "inaccessible",
+                "superseded",
+                "unknown"
+              ]
+            },
+            "metadata": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "source_id",
+            "asset_type",
+            "uri",
+            "title",
+            "status"
+          ]
+        }
+      ]
+    },
+    "Evidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "evidence"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "asset_id": {
+              "type": "string"
+            },
+            "requirement_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "criterion_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "evidence_kind": {
+              "enum": [
+                "code",
+                "test",
+                "documentation",
+                "standard",
+                "issue",
+                "pull_request",
+                "configuration",
+                "data",
+                "observation",
+                "other"
+              ]
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "excerpt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 2000
+            },
+            "locator": {
+              "$ref": "#/$defs/EvidenceLocator"
+            },
+            "asset_version_ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "content_hash": {
+              "$ref": "#/$defs/hash"
+            },
+            "captured_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "extractor": {
+              "type": "object"
+            },
+            "verification_status": {
+              "enum": [
+                "unverified",
+                "source_confirmed",
+                "reproduced",
+                "rejected"
+              ]
+            },
+            "license_status": {
+              "enum": [
+                "clear",
+                "needs_review",
+                "restricted",
+                "unknown"
+              ]
+            }
+          },
+          "required": [
+            "workspace_id",
+            "asset_id",
+            "evidence_kind",
+            "statement",
+            "locator",
+            "captured_at",
+            "verification_status"
+          ]
+        }
+      ]
+    },
+    "EvidenceLocator": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "line_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "line_end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sheet": {
+          "type": "string"
+        },
+        "cell_range": {
+          "type": "string"
+        },
+        "anchor": {
+          "type": "string"
+        },
+        "url_fragment": {
+          "type": "string"
+        },
+        "json_pointer": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Relationship": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "relationship"
+            },
+            "from": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "to": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "relation_type": {
+              "enum": [
+                "contains",
+                "derived_from",
+                "supports",
+                "contradicts",
+                "tests",
+                "fixes",
+                "supersedes",
+                "depends_on",
+                "implements",
+                "mentions",
+                "same_as"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "status": {
+              "enum": [
+                "active",
+                "disputed",
+                "superseded",
+                "rejected"
+              ]
+            },
+            "created_by": {
+              "enum": [
+                "radar",
+                "agent",
+                "human",
+                "import"
+              ]
+            }
+          },
+          "required": [
+            "from",
+            "to",
+            "relation_type",
+            "confidence",
+            "evidence_ids",
+            "status",
+            "created_by"
+          ]
+        }
+      ]
+    },
+    "ObjectRef": {
+      "type": "object",
+      "required": [
+        "object_type",
+        "id"
+      ],
+      "properties": {
+        "object_type": {
+          "enum": [
+            "workspace",
+            "requirement",
+            "source",
+            "asset",
+            "evidence",
+            "relationship",
+            "assessment",
+            "discovery_run"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Assessment": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "assessment"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "requirement_id": {
+              "type": "string"
+            },
+            "requirement_version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "discovery_run_id": {
+              "type": "string"
+            },
+            "overall_status": {
+              "$ref": "#/$defs/criterionStatus"
+            },
+            "criterion_results": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CriterionResult"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "gaps": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "risks": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "pack_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PackRef"
+              }
+            },
+            "ruleset_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "assessed_at": {
+              "$ref": "#/$defs/timestamp"
+            }
+          },
+          "required": [
+            "workspace_id",
+            "requirement_id",
+            "requirement_version",
+            "discovery_run_id",
+            "overall_status",
+            "criterion_results",
+            "evidence_ids",
+            "pack_refs",
+            "assessed_at"
+          ]
+        }
+      ]
+    },
+    "CriterionResult": {
+      "type": "object",
+      "required": [
+        "criterion_id",
+        "status",
+        "evidence_ids"
+      ],
+      "properties": {
+        "criterion_id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/criterionStatus"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "gap": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "risk": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DiscoveryRun": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "const": "discovery_run"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "pending",
+                "running",
+                "partial",
+                "succeeded",
+                "failed",
+                "cancelled"
+              ]
+            },
+            "requirement_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RequirementRef"
+              }
+            },
+            "pack_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PackRef"
+              }
+            },
+            "source_scope": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "started_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "finished_at": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "stages": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RunStage"
+              }
+            },
+            "counts": {
+              "type": "object"
+            },
+            "errors": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RunError"
+              }
+            },
+            "parameters": {
+              "type": "object"
+            },
+            "radar_version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "workspace_id",
+            "status",
+            "requirement_refs",
+            "pack_refs",
+            "source_scope",
+            "started_at",
+            "stages",
+            "counts",
+            "errors",
+            "parameters",
+            "radar_version"
+          ]
+        }
+      ]
+    },
+    "RequirementRef": {
+      "type": "object",
+      "required": [
+        "requirement_id",
+        "version"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "RunStage": {
+      "type": "object",
+      "required": [
+        "name",
+        "status"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "running",
+            "succeeded",
+            "partial",
+            "failed",
+            "skipped"
+          ]
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "counts": {
+          "type": "object"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "RunError": {
+      "type": "object",
+      "required": [
+        "stage",
+        "error_code",
+        "message",
+        "retryable"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string"
+        },
+        "error_code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "asset_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "DiscoveryRecord": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Workspace"
+        },
+        {
+          "$ref": "#/$defs/Requirement"
+        },
+        {
+          "$ref": "#/$defs/Source"
+        },
+        {
+          "$ref": "#/$defs/Asset"
+        },
+        {
+          "$ref": "#/$defs/Evidence"
+        },
+        {
+          "$ref": "#/$defs/Relationship"
+        },
+        {
+          "$ref": "#/$defs/Assessment"
+        },
+        {
+          "$ref": "#/$defs/DiscoveryRun"
+        }
+      ]
+    }
+  }
+}
