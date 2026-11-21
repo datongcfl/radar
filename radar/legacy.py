@@ -21,9 +21,12 @@ def _stable_id(object_type: str, key: str) -> str:
     return "%s_%s" % (PREFIXES[object_type], digest)
 
 
-def _stable_record(object_type: str, stable_key: str, **fields: Any) -> dict[str, Any]:
+def _stable_record(object_type: str, stable_key: str, created_at: Optional[str] = None,
+                   **fields: Any) -> dict[str, Any]:
     record = new_record(object_type, **fields).to_dict()
     record["id"] = _stable_id(object_type, stable_key)
+    if created_at is not None:
+        record["created_at"] = created_at
     return validate_record(record, object_type)
 
 
@@ -54,9 +57,10 @@ def _verification_status(source: dict[str, Any]) -> str:
         value = "false"
     if value is True:
         value = "true"
-    if value == "false":
+    if source.get("quote_verified_this_run") and value == "false":
         return "rejected"
-    if value == "true" and source.get("quote_verified_by") == "web":
+    if (source.get("quote_verified_this_run") and value == "true"
+            and source.get("quote_verified_by") == "web"):
         return "source_confirmed"
     return "unverified"
 
@@ -94,13 +98,14 @@ def convert_legacy_sources(
             source_records[source_id] = _stable_record(
                 "source", source_key, provider=provider, uri=origin,
                 name=parts.netloc or provider, access_status="public",
-                metadata={"imported_from": "legacy_seeds"},
+                created_at=captured_at, metadata={"imported_from": "legacy_seeds"},
             )
 
         asset_id = _stable_id("asset", normalized)
         legacy_access = legacy.get("access_status", "public")
         asset_status = "deleted" if legacy_access == "deleted" else (
-            "inaccessible" if legacy_access in ("blocked", "unreachable") else "active")
+            "inaccessible" if legacy_access in ("blocked", "unreachable", "login_required",
+                                                 "paywalled", "proprietary") else "active")
         metadata = {
             "legacy_source_ids": [legacy.get("id")],
             "legacy_covers": list(legacy.get("covers") or []),
@@ -116,7 +121,7 @@ def convert_legacy_sources(
                 asset_type=_asset_type(str(legacy.get("platform") or "web"),
                                        str(legacy.get("artifact_type") or "article"), url),
                 uri=normalized, title=str(legacy.get("title") or url),
-                version_ref=None, status=asset_status, metadata=metadata,
+                version_ref=None, status=asset_status, created_at=captured_at, metadata=metadata,
             )
         else:
             current = asset_records[asset_id]
@@ -132,6 +137,7 @@ def convert_legacy_sources(
                    "to": {"object_type": "asset", "id": asset_id},
                    "relation_type": "contains", "confidence": 1.0,
                    "evidence_ids": [], "status": "active", "created_by": "import"},
+                created_at=captured_at,
             )
 
         for index, quote in enumerate(legacy.get("quotes") or []):
@@ -159,6 +165,7 @@ def convert_legacy_sources(
                 locator=locator, asset_version_ref=None, captured_at=captured_at,
                 extractor={"name": "legacy-import", "version": "1"},
                 verification_status=_verification_status(legacy),
+                created_at=captured_at,
                 license_status=legacy.get("license_status", "unknown")
                     if legacy.get("license_status") in ("clear", "needs_review", "restricted", "unknown")
                     else "unknown",
