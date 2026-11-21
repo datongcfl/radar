@@ -111,8 +111,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
-    def node(kind: str, key: str, **fields: Any) -> str:
-        nid = _node_id(kind, key)
+    def node(kind: str, stable_key: str, **fields: Any) -> str:
+        nid = _node_id(kind, stable_key)
         nodes.append({"id": nid, "kind": kind, **fields})
         return nid
     for entity in model["entities"]:
