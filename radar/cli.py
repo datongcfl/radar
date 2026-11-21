@@ -205,7 +205,8 @@ def cmd_discover(args):
         raise RadarError("--github 需要 curl；请先安装 curl 或去掉 --github")
     return run_discovery(args.workspace, args.requirements, args.pack,
                          args.seeds, workspace_root=args.workspace_root,
-                         github=args.github, github_limit=args.github_limit)
+                         github=args.github, github_limit=args.github_limit,
+                         business_model_path=args.business_model)
 
 
 def cmd_extract_observations(args):
@@ -356,6 +357,8 @@ def build_parser():
                     help="主动搜索 GitHub 文件、Issues 和 PR（需要 GITHUB_TOKEN）")
     ds.add_argument("--github-limit", type=int, default=5,
                     help="每条需求、每个 GitHub 搜索类型的候选上限（1-10）")
+    ds.add_argument("--business-model", default=None,
+                    help="行业业务模型 JSON；默认读取 Pack 同目录的 business-model.json")
     ds.set_defaults(func=cmd_discover)
 
     eo = sub.add_parser("extract-observations",

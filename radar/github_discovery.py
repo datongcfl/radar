@@ -17,6 +17,7 @@ from .adapters import _curl_json
 from .discovery import new_record, validate_record
 from .verify import _curl_text
 from .document_parser import extract_csv_document, extract_office_document
+from .business_table_evidence import select_required_table_chunks
 from .code_analyzer import analyze_python_source
 import base64
 
@@ -258,11 +259,13 @@ def _append_discussion_item(workspace_id: str, source_id: str, parent_asset: dic
 
 def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     workspace_id: str, token: Optional[str] = None,
-                    limit_per_query: int = 5, timeout: int = 25) -> dict[str, Any]:
+                    limit_per_query: int = 5, timeout: int = 25,
+                    business_model: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Discover candidate GitHub files, Issues, PRs, and parseable documents for supplied requirements."""
     token = token or os.environ.get("GITHUB_TOKEN")
     if not token:
         return {"sources": [], "assets": [], "evidence": [], "matches": {},
+                "table_chunks": {},
                 "warnings": ["GitHub discovery skipped: GITHUB_TOKEN is not configured"],
                 "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0, "issue_comments": 0, "pr_review_items": 0, "ci_checks": 0, "ci_statuses": 0},
                                      "relationships": []}
@@ -271,6 +274,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     evidence: dict[str, dict[str, Any]] = {}
     relationships: dict[str, dict[str, Any]] = {}
     matches: dict[str, set[str]] = {item["id"]: set() for item in requirements}
+    table_chunks: dict[str, list[dict[str, Any]]] = {}
     warnings: list[str] = []
     counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0, "issue_comments": 0, "pr_review_items": 0, "ci_checks": 0, "ci_statuses": 0}
     counted_assets: dict[str, str] = {}
@@ -695,6 +699,27 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
             else:
                 continue
 
+            # Create cell-level Evidence for explicit Pack-declared business fields,
+            # even when the cell text itself does not contain a search keyword.
+            if business_model and business_model.get("invariants"):
+                selected_cells = select_required_table_chunks(
+                    business_model.get("invariants", []), chunks)
+                if selected_cells:
+                    for cell in selected_cells:
+                        cell_locator = dict(cell["locator"])
+                        cell_locator.update({"path": path, "ref": tree_ref,
+                                             "blob_sha": entry.get("sha")})
+                        cell = dict(cell)
+                        cell["locator"] = cell_locator
+                        table_chunks.setdefault(asset["id"], []).append(cell)
+                        cell_evidence = _evidence(
+                            workspace_id, asset["id"], "documentation",
+                            cell["text"], cell_locator, tree_ref, captured_at)
+                        cell_evidence["extractor"] = {
+                            "name": "pack-table-field-matcher", "version": "1"}
+                        cell_evidence["metadata"]["business_observation_candidate"] = True
+                        evidence[cell_evidence["id"]] = cell_evidence
+
             for requirement in requirements:
                 terms = _requirement_terms(requirement, pack)
                 hits = [chunk for chunk in chunks if any(
@@ -797,5 +822,6 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
         "sources": list(sources.values()), "assets": list(assets.values()),
         "evidence": list(evidence.values()), "relationships": list(relationships.values()),
         "matches": {key: sorted(value) for key, value in matches.items()},
+        "table_chunks": table_chunks,
         "warnings": warnings, "counts": counts,
     }

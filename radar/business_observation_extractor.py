@@ -16,7 +16,7 @@ class ObservationExtractionError(ValueError):
 
 
 def _normalize_header(value: Any) -> str:
-    return re.sub(r"[\\W_]+", "", str(value or "").casefold(), flags=re.UNICODE)
+    return re.sub(r"[\W_]+", "", str(value or "").casefold(), flags=re.UNICODE)
 
 
 def _column_number(reference: str) -> int:

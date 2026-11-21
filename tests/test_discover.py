@@ -34,6 +34,55 @@ class TestDiscoverWorkflow(unittest.TestCase):
             self.assertEqual(len(store.list_pending_quotes()), 23)
             self.assertIsNotNone(store.get("discovery_run", result["run_id"]))
 
+    def test_github_discovery_creates_cell_evidence_and_observation_bundle(self):
+        requirements, pack, seeds = self._paths()
+        root = Path(__file__).resolve().parents[1]
+        business_model = root / "packs" / "weak-current" / "business-model.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            def fake_github(requirement_rows, pack_data, workspace_id, **kwargs):
+                source = new_record("source", provider="github",
+                    uri="https://github.com", name="github.com",
+                    access_status="public").to_dict()
+                asset = new_record("asset", source_id=source["id"],
+                    asset_type="file",
+                    uri="https://github.com/acme/erp/blob/abc/receipts.csv",
+                    title="receipts.csv", version_ref="abc",
+                    status="active", metadata={}).to_dict()
+                chunks = [
+                    {"text":"accepted_qty","locator":{"path":"receipts.csv","row":1,"column":1}},
+                    {"text":"rejected_qty","locator":{"path":"receipts.csv","row":1,"column":2}},
+                    {"text":"received_qty","locator":{"path":"receipts.csv","row":1,"column":3}},
+                    {"text":"8","locator":{"path":"receipts.csv","row":2,"column":1}},
+                    {"text":"2","locator":{"path":"receipts.csv","row":2,"column":2}},
+                    {"text":"10","locator":{"path":"receipts.csv","row":2,"column":3}},
+                ]
+                evidence = []
+                for index, chunk in enumerate(chunks[3:]):
+                    evidence.append(new_record("evidence",
+                        workspace_id=workspace_id, asset_id=asset["id"],
+                        evidence_kind="documentation", statement=chunk["text"],
+                        locator=chunk["locator"],
+                        captured_at="2026-11-22T00:00:00Z",
+                        verification_status="source_confirmed",
+                        metadata={"verification":{"level":"document_text",
+                                                  "runtime_observed":False}}).to_dict())
+                return {"sources":[source],"assets":[asset],"evidence":evidence,
+                    "relationships":[],"matches":{},"table_chunks":{asset["id"]:chunks},
+                    "warnings":[],"counts":{"code":0,"issues":0,"pull_requests":0,
+                    "pr_files":0,"documents":1,"unsupported_documents":0}}
+            from unittest import mock
+            with mock.patch("radar.discover.discover_github", side_effect=fake_github):
+                result = run_discovery("ws_auto_observations", requirements, pack, seeds,
+                    tmp, github=True, business_model_path=str(business_model))
+            self.assertIsNotNone(result["business_observations_path"])
+            import json
+            bundle = json.loads(Path(result["business_observations_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(bundle["summary"]["observations"], 1)
+            self.assertEqual(bundle["observations"][0]["values"], {
+                "accepted_qty":"8","rejected_qty":"2","received_qty":"10"})
+            store = JsonWorkspaceStore(tmp, "ws_auto_observations")
+            self.assertEqual(len(store.list_records("evidence")), 3)
+
     def test_repeated_discover_is_idempotent_for_imported_assets(self):
         requirements, pack, seeds = self._paths()
         with tempfile.TemporaryDirectory() as tmp:

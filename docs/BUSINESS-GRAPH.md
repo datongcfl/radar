@@ -132,3 +132,14 @@ python -m radar business-graph \
 ```
 
 A successful numeric calculation from a document remains `static_candidate`, not runtime verification. It is not a final Requirement Assessment.
+
+
+## M13 automatic table Evidence during GitHub discovery
+
+When `radar discover --github` is used and the selected Pack directory contains `business-model.json`, discovery loads and validates that Business Model automatically. An explicit `--business-model` path can override the default.
+
+For parsed CSV/XLSX documents, the Pack's exact `field_aliases` identify tables whose header row contains every required field for an invariant. Discovery creates a separate Evidence record for each populated data cell needed by those invariants, preserving repository path, immutable revision, Blob SHA, and CSV row/column or XLSX sheet/cell locator. This happens even when an individual cell does not contain a normal GitHub search keyword.
+
+The selected cells are passed to the observation extractor in the same Discovery Run. A versioned bundle is written under the Workspace's `observations/` directory and its path and counts are included in the CLI result. Pass it to `radar business-graph --observations <path>`.
+
+This remains conservative: only exact declared aliases and complete numeric rows are considered. It does not aggregate across multiple receipts/orders, infer document identity, prove that a document is authoritative, or turn a static document calculation into runtime verification. Missing tokens, unavailable repository trees, unsupported formats, and missing business models cannot silently produce successful observations.

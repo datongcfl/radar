@@ -87,6 +87,17 @@ class TestBusinessObservationExtractor(unittest.TestCase):
             [receipt_invariant()], chunks, evidence_for_chunks(chunks), ASSET)
         self.assertEqual(result["observations"], [])
 
+    def test_english_header_whitespace_and_underscores_normalize_equally(self):
+        parsed = extract_csv_document(
+            "accepted qty,rejected_qty,received quantity\\n8,2,10\\n")
+        chunks = parsed["chunks"]
+        for chunk in chunks:
+            chunk["locator"]["path"] = "receipts.csv"
+        result = extract_table_observations(
+            [receipt_invariant()], chunks, evidence_for_chunks(chunks), ASSET)
+        self.assertEqual(result["summary"]["observations"], 1)
+        self.assertEqual(result["observations"][0]["values"]["received_qty"], "10")
+
     def test_xlsx_sheet_and_cell_evidence_is_matched_exactly(self):
         chunks = [
             {"text":"accepted_qty","locator":{"path":"receipts.xlsx","sheet":"Receipts","cell":"A1"}},

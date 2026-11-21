@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 import json
 
 from . import __version__
@@ -13,6 +13,9 @@ from .discovery_store import JsonWorkspaceStore, StorageError
 from .legacy import convert_legacy_sources, read_legacy_sources
 from .model import load_json, load_pack, sha256_file
 from .github_discovery import discover_github
+from .business_graph import validate_business_model
+from .business_invariants import validate_observation_bundle
+from .business_observation_extractor import extract_table_observations
 
 
 def _now() -> str:
@@ -88,7 +91,8 @@ def _mention_relationship(from_type: str, from_id: str, to_type: str, to_id: str
 
 def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                   seeds_path: str, workspace_root: str = ".",
-                  github: bool = False, github_limit: int = 5) -> dict[str, Any]:
+                  github: bool = False, github_limit: int = 5,
+                  business_model_path: Optional[str] = None) -> dict[str, Any]:
     """Run requirement discovery from existing Seeds and optional GitHub search."""
     started_at = _now()
     spec = load_json(requirements_path)
@@ -99,6 +103,12 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         raise ValueError("requirements file must contain a non-empty requirements array")
 
     pack = load_pack(pack_path)
+    if business_model_path is None:
+        candidate_model = Path(pack_path).with_name("business-model.json")
+        business_model_path = str(candidate_model) if candidate_model.is_file() else None
+    business_model = None
+    if business_model_path:
+        business_model = validate_business_model(load_json(business_model_path), pack)
     seeds = read_legacy_sources(seeds_path, pack)
     pack_digest = sha256_file(pack_path)
     pack_refs = [{"pack": pack["pack"], "version": str(pack.get("version", "unknown")),
@@ -128,7 +138,8 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
 
     converted = convert_legacy_sources(seeds, workspace_id, captured_at=started_at)
     github_result = (discover_github(requirements, pack, workspace_id,
-                                     limit_per_query=github_limit)
+                                     limit_per_query=github_limit,
+                                     business_model=business_model)
                      if github else {"sources": [], "assets": [], "evidence": [],
                                      "relationships": [], "matches": {}, "warnings": [],
                                      "counts": {"code": 0, "issues": 0, "pull_requests": 0,
@@ -181,6 +192,35 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 _append_idempotent(store, relation)
                 new_relationships.append(relation)
 
+    observation_bundle = None
+    observation_bundle_path = None
+    observation_summary = {"observations": 0, "skipped_rows": 0,
+                           "invariants_with_aliases": 0}
+    if business_model and github and github_result.get("table_chunks"):
+        observation_rows = []
+        skipped_rows = []
+        for asset_id, chunks in sorted(github_result["table_chunks"].items()):
+            asset_evidence = [item for item in all_evidence
+                              if item.get("asset_id") == asset_id]
+            extracted = extract_table_observations(
+                business_model.get("invariants", []), chunks,
+                asset_evidence, asset_id, origin="static_source")
+            observation_rows.extend(extracted["observations"])
+            skipped_rows.extend(extracted["skipped"])
+        observation_rows.sort(key=lambda item: (item["invariant_id"], item["scope_key"]))
+        observation_bundle = {"schema_version": 1,
+                              "observations": observation_rows,
+                              "skipped": skipped_rows,
+                              "summary": {
+                                  "observations": len(observation_rows),
+                                  "skipped_rows": len(skipped_rows),
+                                  "invariants_with_aliases": len(set(
+                                      item["invariant_id"] for item in observation_rows)),
+                              }}
+        validate_observation_bundle(
+            observation_bundle, business_model.get("invariants", []), all_evidence)
+        observation_summary = observation_bundle["summary"]
+
     run = new_record("discovery_run", workspace_id=workspace_id, status="partial"
                      if converted["pending_quotes"] or github_result["warnings"] else "succeeded",
         requirement_refs=[{"requirement_id": r["id"], "version": r["version"]} for r in requirements],
@@ -195,6 +235,9 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
             {"name": "convert_assets", "status": "succeeded"},
             {"name": "persist_records", "status": "succeeded"},
             {"name": "map_candidates", "status": "succeeded"},
+            {"name": "extract_business_observations",
+             "status": "succeeded" if observation_bundle is not None else ("skipped" if not business_model or not github else "no_matching_tables"),
+             "errors": []},
             {"name": "assess_requirements", "status": "succeeded"},
             {"name": "locate_legacy_quotes", "status": "partial" if converted["pending_quotes"] else "succeeded",
              "errors": ["legacy quote lacks precise locator"] if converted["pending_quotes"] else []},
@@ -207,13 +250,25 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 "github_pull_requests": github_result["counts"]["pull_requests"],
                 "github_pr_files": github_result["counts"]["pr_files"],
                 "github_documents": github_result["counts"].get("documents", 0),
-                "github_unsupported_documents": github_result["counts"].get("unsupported_documents", 0)},
+                "github_unsupported_documents": github_result["counts"].get("unsupported_documents", 0),
+                "business_observations": observation_summary["observations"],
+                "business_observation_skipped_rows": observation_summary["skipped_rows"]},
         errors=list(github_result["warnings"]), parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
                                "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
                                "requirements_path": str(requirements_path),
                                "requirements_sha256": sha256_file(requirements_path),
                                "github_enabled": bool(github), "github_limit": github_limit},
         radar_version=__version__).to_dict()
+
+    if observation_bundle is not None:
+        observation_dir = store.root / "observations"
+        observation_dir.mkdir(parents=True, exist_ok=True)
+        observation_bundle_path = observation_dir / (run["id"] + ".json")
+        temporary_path = observation_bundle_path.with_suffix(".tmp")
+        temporary_path.write_text(
+            json.dumps(observation_bundle, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8")
+        temporary_path.replace(observation_bundle_path)
 
     assessments = []
     for requirement in requirements:
@@ -240,6 +295,8 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         "workspace_id": workspace_id, "workspace_path": str(store.root),
         "run_id": run["id"], "run_status": run["status"],
         "counts": run["counts"], "warnings": github_result["warnings"],
+        "business_observations_path": str(observation_bundle_path) if observation_bundle_path else None,
+        "business_observations": observation_summary,
         "assessments": [{"requirement_key": r["key"], "status": a["overall_status"],
                          "candidate_assets": len(candidate_assets[r["id"]]),
                          "evidence": len(a["evidence_ids"])}
