@@ -108,8 +108,7 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
         if "tolerance" in invariant and (not isinstance(invariant["tolerance"], (int, float))
                 or invariant["tolerance"] < 0):
             raise BusinessModelError("%s.tolerance must be a non-negative number" % where)
-        if invariant["operator"] in ("sum_equals", "multiplication_equals",
-                                     "equal_with_tolerance") and not invariant.get("target_field"):
+        if invariant["operator"] in ("sum_equals", "multiplication_equals") and not invariant.get("target_field"):
             raise BusinessModelError("%s.target_field is required for this operator" % where)
     return data
 
