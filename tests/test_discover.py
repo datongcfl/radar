@@ -80,6 +80,8 @@ class TestDiscoverWorkflow(unittest.TestCase):
             self.assertEqual(bundle["summary"]["observations"], 1)
             self.assertEqual(bundle["observations"][0]["values"], {
                 "accepted_qty":"8","rejected_qty":"2","received_qty":"10"})
+            self.assertEqual(bundle["invariant_evaluations"]["evaluations"][0]["outcome"], "pass")
+            self.assertEqual(bundle["summary"]["invariant_passes"], 1)
             store = JsonWorkspaceStore(tmp, "ws_auto_observations")
             self.assertEqual(len(store.list_records("evidence")), 3)
 

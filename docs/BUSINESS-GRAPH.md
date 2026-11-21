@@ -146,3 +146,6 @@ This remains conservative: only exact declared aliases and complete numeric rows
 
 
 Observation records now also carry their source `asset_id`; validation rejects Evidence whose `asset_id` differs from the observation's source Asset. Optional `business_scope` values (for example `purchase_order_id`, `receipt_id`, `project_id`, and `item_code`) have a parallel `scope_provenance` map. Scope aliases are validated against numeric field aliases to prevent ambiguous header interpretation. This establishes traceable join keys but does not yet perform joins or totals across different files.
+
+
+When automatic observations are extracted during `radar discover --github`, the same run now executes the declared invariant evaluator and writes its per-observation outcomes and summary into the observation bundle. These are static-source calculations only; the result is explicitly not runtime verification or a final requirement acceptance decision. The subsequent `business-graph --observations` command can render those observations and evaluations in the graph.

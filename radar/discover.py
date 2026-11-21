@@ -14,7 +14,7 @@ from .legacy import convert_legacy_sources, read_legacy_sources
 from .model import load_json, load_pack, sha256_file
 from .github_discovery import discover_github
 from .business_graph import validate_business_model
-from .business_invariants import validate_observation_bundle
+from .business_invariants import validate_observation_bundle, evaluate_business_invariants
 from .business_observation_extractor import extract_table_observations
 
 
@@ -219,6 +219,15 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                               }}
         validate_observation_bundle(
             observation_bundle, business_model.get("invariants", []), all_evidence)
+        invariant_evaluations = evaluate_business_invariants(
+            business_model.get("invariants", []), observation_bundle, all_evidence)
+        observation_bundle["invariant_evaluations"] = invariant_evaluations
+        evaluation_rows = invariant_evaluations["evaluations"]
+        observation_bundle["summary"]["invariant_evaluations"] = len(evaluation_rows)
+        observation_bundle["summary"]["invariant_passes"] = sum(
+            1 for item in evaluation_rows if item["outcome"] == "pass")
+        observation_bundle["summary"]["invariant_failures"] = sum(
+            1 for item in evaluation_rows if item["outcome"] == "fail")
         observation_summary = observation_bundle["summary"]
 
     run = new_record("discovery_run", workspace_id=workspace_id, status="partial"
@@ -252,7 +261,10 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 "github_documents": github_result["counts"].get("documents", 0),
                 "github_unsupported_documents": github_result["counts"].get("unsupported_documents", 0),
                 "business_observations": observation_summary["observations"],
-                "business_observation_skipped_rows": observation_summary["skipped_rows"]},
+                "business_observation_skipped_rows": observation_summary["skipped_rows"],
+                "business_invariant_evaluations": observation_summary.get("invariant_evaluations", 0),
+                "business_invariant_passes": observation_summary.get("invariant_passes", 0),
+                "business_invariant_failures": observation_summary.get("invariant_failures", 0)},
         errors=list(github_result["warnings"]), parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
                                "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
                                "requirements_path": str(requirements_path),
