@@ -197,7 +197,8 @@ def cmd_scan(args):
 
 def cmd_discover(args):
     return run_discovery(args.workspace, args.requirements, args.pack,
-                         args.seeds, workspace_root=args.workspace_root)
+                         args.seeds, workspace_root=args.workspace_root,
+                         github=args.github, github_limit=args.github_limit)
 
 
 def cmd_diff(args):
@@ -266,6 +267,10 @@ def build_parser():
     ds.add_argument("--requirements", required=True, help="schema_version=1 的需求文件")
     ds.add_argument("--pack", required=True)
     ds.add_argument("--seeds", required=True, help="兼容现有 Seeds 来源账本")
+    ds.add_argument("--github", action="store_true",
+                    help="主动搜索 GitHub 文件、Issues 和 PR（需要 GITHUB_TOKEN）")
+    ds.add_argument("--github-limit", type=int, default=5,
+                    help="每条需求、每个 GitHub 搜索类型的候选上限（1-10）")
     ds.set_defaults(func=cmd_discover)
 
     d = sub.add_parser("diff", help="比较两次 run")
