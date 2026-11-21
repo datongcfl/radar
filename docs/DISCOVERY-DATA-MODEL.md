@@ -155,3 +155,29 @@ JSONL 每行一个完整领域对象；ID 唯一，Requirement 的 `key + versio
 3. Python 领域对象与校验器遵循同一契约。
 4. 测试覆盖必填字段、枚举、引用、不可变 Evidence、Requirement 版本和 Assessment 状态语义。
 5. 不改变旧命令、旧 Schema 和现有 Pack/Seeds 数据。
+
+
+## 7. Discover v1 离线闭环
+
+第一版命令从需求文件和现有 Seeds 账本启动，不执行外网搜索：
+
+```bash
+python3 -m radar discover \
+  --workspace ws_weak_current_demo \
+  --workspace-root . \
+  --requirements examples/requirements/weak-current.json \
+  --pack packs/weak-current/pack.json \
+  --seeds seeds/weak-current.json
+```
+
+需求文件使用 `schema_version: 1`，每条 Requirement 可声明 `pack_unit_ids`，将业务需求映射到 Pack 的模块/子系统 ID。此映射只用于发现候选资产，不等于需求已实现。
+
+Discover v1 执行：读取需求和 Seeds → Source/Asset/Evidence 转换 → 按 Pack 单元建立候选 `mentions` 关系 → 生成逐需求 Assessment → 保存 DiscoveryRun。相同 Workspace 锁定 Pack 版本；更换 Pack 版本应建立新 Workspace 或执行显式迁移。
+
+重要语义：
+
+- `mentions` 表示候选关联，不代表 `supports`，更不代表已经满足验收条件。
+- 有候选 Asset 但没有可定位 Evidence 时，Assessment 必须是 `no_evidence`。
+- 有候选 Evidence 但尚未完成语义核验时，Assessment 是 `not_assessed`。
+- 旧 Quote 缺少精确 locator 时保存在 Workspace 的 `pending_quotes.jsonl`，不会伪造成 Evidence。
+- Discover v1 目前只使用现有 Seeds，不会主动发现 GitHub 文件、Issues、PR 或网页；资产级自动发现属于后续里程碑。
