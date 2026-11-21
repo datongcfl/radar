@@ -84,6 +84,42 @@ class TestBusinessGraph(unittest.TestCase):
             self.assertEqual(len(graph["discovery_run_ids"]), 1)
             self.assertEqual(len([n for n in graph["nodes"] if n["kind"] == "acceptance_criterion"]), 11)
 
+    def test_criterion_evidence_matrix_and_cross_file_transition_are_candidates(self):
+        _, pack, model = self._data()
+        requirement = {"id":"req_d03","key":"D03","version":1,"title":"材料采购",
+            "acceptance_criteria":[{"id":"D03-C5","description":"采购收货关联采购订单，支持分批收货。","required":True}]}
+        assets = [{"id":"ast_order","title":"order.py","asset_type":"file","uri":"https://x/order.py"},
+                  {"id":"ast_receipt","title":"receipt.py","asset_type":"file","uri":"https://x/receipt.py"}]
+        evidence = [
+            {"id":"evd_order","asset_id":"ast_order","statement":"purchase order item qty",
+             "excerpt":"Purchase Order","locator":{"path":"order.py","line_start":20},"verification_status":"unverified"},
+            {"id":"evd_receipt","asset_id":"ast_receipt","statement":"purchase receipt received_qty accepted_qty",
+             "excerpt":"Purchase Receipt","locator":{"path":"receipt.py","line_start":10},"verification_status":"source_confirmed"}]
+        relationships = [{"id":"rel_cross","from":{"object_type":"asset","id":"ast_order"},
+            "to":{"object_type":"asset","id":"ast_receipt"},"relation_type":"depends_on","status":"active",
+            "evidence_ids":["evd_order","evd_receipt"]}]
+        graph = build_business_graph(model, pack, requirements=[requirement],
+            assets=assets, evidence=evidence, relationships=relationships)
+        matrix = graph["criterion_evidence_matrix"][0]
+        self.assertEqual(matrix["status"], "candidate_evidence")
+        self.assertEqual(set(matrix["candidate_evidence_ids"]), {"evd_order", "evd_receipt"})
+        candidate_edges = [e for e in graph["edges"] if e["relation"] == "candidate_evidence_for"]
+        self.assertEqual(len(candidate_edges), 2)
+        self.assertTrue(all(e["status"] == "candidate_only" for e in candidate_edges))
+        transition_edges = [e for e in graph["edges"] if e["relation"] == "candidate_transition"]
+        self.assertTrue(transition_edges)
+        self.assertEqual(set(transition_edges[0]["evidence_ids"]), {"evd_order", "evd_receipt"})
+        self.assertFalse(any(e["relation"] in ("implements", "supports") for e in graph["edges"]))
+
+    def test_criterion_without_matching_evidence_is_explicit_no_evidence(self):
+        _, pack, model = self._data()
+        requirement = {"id":"req_d03","key":"D03","version":1,"title":"材料采购",
+            "acceptance_criteria":[{"id":"D03-C10","description":"库存价值与总账一致。","required":True}]}
+        graph = build_business_graph(model, pack, requirements=[requirement])
+        matrix = graph["criterion_evidence_matrix"][0]
+        self.assertEqual(matrix["status"], "no_evidence")
+        self.assertEqual(matrix["candidate_evidence_ids"], [])
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
