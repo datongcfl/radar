@@ -97,3 +97,17 @@ class TestJsonWorkspaceStore(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_pending_legacy_quotes_are_persisted_idempotently(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = self._workspace()
+            store = JsonWorkspaceStore(tmp, workspace["id"])
+            store.initialize(workspace)
+            pending = {"legacy_source_id": "SRC-1", "quote": "old quote",
+                       "reason": "missing_precise_locator"}
+            store.append_pending_quote(pending)
+            store.append_pending_quote(pending)
+            rows = store.list_pending_quotes()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["workspace_id"], workspace["id"])
