@@ -106,11 +106,13 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          evidence: Iterable[dict[str, Any]] = (),
                          model_digest: Optional[str] = None,
                          workspace_id: Optional[str] = None,
-                         discovery_runs: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
+                         discovery_runs: Iterable[dict[str, Any]] = (),
+                         relationships: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
     discovery_runs = list(discovery_runs)
+    relationships = list(relationships)
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -150,6 +152,9 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 {"source":"industry_pack","pack":model["pack"],"business_model_version":model["version"]},
                 "declared_not_verified", 1.0)
     asset_nodes = {}
+    evidence_entities: dict[str, set[str]] = {}
+    evidence_exceptions: dict[str, set[str]] = {}
+    evidence_by_asset: dict[str, set[str]] = {}
     assets_by_id = {item["id"]: item for item in assets}
     for asset in assets:
         aid = asset["id"]
@@ -167,12 +172,16 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 {"source":"discovery_record","evidence_id":eid,"asset_id":ev.get("asset_id"),
                  "locator":ev.get("locator", {})}, "source_backed", 1.0, [eid])
         asset = assets_by_id.get(ev.get("asset_id"), {})
+        evidence_by_asset.setdefault(ev.get("asset_id"), set()).add(eid)
+        evidence_entities[eid] = set()
+        evidence_exceptions[eid] = set()
         haystack = " ".join(str(x or "") for x in
             (ev.get("statement"), ev.get("excerpt"), asset.get("title"), asset.get("uri")))
         for entity in model["entities"]:
             terms = entity["evidence_terms"] + entity["aliases"] + [entity["name"]]
             matched = [term for term in terms if _contains(haystack, term)]
             if matched:
+                evidence_entities[eid].add(entity["id"])
                 _add_edge(edges, enode, entity_nodes[entity["id"]], "candidate_mention",
                     "ENTITY.TERM_MATCH", {"source":"evidence_text","evidence_id":eid,
                     "asset_id":ev.get("asset_id"),"locator":ev.get("locator",{}),
@@ -181,11 +190,43 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             terms = exception["evidence_terms"] + exception["aliases"] + [exception["name"]]
             matched = [term for term in terms if _contains(haystack, term)]
             if matched:
+                evidence_exceptions[eid].add(exception["id"])
                 _add_edge(edges, enode, exception_nodes[exception["id"]],
                     "candidate_exception_mention", "EXCEPTION.TERM_MATCH",
                     {"source":"evidence_text","evidence_id":eid,"asset_id":ev.get("asset_id"),
                      "locator":ev.get("locator",{}),"matching_policy":"casefold_substring"},
                     "candidate_only", 0.5, [eid], matched)
+    # Reconstruct only candidate cross-file transitions when a typed Asset relationship
+    # connects evidence-bearing assets that mention the declared source/target entities.
+    transition_rows = [(p, t) for p in model["processes"] for t in p["transitions"]]
+    allowed_asset_relations = {"depends_on", "derived_from", "tests", "fixes", "implements", "supports"}
+    for relation in relationships:
+        left, right = relation.get("from", {}), relation.get("to", {})
+        if (left.get("object_type") != "asset" or right.get("object_type") != "asset"
+                or relation.get("relation_type") not in allowed_asset_relations
+                or relation.get("status", "active") != "active"):
+            continue
+        left_id, right_id = left.get("id"), right.get("id")
+        if left_id not in assets_by_id or right_id not in assets_by_id:
+            continue
+        left_evidence = evidence_by_asset.get(left_id, set())
+        right_evidence = evidence_by_asset.get(right_id, set())
+        for process, transition in transition_rows:
+            source_ids = sorted(eid for eid in left_evidence
+                                if transition["from"] in evidence_entities.get(eid, set()))
+            target_ids = sorted(eid for eid in right_evidence
+                                if transition["to"] in evidence_entities.get(eid, set()))
+            if source_ids and target_ids:
+                used_evidence = sorted(set(source_ids + target_ids))
+                _add_edge(edges, entity_nodes[transition["from"]], entity_nodes[transition["to"]],
+                    "candidate_transition", "CROSS_FILE.DECLARED_TRANSITION",
+                    {"source":"asset_relationship_and_evidence_mentions",
+                     "relationship_id":relation.get("id"),"relationship_type":relation.get("relation_type"),
+                     "source_asset_id":left_id,"target_asset_id":right_id,
+                     "process_id":process["id"],"matching_policy":"typed_asset_link_plus_entity_terms"},
+                    "candidate_only", 0.6, used_evidence)
+
+    criterion_summaries = []
     for requirement in requirements:
         rid = node("requirement", requirement["id"], record_id=requirement["id"],
             key=requirement.get("key"), version=requirement.get("version"), title=requirement.get("title"))
@@ -197,15 +238,49 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 {"source":"requirement_record","requirement_id":requirement["id"]},
                 "source_backed", 1.0)
             criterion_text = criterion["description"]
+            criterion_entity_ids = set()
+            criterion_exception_ids = set()
             for entity in model["entities"]:
                 terms = entity["aliases"] + [entity["name"]] + entity["evidence_terms"]
                 matched = [term for term in terms if _contains(criterion_text, term)]
                 if matched:
+                    criterion_entity_ids.add(entity["id"])
                     _add_edge(edges, cid, entity_nodes[entity["id"]], "candidate_requires",
                         "CRITERION.ENTITY_TERM_MATCH",
                         {"source":"acceptance_criterion","requirement_id":requirement["id"],
                          "criterion_id":criterion["id"],"matching_policy":"casefold_substring"},
                         "candidate_only", 0.5, [], matched)
+            for exception in model["exceptions"]:
+                terms = exception["aliases"] + [exception["name"]] + exception["evidence_terms"]
+                matched = [term for term in terms if _contains(criterion_text, term)]
+                if matched:
+                    criterion_exception_ids.add(exception["id"])
+                    _add_edge(edges, cid, exception_nodes[exception["id"]], "candidate_requires_exception",
+                        "CRITERION.EXCEPTION_TERM_MATCH",
+                        {"source":"acceptance_criterion","requirement_id":requirement["id"],
+                         "criterion_id":criterion["id"],"matching_policy":"casefold_substring"},
+                        "candidate_only", 0.5, [], matched)
+            candidate_evidence_ids = []
+            for ev in evidence:
+                entity_hit = bool(criterion_entity_ids.intersection(evidence_entities.get(ev["id"], set())))
+                exception_hit = bool(criterion_exception_ids.intersection(evidence_exceptions.get(ev["id"], set())))
+                if entity_hit or exception_hit:
+                    candidate_evidence_ids.append(ev["id"])
+                    matched_entities = sorted(criterion_entity_ids.intersection(evidence_entities.get(ev["id"], set())))
+                    matched_exceptions = sorted(criterion_exception_ids.intersection(evidence_exceptions.get(ev["id"], set())))
+                    _add_edge(edges, cid, _node_id("evidence", ev["id"]), "candidate_evidence_for",
+                        "CRITERION.EVIDENCE_CANDIDATE",
+                        {"source":"criterion_to_evidence_candidate_projection",
+                         "requirement_id":requirement["id"],"criterion_id":criterion["id"],
+                         "matched_entity_ids":matched_entities,"matched_exception_ids":matched_exceptions,
+                         "evidence_asset_id":ev.get("asset_id"),"evidence_locator":ev.get("locator", {})},
+                        "candidate_only", 0.5, [ev["id"]])
+            criterion_status = "candidate_evidence" if candidate_evidence_ids else "no_evidence"
+            criterion_summaries.append({"requirement_id":requirement["id"],"criterion_id":criterion["id"],
+                "required":criterion["required"],"status":criterion_status,
+                "candidate_evidence_ids":sorted(candidate_evidence_ids),
+                "candidate_entity_ids":sorted(criterion_entity_ids),
+                "candidate_exception_ids":sorted(criterion_exception_ids)})
     nodes.sort(key=lambda item: (item["kind"], item["id"]))
     edges.sort(key=lambda item: item["id"])
     return {"schema_version":1,"projection_type":"pack_driven_business_graph",
@@ -220,5 +295,10 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "exceptions":len(model["exceptions"]),"assets":len(asset_nodes),"evidence":len(evidence),
             "nodes":len(nodes),"edges":len(edges),
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
-            "candidate_exception_mentions":sum(1 for e in edges if e["relation"]=="candidate_exception_mention")},
+            "candidate_exception_mentions":sum(1 for e in edges if e["relation"]=="candidate_exception_mention"),
+            "candidate_transition_links":sum(1 for e in edges if e["relation"]=="candidate_transition"),
+            "criterion_candidate_evidence_links":sum(1 for e in edges if e["relation"]=="candidate_evidence_for"),
+            "criteria_no_evidence":sum(1 for item in criterion_summaries if item["status"]=="no_evidence"),
+            "criteria_with_candidates":sum(1 for item in criterion_summaries if item["status"]=="candidate_evidence")},
+        "criterion_evidence_matrix":sorted(criterion_summaries,key=lambda item:(item["requirement_id"],item["criterion_id"])),
         "nodes":nodes,"edges":edges}

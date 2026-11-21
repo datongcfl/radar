@@ -27,8 +27,11 @@ Edges include:
 - `located_in`: connects an Evidence node to its source Asset.
 - `has_criterion`: connects a Requirement to its acceptance criterion.
 - `candidate_requires`: lexical candidate mapping from an acceptance criterion to a business entity; status `candidate_only`.
+- `candidate_requires_exception`: lexical candidate mapping from a criterion to an exception scenario; status `candidate_only`.
+- `candidate_evidence_for`: candidate Evidence links for each acceptance criterion, with exact Evidence ID, Asset ID, locator, and matched entity/exception IDs; never marks a criterion supported.
+- `candidate_transition`: a candidate cross-file transition when a typed Asset relationship connects evidence-bearing assets matching the declared transition endpoints; status `candidate_only`.
 
-A term match never creates `implements` or `supports`. Declared transitions have no evidence IDs and do not prove implementation. No match means only that the current evidence set did not match the declared terms; it does not mean the feature is absent. Evidence verification status is copied from its source record, not upgraded by graph projection.
+A term match never creates `implements` or `supports`. Declared transitions have no evidence IDs and do not prove implementation. No match means only that the current evidence set did not match the declared terms; it does not mean the feature is absent. Cross-file links require an existing typed Asset-to-Asset relationship plus separate endpoint Evidence mentions; the result remains a candidate, not a verified business transition. Evidence verification status is copied from its source record, not upgraded by graph projection.
 
 ## CLI
 
@@ -51,4 +54,4 @@ The output is a derived JSON artifact and does not mutate immutable Evidence or 
 - The graph does not infer that a transition is complete from adjacent entity mentions.
 - No criterion is marked supported by graph projection.
 - The current D03 offline workspace has no locatable D03 Evidence; its graph should therefore show declared entities/processes/exceptions and zero candidate Evidence links.
-- Cross-file joins, state-machine reconstruction, quantitative quantity/value invariants, and automated criterion-level evidence evaluation remain follow-up work.
+- State-machine reconstruction, quantitative quantity/value invariants, semantic adjudication, and automatic supported/contradicted assessment remain follow-up work. The criterion evidence matrix is a retrieval/triage aid; candidate evidence must be reviewed by an Agent or human before Assessment status changes.

@@ -225,6 +225,7 @@ def cmd_business_graph(args):
         model_digest=sha256_file(args.business_model),
         workspace_id=args.workspace,
         discovery_runs=store.list_records("discovery_run"),
+        relationships=store.list_records("relationship"),
     )
     write_json(args.out, graph)
     return {"out": str(args.out), "counts": graph["counts"],

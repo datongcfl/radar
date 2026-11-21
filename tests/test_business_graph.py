@@ -78,6 +78,8 @@ class TestBusinessGraph(unittest.TestCase):
             self.assertEqual(graph["counts"]["entities"], 7)
             self.assertEqual(graph["counts"]["evidence"], 0)
             self.assertEqual(graph["counts"]["candidate_entity_mentions"], 0)
+            self.assertEqual(graph["counts"]["criteria_no_evidence"], 11)
+            self.assertEqual(graph["counts"]["criterion_candidate_evidence_links"], 0)
             self.assertEqual(graph["workspace_id"], "ws_business_graph_cli")
             self.assertEqual(len(graph["discovery_run_ids"]), 1)
             self.assertEqual(len([n for n in graph["nodes"] if n["kind"] == "acceptance_criterion"]), 11)
