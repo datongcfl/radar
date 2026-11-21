@@ -142,7 +142,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     warnings: list[str] = []
     counts = {"code": 0, "issues": 0, "pull_requests": 0}
     counted_assets: dict[str, str] = {}
-    repo_heads: dict[str, str] = {}
+    repo_heads: dict[str, tuple[str, bool]] = {}
     captured_at = _now()
 
     if not 1 <= limit_per_query <= 10:
@@ -170,18 +170,21 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                 source_id = _repo_source(repo, sources)
                 if kind == "code":
                     branch = str(repo.get("default_branch") or "HEAD")
-                    version_ref = str(repo_heads.get(full_name) or "")
-                    if not version_ref:
+                    cached_head = repo_heads.get(full_name)
+                    if cached_head:
+                        version_ref, immutable_ref = cached_head
+                    else:
                         head_data, head_error = _api_json(
                             "/repos/%s/commits/%s" % (full_name, quote(branch, safe="")),
                             token, timeout)
-                        if head_error:
-                            warnings.append("could not resolve repository HEAD for %s: %s" %
-                                            (full_name, head_error[:160]))
-                            version_ref = branch
+                        immutable_ref = not head_error and bool(head_data.get("sha"))
+                        if immutable_ref:
+                            version_ref = str(head_data["sha"])
                         else:
-                            version_ref = str(head_data.get("sha") or branch)
-                        repo_heads[full_name] = version_ref
+                            version_ref = branch
+                            warnings.append("could not resolve immutable HEAD for %s: %s" %
+                                            (full_name, (head_error or "missing commit SHA")[:160]))
+                        repo_heads[full_name] = (version_ref, immutable_ref)
                     uri = "https://github.com/%s/blob/%s/%s" % (
                         full_name, version_ref, quote(path, safe="/"))
                     asset_kind = "file"
@@ -198,7 +201,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
 
                     # Search result text_matches are excerpts, not reliable line locators.
                     # Fetch the current file and calculate actual line positions.
-                    if path and version_ref:
+                    if path and immutable_ref:
                         content_path = "/repos/%s/contents/%s?ref=%s" % (
                             full_name, quote(path, safe="/"), quote(version_ref, safe=""))
                         raw_url = API + content_path
