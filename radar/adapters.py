@@ -12,13 +12,17 @@ CLEAR_LICENSES = {"MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "0BSD",
                   "PostgreSQL", "Unlicense", "CC0-1.0"}
 
 
-def _curl_json(url, token=None, accept="application/json"):
-    cmd = ["curl", "-sS", "--max-time", "25", "-H", "User-Agent: radar-mvp",
+def _curl_json(url, token=None, accept="application/json", timeout=25):
+    cmd = ["curl", "-sS", "--max-time", str(timeout), "-H", "User-Agent: radar-mvp",
            "-H", "Accept: %s" % accept]
     if token:
         cmd += ["-H", "Authorization: Bearer %s" % token]
     cmd.append(url)
-    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=timeout + 5)
+    except Exception as exc:
+        return None, "curl 异常: %s" % exc
     if proc.returncode != 0:
         return None, proc.stderr.strip()[:300]
     try:
