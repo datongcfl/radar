@@ -60,9 +60,15 @@ def aggregate_observations(rule: dict[str, Any],
         raise ObservationAggregationError("group_by must contain unique non-empty field names")
 
     evidence_by_id = {item.get("id"): item for item in evidence_records if isinstance(item, dict)}
+    semantics = rule.get("transaction_semantics", {})
+    if semantics and not isinstance(semantics, dict):
+        raise ObservationAggregationError("transaction_semantics must be an object")
     grouped = {}
     seen_observation_ids = set()
+    seen_transactions = {}
+    conflicted_transactions = set()
     skipped = []
+    duplicate_transactions = []
     for row in observations:
         if row.get("invariant_id") != rule["source_invariant_id"]:
             continue
@@ -121,11 +127,111 @@ def aggregate_observations(rule: dict[str, Any],
             continue
         key_values = {name: scope[name] for name in group_by}
         key = tuple(key_values[name] for name in group_by)
+        amount = _number(values[field])
+        transaction = row.get("transaction", {})
+        transaction_provenance = row.get("transaction_provenance", {})
+        transaction_identity = {}
+        signed_value = amount
+        if semantics:
+            status_field = semantics.get("status_field")
+            return_field = semantics.get("return_flag_field")
+            return_reference_field = semantics.get("return_reference_field")
+            required_transaction_fields = [status_field, return_field]
+            if any(not isinstance(name, str) or not name for name in required_transaction_fields):
+                raise ObservationAggregationError("transaction semantics require status and return fields")
+            transaction_invalid = False
+            for name in required_transaction_fields:
+                item = transaction_provenance.get(name) if isinstance(transaction_provenance, dict) else None
+                tx_evidence_id = item.get("evidence_id") if isinstance(item, dict) else None
+                tx_evidence = evidence_by_id.get(tx_evidence_id)
+                tx_locator = _locator_identity(item.get("locator")) if isinstance(item, dict) else ()
+                if (not isinstance(transaction, dict) or not isinstance(transaction.get(name), str)
+                        or not isinstance(tx_evidence_id, str) or not tx_evidence_id
+                        or tx_evidence is None or tx_evidence.get("asset_id") != asset_id
+                        or not tx_locator or _locator_identity(tx_evidence.get("locator")) != tx_locator):
+                    transaction_invalid = True
+                    break
+            if transaction_invalid:
+                skipped.append({"observation_id": row_id, "reason": "unverified_transaction_metadata"})
+                continue
+            state = transaction[status_field].strip().casefold()
+            posted_values = {str(value).strip().casefold() for value in semantics.get("posted_values", [])}
+            non_posted_values = {str(value).strip().casefold() for value in semantics.get("non_posted_values", [])}
+            if state not in posted_values:
+                reason = "non_posted_transaction_state" if state in non_posted_values else "unrecognized_transaction_state"
+                skipped.append({"observation_id": row_id, "reason": reason, "state": transaction[status_field]})
+                continue
+            return_value = transaction[return_field].strip().casefold()
+            return_values = {str(value).strip().casefold() for value in semantics.get("return_values", [])}
+            normal_values = {str(value).strip().casefold() for value in semantics.get("normal_values", [])}
+            if return_value in return_values:
+                reference = transaction.get(return_reference_field) if isinstance(return_reference_field, str) else None
+                ref_item = transaction_provenance.get(return_reference_field) if isinstance(transaction_provenance, dict) else None
+                ref_id = ref_item.get("evidence_id") if isinstance(ref_item, dict) else None
+                ref_evidence = evidence_by_id.get(ref_id)
+                ref_locator = _locator_identity(ref_item.get("locator")) if isinstance(ref_item, dict) else ()
+                if (not isinstance(reference, str) or not reference.strip()
+                        or not isinstance(ref_id, str) or not ref_id
+                        or ref_evidence is None or ref_evidence.get("asset_id") != asset_id
+                        or not ref_locator or _locator_identity(ref_evidence.get("locator")) != ref_locator):
+                    skipped.append({"observation_id": row_id, "reason": "unresolved_return_reference"})
+                    continue
+                signed_value = -abs(amount)
+            elif return_value in normal_values:
+                if amount < 0:
+                    skipped.append({"observation_id": row_id, "reason": "negative_value_without_return_semantics"})
+                    continue
+            else:
+                skipped.append({"observation_id": row_id, "reason": "unrecognized_return_flag"})
+                continue
+            deduplicate_by = semantics.get("deduplicate_by", [])
+            if not isinstance(deduplicate_by, list) or not deduplicate_by:
+                raise ObservationAggregationError("transaction semantics require deduplicate_by fields")
+            identity_invalid = False
+            for name in deduplicate_by:
+                item = scope_provenance.get(name) if isinstance(scope_provenance, dict) else None
+                identity_evidence_id = item.get("evidence_id") if isinstance(item, dict) else None
+                identity_evidence = evidence_by_id.get(identity_evidence_id)
+                identity_locator = _locator_identity(item.get("locator")) if isinstance(item, dict) else ()
+                if (not isinstance(scope.get(name), str) or not scope[name].strip()
+                        or identity_evidence is None or identity_evidence.get("asset_id") != asset_id
+                        or not identity_locator
+                        or _locator_identity(identity_evidence.get("locator")) != identity_locator):
+                    identity_invalid = True
+                    break
+                transaction_identity[name] = scope[name]
+            if identity_invalid:
+                skipped.append({"observation_id": row_id, "reason": "unverified_transaction_identity"})
+                continue
+            identity_key = tuple(transaction_identity[name] for name in deduplicate_by)
+            if identity_key in conflicted_transactions:
+                skipped.append({"observation_id": row_id, "reason": "conflicting_duplicate_transaction"})
+                continue
+            previous = seen_transactions.get(identity_key)
+            if previous is not None:
+                if previous["value"] == signed_value and previous["group_key"] == key:
+                    duplicate_transactions.append({
+                        "identity": transaction_identity,
+                        "observation_ids": [previous["observation_id"], row_id],
+                        "reason": "duplicate_transaction_not_counted_twice"})
+                    skipped.append({"observation_id": row_id, "reason": "duplicate_transaction_not_counted_twice"})
+                    continue
+                prior_group = grouped.get(previous["group_key"], [])
+                grouped[previous["group_key"]] = [
+                    item for item in prior_group if item["observation_id"] != previous["observation_id"]]
+                conflicted_transactions.add(identity_key)
+                seen_transactions.pop(identity_key, None)
+                skipped.append({"observation_id": previous["observation_id"], "reason": "conflicting_duplicate_transaction"})
+                skipped.append({"observation_id": row_id, "reason": "conflicting_duplicate_transaction"})
+                continue
+            seen_transactions[identity_key] = {
+                "observation_id": row_id, "value": signed_value, "group_key": key}
         grouped.setdefault(key, []).append({
             "observation_id": row_id, "asset_id": asset_id,
-            "evidence_id": evidence_id, "value": _number(values[field]),
+            "evidence_id": evidence_id, "value": signed_value,
             "field_provenance": provenance[field], "business_scope": key_values,
             "scope_provenance": verified_scope_provenance,
+            "transaction_identity": transaction_identity,
         })
 
     results = []
@@ -168,11 +274,16 @@ def aggregate_observations(rule: dict[str, Any],
         "schema_version": 1, "aggregation_id": rule["id"],
         "results": results, "skipped": skipped,
         "duplicate_evidence": duplicate_evidence,
+        "duplicate_transactions": duplicate_transactions,
         "summary": {"groups": len(results),
                     "contributions": sum(item["contribution_count"] for item in results),
                     "skipped": len(skipped),
-                    "duplicate_evidence": len(duplicate_evidence)},
+                    "duplicate_evidence": len(duplicate_evidence),
+                    "duplicate_transactions": len(duplicate_transactions)},
         "policy": {"exact_scope_match_required": True,
                    "duplicate_evidence_counted_once": True,
-                   "all_contributions_retain_provenance": True},
+                   "all_contributions_retain_provenance": True,
+                   "transaction_states_must_be_explicit": True,
+                   "returns_require_original_reference": True,
+                   "duplicate_transactions_counted_once": True},
     }

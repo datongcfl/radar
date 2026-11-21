@@ -145,6 +145,22 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
         _strings(scope_fields, where + ".scope_fields", allow_empty=True)
         if len(set(scope_fields)) != len(scope_fields):
             raise BusinessModelError("%s.scope_fields must be unique" % where)
+        transaction_fields = invariant.get("transaction_fields", {})
+        if not isinstance(transaction_fields, dict):
+            raise BusinessModelError("%s.transaction_fields must be an object" % where)
+        for transaction_field, aliases_for_transaction in transaction_fields.items():
+            if not isinstance(transaction_field, str) or not transaction_field:
+                raise BusinessModelError("%s has invalid transaction field" % where)
+            if not isinstance(aliases_for_transaction, list) or not aliases_for_transaction:
+                raise BusinessModelError("%s.transaction_fields.%s must be a non-empty array" %
+                                         (where, transaction_field))
+            _strings(aliases_for_transaction, where + ".transaction_fields." + transaction_field)
+            for alias in aliases_for_transaction:
+                normalized = "".join(char.casefold() for char in alias if char.isalnum())
+                if (not normalized or
+                        (normalized in normalized_aliases and normalized_aliases[normalized] != transaction_field)):
+                    raise BusinessModelError("%s transaction aliases are ambiguous" % where)
+                normalized_aliases[normalized] = transaction_field
         scope_aliases = invariant.get("scope_aliases", {})
         if not isinstance(scope_aliases, dict):
             raise BusinessModelError("%s.scope_aliases must be an object" % where)
@@ -214,6 +230,26 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
         declared_scope = set(source.get("scope_fields", []))
         if set(rule["group_by"]) - declared_scope:
             raise BusinessModelError("%s.group_by references undeclared source scope fields" % where)
+        semantics = rule.get("transaction_semantics")
+        if semantics is not None:
+            if not isinstance(semantics, dict):
+                raise BusinessModelError("%s.transaction_semantics must be an object" % where)
+            for key in ("status_field", "posted_values", "non_posted_values",
+                        "return_flag_field", "return_values", "normal_values",
+                        "return_reference_field", "deduplicate_by"):
+                if key not in semantics:
+                    raise BusinessModelError("%s.transaction_semantics missing %s" % (where, key))
+            transaction_fields = set(source.get("transaction_fields", {}))
+            for key in ("status_field", "return_flag_field", "return_reference_field"):
+                if semantics[key] not in transaction_fields:
+                    raise BusinessModelError("%s transaction semantics references undeclared transaction field" % where)
+            for key in ("posted_values", "non_posted_values", "return_values", "normal_values"):
+                _strings(semantics[key], where + ".transaction_semantics." + key)
+                if not semantics[key]:
+                    raise BusinessModelError("%s.transaction_semantics.%s cannot be empty" % (where, key))
+            _strings(semantics["deduplicate_by"], where + ".transaction_semantics.deduplicate_by")
+            if not semantics["deduplicate_by"] or set(semantics["deduplicate_by"]) - declared_scope:
+                raise BusinessModelError("%s deduplicate_by must reference declared scope fields" % where)
     return data
 
 def _node_id(kind: str, key: str) -> str:

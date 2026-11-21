@@ -114,6 +114,22 @@ def extract_table_observations(invariants: Iterable[dict[str, Any]],
                 alias_to_field[key] = field
             if ambiguous:
                 break
+        transaction_fields = invariant.get("transaction_fields", {})
+        if not isinstance(transaction_fields, dict):
+            ambiguous = True
+        for transaction_field, aliases_for_transaction in transaction_fields.items():
+            if (not isinstance(transaction_field, str) or not transaction_field
+                    or not isinstance(aliases_for_transaction, list) or not aliases_for_transaction):
+                ambiguous = True
+                break
+            for alias in aliases_for_transaction:
+                key = _normalize_header(alias)
+                if not key or (key in alias_to_field and alias_to_field[key] != transaction_field):
+                    ambiguous = True
+                    break
+                alias_to_field[key] = transaction_field
+            if ambiguous:
+                break
         if ambiguous:
             skipped.append({"invariant_id": invariant.get("id"), "reason": "missing_or_ambiguous_field_aliases"})
             continue
@@ -201,6 +217,27 @@ def extract_table_observations(invariants: Iterable[dict[str, Any]],
                             "verification", {}).get("level", "document_text"),
                         "runtime_observed": False,
                     }
+                transaction, transaction_provenance = {}, {}
+                for field in transaction_fields:
+                    column = header_map.get(field)
+                    if column is None:
+                        continue
+                    chunk = cells.get(column)
+                    if chunk is None:
+                        continue
+                    locator = dict(chunk.get("locator", {}))
+                    locator.setdefault("path", table_key[1])
+                    evidence_item = evidence_by_cell.get(_cell_identity(locator))
+                    if evidence_item is None:
+                        continue
+                    transaction[field] = str(chunk.get("text", "")).strip()
+                    transaction_provenance[field] = {
+                        "evidence_id": evidence_item["id"],
+                        "locator": locator,
+                        "verification_level": (evidence_item.get("metadata") or {}).get(
+                            "verification", {}).get("level", "document_text"),
+                        "runtime_observed": False,
+                    }
                 scope_key = "%s:%s" % (table_key, row_number)
                 observation_id = "obs_" + sha256(
                     (asset_id + "|" + invariant["id"] + "|" + scope_key).encode("utf-8")
@@ -212,6 +249,8 @@ def extract_table_observations(invariants: Iterable[dict[str, Any]],
                     "values": values, "field_provenance": provenance,
                     "business_scope": business_scope,
                     "scope_provenance": scope_provenance,
+                    "transaction": transaction,
+                    "transaction_provenance": transaction_provenance,
                     "captured_at": None,
                 })
     observations.sort(key=lambda item: (item["invariant_id"], item["scope_key"]))

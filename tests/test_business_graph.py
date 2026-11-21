@@ -264,11 +264,31 @@ class TestBusinessGraph(unittest.TestCase):
                     "locator":scope_locator,
                     "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
                 scope_provenance[scope_field] = {"evidence_id":scope_evidence_id,"locator":scope_locator}
+            receipt_id = "PR-%d" % index
+            receipt_item_id = "PR-%d-1" % index
+            for scope_field, scope_value in (("receipt_id",receipt_id),("receipt_item_id",receipt_item_id)):
+                scope_evidence_id = evidence_id + "_" + scope_field
+                scope_locator = {"path":"receipt%d.csv" % index,"row":2,"column":10+len(scope_provenance)}
+                evidence.append({"id":scope_evidence_id,"asset_id":asset_id,"statement":"identity",
+                    "locator":scope_locator,
+                    "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
+                scope_provenance[scope_field] = {"evidence_id":scope_evidence_id,"locator":scope_locator}
+            transaction, transaction_provenance = {}, {}
+            for tx_index, (field, value) in enumerate((("document_status","1"),("is_return","0")),20):
+                tx_evidence_id = evidence_id + "_" + field
+                tx_locator = {"path":"receipt%d.csv" % index,"row":2,"column":tx_index}
+                evidence.append({"id":tx_evidence_id,"asset_id":asset_id,"statement":"transaction",
+                    "locator":tx_locator,
+                    "metadata":{"verification":{"level":"test_fixture","runtime_observed":False}}})
+                transaction[field] = value
+                transaction_provenance[field] = {"evidence_id":tx_evidence_id,"locator":tx_locator}
             observations_rows.append({"id":"obs_%d" % index,"asset_id":asset_id,
                 "invariant_id":"receipt_quantity_balance","scope_key":"receipt-%d" % index,
                 "origin":"test","values":fields,"field_provenance":provenance,
-                "business_scope":{"purchase_order_id":"PO-1","purchase_order_item_id":"LINE-1"},
-                "scope_provenance":scope_provenance})
+                "business_scope":{"purchase_order_id":"PO-1","purchase_order_item_id":"LINE-1",
+                    "receipt_id":receipt_id,"receipt_item_id":receipt_item_id},
+                "scope_provenance":scope_provenance,
+                "transaction":transaction,"transaction_provenance":transaction_provenance})
         # The invariant itself requires all declared fields; use a complete, balanced observation.
         for row in observations_rows:
             qty = int(row["values"]["received_qty"])

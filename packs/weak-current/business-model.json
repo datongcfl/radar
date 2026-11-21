@@ -535,7 +535,8 @@
         "purchase_order_id",
         "purchase_order_item_id",
         "project_id",
-        "item_code"
+        "item_code",
+        "receipt_item_id"
       ],
       "scope_aliases": {
         "receipt_id": [
@@ -578,6 +579,36 @@
           "material number",
           "物料编码",
           "材料编码"
+        ],
+        "receipt_item_id": [
+          "receipt_item_id",
+          "receipt line id",
+          "receipt item row",
+          "收货明细行号",
+          "收货明细ID"
+        ]
+      },
+      "transaction_fields": {
+        "document_status": [
+          "docstatus",
+          "document status",
+          "status",
+          "单据状态",
+          "单据提交状态"
+        ],
+        "is_return": [
+          "is_return",
+          "is return",
+          "return flag",
+          "是否退货",
+          "是否为退货单"
+        ],
+        "return_against": [
+          "return_against",
+          "return against",
+          "original receipt",
+          "原收货单号",
+          "退货关联收货单"
         ]
       }
     },
@@ -992,7 +1023,45 @@
       ],
       "operation": "sum",
       "output_field": "cumulative_received_qty",
-      "description": "按采购订单及订单明细累计跨收货单的实收数量"
+      "description": "按采购订单及订单明细累计跨收货单的实收数量",
+      "transaction_semantics": {
+        "status_field": "document_status",
+        "posted_values": [
+          "1",
+          "submitted",
+          "已提交",
+          "已过账"
+        ],
+        "non_posted_values": [
+          "0",
+          "2",
+          "draft",
+          "cancelled",
+          "canceled",
+          "草稿",
+          "已取消",
+          "已作废"
+        ],
+        "return_flag_field": "is_return",
+        "return_values": [
+          "1",
+          "true",
+          "yes",
+          "是"
+        ],
+        "normal_values": [
+          "0",
+          "false",
+          "no",
+          "否",
+          ""
+        ],
+        "return_reference_field": "return_against",
+        "deduplicate_by": [
+          "receipt_id",
+          "receipt_item_id"
+        ]
+      }
     }
   ]
 }

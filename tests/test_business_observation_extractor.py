@@ -121,6 +121,28 @@ class TestBusinessObservationExtractor(unittest.TestCase):
         self.assertTrue(all(item["evidence_id"] for item in
                             observation["scope_provenance"].values()))
 
+    def test_transaction_metadata_is_extracted_with_cell_evidence(self):
+        invariant = receipt_invariant()
+        invariant["transaction_fields"] = {
+            "document_status":["docstatus","单据状态"],
+            "is_return":["is_return","是否退货"],
+            "return_against":["return_against","原收货单号"],
+        }
+        parsed = extract_csv_document(
+            "purchase_order_id,receipt_id,accepted_qty,rejected_qty,received_qty,docstatus,is_return,return_against\n"
+            "PO-42,PR-8,8,2,10,1,0,\n")
+        chunks = parsed["chunks"]
+        for chunk in chunks:
+            chunk["locator"]["path"] = "receipts.csv"
+        result = extract_table_observations(
+            [invariant], chunks, evidence_for_chunks(chunks), ASSET)
+        observation = result["observations"][0]
+        self.assertEqual(observation["transaction"]["document_status"], "1")
+        self.assertEqual(observation["transaction"]["is_return"], "0")
+        self.assertIn("document_status", observation["transaction_provenance"])
+        self.assertIn("is_return", observation["transaction_provenance"])
+        self.assertNotIn("return_against", observation["transaction_provenance"])
+
     def test_xlsx_sheet_and_cell_evidence_is_matched_exactly(self):
         chunks = [
             {"text":"accepted_qty","locator":{"path":"receipts.xlsx","sheet":"Receipts","cell":"A1"}},
