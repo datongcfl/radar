@@ -108,7 +108,7 @@ def _search_terms(terms: list[str], kind: str, token: str,
     errors = []
     for offset in range(0, len(terms), 4):
         batch = terms[offset:offset + 4]
-        query = " OR ".join('"\\"%s\\""' % term.replace('"', '\\\\"') for term in batch)
+        query = " OR ".join('"%s"' % term.replace('"', '\\"') for term in batch)
         response, error = _search(query, kind, token, limit, timeout)
         if error:
             errors.append(error)
