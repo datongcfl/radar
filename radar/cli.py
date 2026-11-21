@@ -226,6 +226,7 @@ def cmd_business_graph(args):
         workspace_id=args.workspace,
         discovery_runs=store.list_records("discovery_run"),
         relationships=store.list_records("relationship"),
+        observations=load_json(args.observations) if getattr(args, "observations", None) else None,
     )
     write_json(args.out, graph)
     return {"out": str(args.out), "counts": graph["counts"],
@@ -310,6 +311,8 @@ def build_parser():
     bg.add_argument("--pack", required=True)
     bg.add_argument("--business-model", required=True)
     bg.add_argument("--out", required=True)
+    bg.add_argument("--observations", default=None,
+                    help="可选：schema_version=1 的结构化业务观察值 JSON")
     bg.set_defaults(func=cmd_business_graph)
 
     d = sub.add_parser("diff", help="比较两次 run")

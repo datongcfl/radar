@@ -1,8 +1,11 @@
 """Pack-driven business graph projection; derived views, not core domain records."""
 from __future__ import annotations
 from hashlib import sha256
+import math
 import json
 from typing import Any, Iterable, Optional
+
+from .business_invariants import evaluate_business_invariants
 
 class BusinessModelError(ValueError):
     """Invalid declarative business model."""
@@ -105,11 +108,34 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
         unknown = sorted(set(invariant["related_entities"]) - entity_ids)
         if unknown:
             raise BusinessModelError("%s references unknown entities: %s" % (where, ", ".join(unknown)))
-        if "tolerance" in invariant and (not isinstance(invariant["tolerance"], (int, float))
+        if "tolerance" in invariant and (
+                isinstance(invariant["tolerance"], bool)
+                or not isinstance(invariant["tolerance"], (int, float))
+                or not math.isfinite(invariant["tolerance"])
                 or invariant["tolerance"] < 0):
-            raise BusinessModelError("%s.tolerance must be a non-negative number" % where)
-        if invariant["operator"] in ("sum_equals", "multiplication_equals") and not invariant.get("target_field"):
-            raise BusinessModelError("%s.target_field is required for this operator" % where)
+            raise BusinessModelError("%s.tolerance must be a finite non-negative number" % where)
+        if len(set(invariant["fields"])) != len(invariant["fields"]):
+            raise BusinessModelError("%s.fields must be unique" % where)
+        if invariant.get("target_field") is not None and (
+                not isinstance(invariant["target_field"], str) or not invariant["target_field"].strip()):
+            raise BusinessModelError("%s.target_field must be a non-empty string" % where)
+        operator = invariant["operator"]
+        field_count = len(invariant["fields"])
+        expected_counts = {"less_than_or_equal": (2, 2), "equal_with_tolerance": (2, 2),
+                           "separate_fields": (2, 1000)}
+        if operator in expected_counts:
+            low, high = expected_counts[operator]
+            if not low <= field_count <= high:
+                raise BusinessModelError("%s.fields has invalid length for %s" % (where, operator))
+        if operator in ("sum_equals", "multiplication_equals"):
+            if not invariant.get("target_field"):
+                raise BusinessModelError("%s.target_field is required for this operator" % where)
+            operands = [field for field in invariant["fields"]
+                        if field != invariant["target_field"]]
+            minimum = 1 if operator == "sum_equals" else 2
+            if len(operands) < minimum:
+                raise BusinessModelError("%s.fields must declare at least %d operands" %
+                                         (where, minimum))
     return data
 
 def _node_id(kind: str, key: str) -> str:
@@ -139,12 +165,15 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          model_digest: Optional[str] = None,
                          workspace_id: Optional[str] = None,
                          discovery_runs: Iterable[dict[str, Any]] = (),
-                         relationships: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
+                         relationships: Iterable[dict[str, Any]] = (),
+                         observations: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
     discovery_runs = list(discovery_runs)
     relationships = list(relationships)
+    invariant_results = evaluate_business_invariants(
+        model.get("invariants", []), observations, evidence_records=evidence)
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -259,6 +288,28 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                     {"source":"evidence_text","evidence_id":eid,"asset_id":ev.get("asset_id"),
                      "locator":ev.get("locator",{}),"matching_policy":"casefold_substring"},
                     "candidate_only", 0.5, [eid], matched)
+    for evaluation in invariant_results["evaluations"]:
+        evaluation_node = node("invariant_evaluation", evaluation["id"],
+            record_id=evaluation["id"], invariant_id=evaluation["invariant_id"],
+            scope_key=evaluation["scope_key"], outcome=evaluation["outcome"],
+            verification_level=evaluation["verification_level"], origin=evaluation["origin"],
+            computed=evaluation["computed"], delta=evaluation["delta"],
+            tolerance=evaluation["tolerance"], evidence_ids=evaluation["evidence_ids"])
+        _add_edge(edges, evaluation_node, invariant_nodes[evaluation["invariant_id"]],
+            "evaluates_invariant", "INVARIANT.EVALUATION",
+            {"source":"structured_observation","observation_id":evaluation["id"],
+             "verification_level":evaluation["verification_level"]},
+            "computed_not_assessed", 1.0, evaluation["evidence_ids"])
+        evidence_ids = {item["id"] for item in evidence}
+        for evidence_id in evaluation["evidence_ids"]:
+            if evidence_id in evidence_ids:
+                _add_edge(edges, evaluation_node, _node_id("evidence", evidence_id),
+                    "derived_from_observation", "INVARIANT.OBSERVATION_EVIDENCE",
+                    {"source":"observation_field_provenance","observation_id":evaluation["id"],
+                     "evidence_id":evidence_id,
+                     "field_provenance":evaluation["field_provenance"]},
+                    "source_backed", 1.0, [evidence_id])
+
     # Reconstruct only candidate cross-file transitions when a typed Asset relationship
     # connects evidence-bearing assets that mention the declared source/target entities.
     transition_rows = [(p, t) for p in model["processes"] for t in p["transitions"]]
@@ -364,8 +415,13 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "candidate_exception_mentions":sum(1 for e in edges if e["relation"]=="candidate_exception_mention"),
             "candidate_transition_links":sum(1 for e in edges if e["relation"]=="candidate_transition"),
             "candidate_code_state_transitions":sum(1 for n in nodes if n["kind"]=="code_state_transition"),
+            "invariant_evaluations":len(invariant_results["evaluations"]),
+            "invariants_passed":sum(1 for item in invariant_results["summary"] if item["status"]=="passed"),
+            "invariants_failed":sum(1 for item in invariant_results["summary"] if item["status"]=="failed"),
+            "invariants_without_observations":sum(1 for item in invariant_results["summary"] if item["status"]=="no_observation"),
             "criterion_candidate_evidence_links":sum(1 for e in edges if e["relation"]=="candidate_evidence_for"),
             "criteria_no_evidence":sum(1 for item in criterion_summaries if item["status"]=="no_evidence"),
             "criteria_with_candidates":sum(1 for item in criterion_summaries if item["status"]=="candidate_evidence")},
         "criterion_evidence_matrix":sorted(criterion_summaries,key=lambda item:(item["requirement_id"],item["criterion_id"])),
+        "invariant_evaluations":invariant_results,
         "nodes":nodes,"edges":edges}

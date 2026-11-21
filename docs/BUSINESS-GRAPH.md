@@ -63,3 +63,33 @@ Evidence also carries a separate `metadata.verification` dimension. Examples inc
 - No criterion is marked supported by graph projection.
 - The current D03 offline workspace has no locatable D03 Evidence; its graph should therefore show declared entities/processes/exceptions and zero candidate Evidence links.
 - Full state-machine reconstruction across branches and files, quantitative quantity/value invariants, semantic adjudication, and automatic supported/contradicted assessment remain follow-up work. The criterion evidence matrix is a retrieval/triage aid; candidate evidence must be reviewed by an Agent or human before Assessment status changes.
+
+
+## M13 structured business observations and deterministic invariant evaluation
+
+A separate observation bundle may be supplied to `radar business-graph` with `--observations`. Its schema is versioned and each observation identifies an invariant, scope key, explicit origin (`runtime`, `test`, `static_source`, or `manual`), typed field values, and per-field Evidence ID plus a precise locator.
+
+The evaluator uses Python's `Decimal` and a closed operator set. It emits `pass` or `fail` only for a concrete observation; missing observations remain `no_observation`. Every computed result carries its field-level provenance and Evidence IDs. Unknown Evidence references, non-finite numbers, missing field locators, and mismatches between declared and stored runtime verification metadata are rejected.
+
+Verification levels remain distinct: runtime observations require Evidence explicitly marked `runtime_observed=true`; test fixtures produce `test_fixture`; static-source inputs produce `static_candidate`; manual inputs produce `manual_unverified`. Evaluation does not mutate Evidence, upgrade verification status, or directly change Requirement Assessment. A test fixture passing a numeric rule is not a production runtime verification.
+
+Example bundle:
+```json
+{
+  "schema_version": 1,
+  "observations": [{
+    "id": "obs_receipt_item_001",
+    "invariant_id": "receipt_quantity_balance",
+    "scope_key": "PO-001/item-1/receipt-1",
+    "origin": "test",
+    "values": {"accepted_qty": 8, "rejected_qty": 2, "received_qty": 10},
+    "field_provenance": {
+      "accepted_qty": {"evidence_id": "evd-accepted", "locator": {"path": "receipt.json", "field": "accepted_qty"}, "verification_level": "ci_check_success", "runtime_observed": false},
+      "rejected_qty": {"evidence_id": "evd-rejected", "locator": {"path": "receipt.json", "field": "rejected_qty"}, "verification_level": "ci_check_success", "runtime_observed": false},
+      "received_qty": {"evidence_id": "evd-received", "locator": {"path": "receipt.json", "field": "received_qty"}, "verification_level": "ci_check_success", "runtime_observed": false}
+    }
+  }]
+}
+```
+
+Invoke with `radar business-graph --observations observations.json ...`. The observation's Evidence IDs must already exist in the selected Workspace.

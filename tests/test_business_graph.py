@@ -153,6 +153,42 @@ class TestBusinessGraph(unittest.TestCase):
         with self.assertRaises(BusinessModelError):
             build_business_graph(model, pack)
 
+    def test_structured_observation_evaluates_invariant_with_evidence_links(self):
+        _, pack, model = self._data()
+        invariant = next(item for item in model["invariants"]
+                         if item["id"] == "receipt_quantity_balance")
+        evidence = [{"id":"evd_qty","asset_id":"ast_receipt","statement":"receipt quantity fixture",
+                     "locator":{"path":"receipt.json","line_start":1},
+                     "metadata":{"verification":{"level":"ci_check_success","runtime_observed":False}}}]
+        values = {"accepted_qty":8,"rejected_qty":2,"received_qty":10}
+        provenance = {field:{"evidence_id":"evd_qty",
+                     "locator":{"path":"receipt.json","field":field},
+                     "verification_level":"ci_check_success","runtime_observed":False}
+                     for field in values}
+        observations = {"schema_version":1,"observations":[{
+            "id":"obs_receipt_1","invariant_id":invariant["id"],"scope_key":"receipt-item-1",
+            "origin":"test","values":values,"field_provenance":provenance}]}
+        graph = build_business_graph(model, pack,
+            assets=[{"id":"ast_receipt","title":"receipt.json","asset_type":"file","uri":"https://x/receipt.json"}],
+            evidence=evidence, observations=observations)
+        result = graph["invariant_evaluations"]["evaluations"][0]
+        self.assertEqual(result["outcome"], "pass")
+        self.assertEqual(result["verification_level"], "test_fixture")
+        self.assertEqual(graph["counts"]["invariant_evaluations"], 1)
+        self.assertTrue(any(edge["relation"] == "derived_from_observation"
+                            and edge["evidence_ids"] == ["evd_qty"] for edge in graph["edges"]))
+        self.assertEqual(graph["counts"]["invariants_passed"], 1)
+
+    def test_invariant_rejects_non_finite_tolerance_and_duplicate_fields(self):
+        _, pack, model = self._data()
+        model["invariants"][0]["tolerance"] = float("nan")
+        with self.assertRaises(BusinessModelError):
+            validate_business_model(model, pack)
+        _, pack, model = self._data()
+        model["invariants"][0]["fields"] = ["accepted_qty", "accepted_qty"]
+        with self.assertRaises(BusinessModelError):
+            validate_business_model(model, pack)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
