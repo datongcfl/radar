@@ -209,12 +209,22 @@ def cmd_business_graph(args):
     pack = load_pack(args.pack)
     model = load_json(args.business_model)
     store = JsonWorkspaceStore(args.workspace_root, args.workspace)
+    workspace = store.list_records("workspace")[0]
+    expected_digest = sha256_file(args.pack)
+    locked = any(ref.get("pack") == pack["pack"]
+                 and str(ref.get("version")) == str(pack.get("version"))
+                 and ref.get("digest") == expected_digest
+                 for ref in workspace.get("pack_refs", []))
+    if not locked:
+        raise RadarError("Workspace Pack version lock differs; use the Pack version locked by this Workspace")
     graph = build_business_graph(
         model, pack,
         requirements=store.list_records("requirement"),
         assets=store.list_records("asset"),
         evidence=store.list_records("evidence"),
         model_digest=sha256_file(args.business_model),
+        workspace_id=args.workspace,
+        discovery_runs=store.list_records("discovery_run"),
     )
     write_json(args.out, graph)
     return {"out": str(args.out), "counts": graph["counts"],

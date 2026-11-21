@@ -66,7 +66,7 @@ class TestBusinessGraph(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace_root = Path(tmp) / "store"
             pack_path = root / "packs/weak-current/pack.json"
-            run_discovery("ws_business_graph_cli", str(root / "examples/requirements/weak-current.json"),
+            run_discovery("ws_business_graph_cli", str(root / "examples/requirements/d03-material-procurement.json"),
                 str(pack_path), str(root / "seeds/weak-current.json"), str(workspace_root))
             output = Path(tmp) / "business-graph.json"
             proc = subprocess.run([sys.executable, "-m", "radar", "business-graph",
@@ -78,6 +78,9 @@ class TestBusinessGraph(unittest.TestCase):
             self.assertEqual(graph["counts"]["entities"], 7)
             self.assertEqual(graph["counts"]["evidence"], 0)
             self.assertEqual(graph["counts"]["candidate_entity_mentions"], 0)
+            self.assertEqual(graph["workspace_id"], "ws_business_graph_cli")
+            self.assertEqual(len(graph["discovery_run_ids"]), 1)
+            self.assertEqual(len([n for n in graph["nodes"] if n["kind"] == "acceptance_criterion"]), 11)
 
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()

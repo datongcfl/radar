@@ -23,8 +23,10 @@ Edges include:
 - `declared_transition`: a Pack-defined process relationship, status `declared_not_verified`.
 - `affects_entity`: an exception-to-entity declaration, status `declared_not_verified`.
 - `candidate_mention` / `candidate_exception_mention`: lexical candidate links from Evidence, status `candidate_only`; each stores matched terms, evidence ID, Asset ID, and exact locator.
+- `has_step`: connects a declared process to its ordered business entities.
 - `located_in`: connects an Evidence node to its source Asset.
 - `has_criterion`: connects a Requirement to its acceptance criterion.
+- `candidate_requires`: lexical candidate mapping from an acceptance criterion to a business entity; status `candidate_only`.
 
 A term match never creates `implements` or `supports`. Declared transitions have no evidence IDs and do not prove implementation. No match means only that the current evidence set did not match the declared terms; it does not mean the feature is absent. Evidence verification status is copied from its source record, not upgraded by graph projection.
 
@@ -41,7 +43,7 @@ python -m radar business-graph \
   --out .radar-d03-workspace/business-graph.json
 ```
 
-The output is a derived JSON artifact and does not mutate immutable Evidence or historical DiscoveryRun records. The graph records the model digest, Pack identity/version, counts, and inference policy.
+The output is a derived JSON artifact and does not mutate immutable Evidence or historical DiscoveryRun records. The CLI verifies the Workspace Pack name/version/content digest lock before projection. The graph records the Workspace ID, DiscoveryRun IDs, model digest, Pack identity/version, counts, and inference policy.
 
 ## M11 first-pass limitations
 

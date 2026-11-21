@@ -104,10 +104,13 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          requirements: Iterable[dict[str, Any]] = (),
                          assets: Iterable[dict[str, Any]] = (),
                          evidence: Iterable[dict[str, Any]] = (),
-                         model_digest: Optional[str] = None) -> dict[str, Any]:
+                         model_digest: Optional[str] = None,
+                         workspace_id: Optional[str] = None,
+                         discovery_runs: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
+    discovery_runs = list(discovery_runs)
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -207,6 +210,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
     edges.sort(key=lambda item: item["id"])
     return {"schema_version":1,"projection_type":"pack_driven_business_graph",
         "pack":model["pack"],"pack_version":str(model["pack_version"]),
+        "workspace_id":workspace_id,
+        "discovery_run_ids":sorted(run["id"] for run in discovery_runs),
         "business_model_version":model["version"],"business_model_sha256":model_digest,
         "inference_policy":{"term_match_is_candidate_only":True,
             "declared_transition_is_not_implementation_evidence":True,
