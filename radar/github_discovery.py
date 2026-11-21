@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Optional
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 import json
 import os
 
@@ -89,6 +89,20 @@ def _repo_source(repo: dict[str, Any], sources: dict[str, dict[str, Any]]) -> st
     return source_id
 
 
+def _repository_info(item: dict[str, Any]) -> dict[str, Any]:
+    repo = item.get("repository")
+    if isinstance(repo, dict) and repo.get("full_name"):
+        return repo
+    repo_url = str(item.get("repository_url") or "")
+    parts = [part for part in urlsplit(repo_url).path.split("/") if part]
+    if len(parts) >= 3 and parts[0] == "repos":
+        return {"full_name": parts[1] + "/" + parts[2]}
+    html = [part for part in urlsplit(str(item.get("html_url") or "")).path.split("/") if part]
+    if len(html) >= 2:
+        return {"full_name": html[0] + "/" + html[1]}
+    return {}
+
+
 def _asset(source_id: str, kind: str, uri: str, title: str,
            metadata: dict[str, Any]) -> dict[str, Any]:
     key = kind + "|" + uri
@@ -138,7 +152,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     continue
                 items = response.get("items") or []
                 for item in items:
-                    repo = item.get("repository") or {}
+                    repo = _repository_info(item)
                     full_name = str(repo.get("full_name") or "")
                     path = str(item.get("path") or "")
                     html_url = str(item.get("html_url") or "")
