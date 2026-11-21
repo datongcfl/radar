@@ -178,6 +178,44 @@ def _evidence(workspace_id: str, asset_id: str, kind: str, statement: str,
     )
 
 
+
+def _append_discussion_item(workspace_id: str, source_id: str, parent_asset: dict[str, Any],
+                            repo: str, number: int, item: dict[str, Any],
+                            item_kind: str, evidence_kind: str, captured_at: str,
+                            assets: dict[str, dict[str, Any]],
+                            evidence: dict[str, dict[str, Any]],
+                            relationships: dict[str, dict[str, Any]]) -> bool:
+    body = str(item.get("body") or "").strip()
+    if not body:
+        return False
+    uri = str(item.get("html_url") or item.get("url") or parent_asset["uri"])
+    title = "%s #%s %s" % (repo, number, item_kind.replace("_", " "))
+    metadata = {
+        "repository": repo, "parent_asset_id": parent_asset["id"],
+        "discussion_type": item_kind, "comment_id": item.get("id"),
+        "author": (item.get("user") or {}).get("login"),
+        "created_at": item.get("created_at"), "updated_at": item.get("updated_at"),
+    }
+    child = _asset(source_id, "other", uri, title, metadata)
+    assets[child["id"]] = child
+    rel = _relationship("asset", parent_asset["id"], "asset", child["id"])
+    relationships[rel["id"]] = rel
+    locator = {"url": uri, "field": "body", "parent_url": parent_asset["uri"],
+               "comment_id": item.get("id"), "discussion_type": item_kind}
+    if item.get("path"):
+        locator["path"] = item.get("path")
+    if item.get("line") is not None:
+        locator["line"] = item.get("line")
+    if item.get("commit_id"):
+        locator["commit_id"] = item.get("commit_id")
+    if item.get("diff_hunk"):
+        locator["diff_hunk"] = str(item.get("diff_hunk"))[:1000]
+    version = str(item.get("updated_at") or item.get("created_at") or "") or None
+    ev = _evidence(workspace_id, child["id"], evidence_kind, body, locator, version, captured_at)
+    evidence[ev["id"]] = ev
+    return True
+
+
 def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                     workspace_id: str, token: Optional[str] = None,
                     limit_per_query: int = 5, timeout: int = 25) -> dict[str, Any]:
@@ -186,7 +224,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     if not token:
         return {"sources": [], "assets": [], "evidence": [], "matches": {},
                 "warnings": ["GitHub discovery skipped: GITHUB_TOKEN is not configured"],
-                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0},
+                "counts": {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0, "issue_comments": 0, "pr_review_items": 0, "ci_checks": 0, "ci_statuses": 0},
                                      "relationships": []}
     sources: dict[str, dict[str, Any]] = {}
     assets: dict[str, dict[str, Any]] = {}
@@ -194,7 +232,7 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
     relationships: dict[str, dict[str, Any]] = {}
     matches: dict[str, set[str]] = {item["id"]: set() for item in requirements}
     warnings: list[str] = []
-    counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0}
+    counts = {"code": 0, "issues": 0, "pull_requests": 0, "pr_files": 0, "documents": 0, "unsupported_documents": 0, "parsed_documents": 0, "parse_failures": 0, "issue_comments": 0, "pr_review_items": 0, "ci_checks": 0, "ci_statuses": 0}
     counted_assets: dict[str, str] = {}
     repo_heads: dict[str, tuple[str, bool]] = {}
     discovered_repos: dict[str, dict[str, Any]] = {}
@@ -327,6 +365,22 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                        text, locator, version_ref, captured_at)
                         evidence[ev["id"]] = ev
 
+                    # M9: collect bounded discussion evidence for both Issues and PRs.
+                    issue_comments, comments_error = _api_list(
+                        "/repos/%s/issues/%s/comments?per_page=20" % (full_name, number),
+                        token, timeout)
+                    if comments_error:
+                        warnings.append("Issue comments fetch failed for %s: %s" %
+                                        (html_url, comments_error[:160]))
+                    else:
+                        for comment in issue_comments or []:
+                            if _append_discussion_item(
+                                    workspace_id, source_id, asset, full_name, number,
+                                    comment, "issue_comment",
+                                    "pull_request" if is_pr else "issue",
+                                    captured_at, assets, evidence, relationships):
+                                counts["issue_comments"] += 1
+
                     if is_pr:
                         pr_data, pr_error = _api_json(
                             "/repos/%s/pulls/%s" % (full_name, number), token, timeout)
@@ -376,6 +430,94 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
                                      "pull_request": number},
                                     head_sha or None, captured_at)
                                 evidence[ev["id"]] = ev
+
+                        # Inline review comments and submitted reviews are separate evidence.
+                        review_comments, review_error = _api_list(
+                            "/repos/%s/pulls/%s/comments?per_page=20" % (full_name, number),
+                            token, timeout)
+                        if review_error:
+                            warnings.append("PR review comments fetch failed for %s: %s" %
+                                            (html_url, review_error[:160]))
+                        else:
+                            for comment in review_comments or []:
+                                if _append_discussion_item(
+                                        workspace_id, source_id, asset, full_name, number,
+                                        comment, "review_comment", "pull_request",
+                                        captured_at, assets, evidence, relationships):
+                                    counts["pr_review_items"] += 1
+                        reviews, reviews_error = _api_list(
+                            "/repos/%s/pulls/%s/reviews?per_page=20" % (full_name, number),
+                            token, timeout)
+                        if reviews_error:
+                            warnings.append("PR reviews fetch failed for %s: %s" %
+                                            (html_url, reviews_error[:160]))
+                        else:
+                            for review in reviews or []:
+                                if _append_discussion_item(
+                                        workspace_id, source_id, asset, full_name, number,
+                                        review, "review", "pull_request",
+                                        captured_at, assets, evidence, relationships):
+                                    counts["pr_review_items"] += 1
+
+                        # Associate CI checks with the immutable PR head commit.
+                        if head_sha:
+                            check_data, check_error = _api_json(
+                                "/repos/%s/commits/%s/check-runs?per_page=20" %
+                                (full_name, quote(head_sha, safe="")), token, timeout)
+                            if check_error:
+                                warnings.append("commit check-runs fetch failed for %s: %s" %
+                                                (html_url, check_error[:160]))
+                            else:
+                                for check in check_data.get("check_runs") or []:
+                                    output = check.get("output") or {}
+                                    statement = "%s: status=%s; conclusion=%s" % (
+                                        check.get("name") or "CI check",
+                                        check.get("status") or "unknown",
+                                        check.get("conclusion") or "pending")
+                                    summary = str(output.get("summary") or output.get("text") or "").strip()
+                                    if summary:
+                                        statement += "\n" + summary
+                                    check_uri = str(check.get("html_url") or check.get("details_url") or html_url)
+                                    check_asset = _asset(source_id, "other", check_uri,
+                                        str(check.get("name") or "CI check"),
+                                        {"repository": full_name, "check_run_id": check.get("id"),
+                                         "head_sha": head_sha, "check_status": check.get("status"),
+                                         "conclusion": check.get("conclusion")})
+                                    assets[check_asset["id"]] = check_asset
+                                    rel = _relationship("asset", asset["id"], "asset", check_asset["id"])
+                                    relationships[rel["id"]] = rel
+                                    ev = _evidence(workspace_id, check_asset["id"], "test", statement,
+                                        {"url": check_uri, "check_run_id": check.get("id"),
+                                         "head_sha": head_sha, "field": "check_run"},
+                                        head_sha, captured_at)
+                                    evidence[ev["id"]] = ev
+                                    counts["ci_checks"] += 1
+
+                            status_data, status_error = _api_json(
+                                "/repos/%s/commits/%s/status" %
+                                (full_name, quote(head_sha, safe="")), token, timeout)
+                            if status_error:
+                                warnings.append("commit status fetch failed for %s: %s" %
+                                                (html_url, status_error[:160]))
+                            else:
+                                for status_item in status_data.get("statuses") or []:
+                                    state = str(status_item.get("state") or "unknown")
+                                    context = str(status_item.get("context") or "status")
+                                    description = str(status_item.get("description") or "")
+                                    statement = "%s: %s%s" % (
+                                        context, state, ("; " + description) if description else "")
+                                    status_uri = str(status_item.get("target_url") or html_url)
+                                    status_asset = _asset(source_id, "other", status_uri,
+                                        context, {"repository": full_name, "head_sha": head_sha,
+                                                  "status_state": state})
+                                    assets[status_asset["id"]] = status_asset
+                                    rel = _relationship("asset", asset["id"], "asset", status_asset["id"])
+                                    relationships[rel["id"]] = rel
+                                    ev = _evidence(workspace_id, status_asset["id"], "test", statement,
+                                        {"url": status_uri, "head_sha": head_sha, "field": "commit_status"},
+                                        head_sha, captured_at)
+                                    evidence[ev["id"]] = ev
+                                    counts["ci_statuses"] += 1
 
 
     # M7: recursively inspect repository trees so documentation discovery does
