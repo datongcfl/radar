@@ -154,110 +154,110 @@ def discover_github(requirements: list[dict[str, Any]], pack: dict[str, Any],
             continue
         query = " OR ".join('"%s"' % term.replace('"', '\\"') for term in terms)
         for kind in ("code", "issue", "pull_request"):
-                response, error = _search(query, kind, token, limit_per_query, timeout)
-                if error:
-                    warnings.append("%s %s search failed: %s" % (requirement["key"], kind, error))
+            response, error = _search(query, kind, token, limit_per_query, timeout)
+            if error:
+                warnings.append("%s %s search failed: %s" % (requirement["key"], kind, error))
+                continue
+            items = response.get("items") or []
+            for item in items:
+                repo = _repository_info(item)
+                full_name = str(repo.get("full_name") or "")
+                path = str(item.get("path") or "")
+                html_url = str(item.get("html_url") or "")
+                if not full_name or not html_url:
                     continue
-                items = response.get("items") or []
-                for item in items:
-                    repo = _repository_info(item)
-                    full_name = str(repo.get("full_name") or "")
-                    path = str(item.get("path") or "")
-                    html_url = str(item.get("html_url") or "")
-                    if not full_name or not html_url:
-                        continue
-                    source_id = _repo_source(repo, sources)
-                    if kind == "code":
-                        branch = str(repo.get("default_branch") or "HEAD")
-                        uri = "https://github.com/%s/blob/%s/%s" % (
-                            full_name, version_ref or branch, quote(path, safe="/"))
-                        asset_kind = "file"
-                        title = path or html_url
-                        version_ref = str(repo_heads.get(full_name) or "")
-                        if not version_ref:
-                            head_data, head_error = _api_json(
-                                "/repos/%s/commits/%s" % (full_name, quote(branch, safe="")),
-                                token, timeout)
-                            if head_error:
-                                warnings.append("could not resolve repository HEAD for %s: %s" %
-                                                (full_name, head_error[:160]))
-                                version_ref = branch
-                            else:
-                                version_ref = str(head_data.get("sha") or branch)
-                            repo_heads[full_name] = version_ref
-                        asset_metadata = {"path": path, "repository": full_name,
-                                          "default_branch": branch, "version_ref": version_ref,
-                                          "matched_by": "github_code_search"}
-                        asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
-                        if asset["id"] not in assets:
-                            assets[asset["id"]] = asset
-                            counted_assets[asset["id"]] = "code"
-                            counts["code"] += 1
-                        matches[requirement["id"]].add(asset["id"])
+                source_id = _repo_source(repo, sources)
+                if kind == "code":
+                    branch = str(repo.get("default_branch") or "HEAD")
+                    uri = "https://github.com/%s/blob/%s/%s" % (
+                        full_name, version_ref or branch, quote(path, safe="/"))
+                    asset_kind = "file"
+                    title = path or html_url
+                    version_ref = str(repo_heads.get(full_name) or "")
+                    if not version_ref:
+                        head_data, head_error = _api_json(
+                            "/repos/%s/commits/%s" % (full_name, quote(branch, safe="")),
+                            token, timeout)
+                        if head_error:
+                            warnings.append("could not resolve repository HEAD for %s: %s" %
+                                            (full_name, head_error[:160]))
+                            version_ref = branch
+                        else:
+                            version_ref = str(head_data.get("sha") or branch)
+                        repo_heads[full_name] = version_ref
+                    asset_metadata = {"path": path, "repository": full_name,
+                                      "default_branch": branch, "version_ref": version_ref,
+                                      "matched_by": "github_code_search"}
+                    asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
+                    if asset["id"] not in assets:
+                        assets[asset["id"]] = asset
+                        counted_assets[asset["id"]] = "code"
+                        counts["code"] += 1
+                    matches[requirement["id"]].add(asset["id"])
 
-                        # Search result text_matches are excerpts, not reliable line locators.
-                        # Fetch the current file and calculate actual line positions.
-                        if path and version_ref:
-                            content_path = "/repos/%s/contents/%s?ref=%s" % (
-                                full_name, quote(path, safe="/"), quote(version_ref, safe=""))
-                            raw_url = API + content_path
-                            from .verify import _curl_text
-                            body, status, fetch_error = _curl_text(
-                                raw_url, headers=["Accept: application/vnd.github.raw",
-                                                  "Authorization: Bearer %s" % token],
-                                timeout=timeout)
-                            if fetch_error:
-                                warnings.append("file content fetch failed for %s: %s" %
-                                                (html_url, fetch_error[:160]))
-                            else:
-                                query_terms = [value.lower() for value in terms]
-                                lines = (body or "").splitlines()
-                                hit_lines = []
-                                for line_no, line in enumerate(lines, 1):
-                                    if any(q in line.lower() for q in query_terms):
-                                        hit_lines.append((line_no, line.strip()))
-                                    if len(hit_lines) >= 5:
-                                        break
-                                for line_no, line in hit_lines:
-                                    if not line:
-                                        continue
-                                    ev = _evidence(
-                                        workspace_id, asset["id"], "code", line,
-                                        {"path": path, "line_start": line_no,
-                                         "line_end": line_no, "ref": version_ref},
-                                        version_ref, captured_at)
-                                    evidence[ev["id"]] = ev
-                    else:
-                        number = item.get("number")
-                        if not isinstance(number, int):
-                            continue
-                        is_pr = kind == "pull_request" or bool(item.get("pull_request"))
-                        asset_kind = "pull_request" if is_pr else "issue"
-                        uri = html_url
-                        title = str(item.get("title") or "%s #%s" % (full_name, number))
-                        version_ref = str(item.get("updated_at") or "")
-                        body = str(item.get("body") or "")
-                        asset_metadata = {
-                            "repository": full_name, "number": number,
-                            "state": item.get("state"), "created_at": item.get("created_at"),
-                            "updated_at": item.get("updated_at"),
-                            "matched_by": "github_issue_search",
-                            "labels": [x.get("name") for x in item.get("labels") or []],
-                        }
-                        asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
-                        if asset["id"] not in assets:
-                            assets[asset["id"]] = asset
-                            counted_assets[asset["id"]] = "pull_requests" if is_pr else "issues"
-                            counts[counted_assets[asset["id"]]] += 1
-                        matches[requirement["id"]].add(asset["id"])
-                        text = (title + "\n" + body).strip()
-                        if text:
-                            locator = {"url": html_url, "field": "title+body",
-                                       "updated_at": version_ref}
-                            ev = _evidence(workspace_id, asset["id"],
-                                           "pull_request" if is_pr else "issue",
-                                           text, locator, version_ref, captured_at)
-                            evidence[ev["id"]] = ev
+                    # Search result text_matches are excerpts, not reliable line locators.
+                    # Fetch the current file and calculate actual line positions.
+                    if path and version_ref:
+                        content_path = "/repos/%s/contents/%s?ref=%s" % (
+                            full_name, quote(path, safe="/"), quote(version_ref, safe=""))
+                        raw_url = API + content_path
+                        from .verify import _curl_text
+                        body, status, fetch_error = _curl_text(
+                            raw_url, headers=["Accept: application/vnd.github.raw",
+                                              "Authorization: Bearer %s" % token],
+                            timeout=timeout)
+                        if fetch_error:
+                            warnings.append("file content fetch failed for %s: %s" %
+                                            (html_url, fetch_error[:160]))
+                        else:
+                            query_terms = [value.lower() for value in terms]
+                            lines = (body or "").splitlines()
+                            hit_lines = []
+                            for line_no, line in enumerate(lines, 1):
+                                if any(q in line.lower() for q in query_terms):
+                                    hit_lines.append((line_no, line.strip()))
+                                if len(hit_lines) >= 5:
+                                    break
+                            for line_no, line in hit_lines:
+                                if not line:
+                                    continue
+                                ev = _evidence(
+                                    workspace_id, asset["id"], "code", line,
+                                    {"path": path, "line_start": line_no,
+                                     "line_end": line_no, "ref": version_ref},
+                                    version_ref, captured_at)
+                                evidence[ev["id"]] = ev
+                else:
+                    number = item.get("number")
+                    if not isinstance(number, int):
+                        continue
+                    is_pr = kind == "pull_request" or bool(item.get("pull_request"))
+                    asset_kind = "pull_request" if is_pr else "issue"
+                    uri = html_url
+                    title = str(item.get("title") or "%s #%s" % (full_name, number))
+                    version_ref = str(item.get("updated_at") or "")
+                    body = str(item.get("body") or "")
+                    asset_metadata = {
+                        "repository": full_name, "number": number,
+                        "state": item.get("state"), "created_at": item.get("created_at"),
+                        "updated_at": item.get("updated_at"),
+                        "matched_by": "github_issue_search",
+                        "labels": [x.get("name") for x in item.get("labels") or []],
+                    }
+                    asset = _asset(source_id, asset_kind, uri, title, asset_metadata)
+                    if asset["id"] not in assets:
+                        assets[asset["id"]] = asset
+                        counted_assets[asset["id"]] = "pull_requests" if is_pr else "issues"
+                        counts[counted_assets[asset["id"]]] += 1
+                    matches[requirement["id"]].add(asset["id"])
+                    text = (title + "\n" + body).strip()
+                    if text:
+                        locator = {"url": html_url, "field": "title+body",
+                                   "updated_at": version_ref}
+                        ev = _evidence(workspace_id, asset["id"],
+                                       "pull_request" if is_pr else "issue",
+                                       text, locator, version_ref, captured_at)
+                        evidence[ev["id"]] = ev
 
     return {
         "sources": list(sources.values()), "assets": list(assets.values()),
