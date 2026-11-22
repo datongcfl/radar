@@ -32,6 +32,15 @@ class TestLedgerVouchers(unittest.TestCase):
         manifest.update(updates)
         return manifest
 
+    def test_row_block_manifest_locator_is_precise(self):
+        evidence = self._evidence()
+        evidence["locator"] = {"path": "manifest.jsonl", "row": 1, "block": "row"}
+        manifest = self._manifest(["L1", "L2"], locator=evidence["locator"])
+        result = validate_gl_vouchers(
+            [self._row("L1", "100", "0"), self._row("L2", "0", "100")],
+            [manifest], [evidence])
+        self.assertEqual(result["summary"]["balanced"], 1)
+
     def test_complete_balanced_voucher(self):
         result = validate_gl_vouchers(
             [self._row("L1", "100", "0"), self._row("L2", "0", "100")],

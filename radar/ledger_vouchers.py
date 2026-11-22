@@ -36,7 +36,10 @@ def _locator_is_precise(locator: Any) -> bool:
     if (isinstance(locator.get("row"), int) and isinstance(locator.get("column"), int)
             and locator["row"] > 0 and locator["column"] > 0):
         return True
-    return locator.get("line") is not None
+    if (isinstance(locator.get("row"), int) and locator["row"] > 0
+            and locator.get("block") == "row"):
+        return True
+    return isinstance(locator.get("line"), int) and locator["line"] > 0
 
 
 def _voucher_key(record: dict[str, Any], where: str) -> tuple[str, ...]:

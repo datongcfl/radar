@@ -8,6 +8,7 @@ from typing import Any, Iterable, Optional
 from .business_invariants import evaluate_business_invariants
 from .observation_aggregator import aggregate_observations, ObservationAggregationError
 from .ledger_aggregator import aggregate_ledger_effects, LedgerAggregationError
+from .ledger_source_adapter import LedgerSourceAdapterError, validate_ledger_source_adapter
 
 class BusinessModelError(ValueError):
     """Invalid declarative business model."""
@@ -304,6 +305,20 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
                 raise BusinessModelError("%s.account_mapping must map non-empty account IDs to roles" % where)
         else:
             raise BusinessModelError("%s.ledger_kind must be stock or general_ledger" % where)
+    source_adapters = data.get("ledger_source_adapters", [])
+    if not isinstance(source_adapters, list):
+        raise BusinessModelError("ledger_source_adapters must be an array")
+    source_adapter_ids = set()
+    for adapter in source_adapters:
+        try:
+            validate_ledger_source_adapter(adapter)
+        except LedgerSourceAdapterError as exc:
+            raise BusinessModelError(str(exc))
+        adapter_id = adapter["id"]
+        if adapter_id in source_adapter_ids:
+            raise BusinessModelError("duplicate ledger source adapter id: %s" % adapter_id)
+        source_adapter_ids.add(adapter_id)
+
     return data
 
 def _node_id(kind: str, key: str) -> str:

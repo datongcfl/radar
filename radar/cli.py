@@ -31,6 +31,7 @@ from .document_parser import extract_csv_document, extract_office_document
 from .ledger_control_pipeline import run_ledger_control_pipeline
 from .discovery_store import JsonWorkspaceStore
 from .ledger_workspace import import_ledger_bundle, load_ledger_bundle
+from .ledger_source_adapter import adapt_ledger_source
 
 
 def _now():
@@ -290,6 +291,46 @@ def cmd_business_graph(args):
             "pack": graph["pack"], "business_model_version": graph["business_model_version"]}
 
 
+def cmd_ledger_adapt(args):
+    pack = load_pack(args.pack)
+    business_model_path = args.business_model
+    if not business_model_path:
+        candidate = Path(args.pack).with_name("business-model.json")
+        if not candidate.is_file():
+            raise RadarError("business-model.json not found beside Pack; pass --business-model")
+        business_model_path = str(candidate)
+    business_model = validate_business_model(load_json(business_model_path), pack)
+    adapters = business_model.get("ledger_source_adapters", [])
+    adapter = next((item for item in adapters if item.get("id") == args.adapter_id), None)
+    if adapter is None:
+        raise RadarError("ledger source adapter id not declared in business model: %s" % args.adapter_id)
+
+    store = JsonWorkspaceStore(args.workspace_root, args.workspace)
+    pack_refs = [{"pack": pack["pack"], "version": str(pack.get("version", "unknown")),
+                  "digest": sha256_file(args.pack)}]
+    workspace_records = store.list_records("workspace")
+    if not workspace_records or workspace_records[0].get("pack_refs") != pack_refs:
+        raise RadarError("Workspace Pack lock differs; create a new Workspace or explicitly migrate it")
+
+    result = adapt_ledger_source(
+        store, args.input, adapter,
+        aggregation_rules=business_model.get("ledger_aggregations", []),
+        manifest_path=args.manifest,
+    )
+    result["workspace"] = args.workspace
+    result["pack"] = pack["pack"]
+    result["business_model_sha256"] = sha256_file(business_model_path)
+    result["control_follow_up"] = (
+        "radar ledger-control --workspace %s --workspace-root %s --out ledger-control-result.json"
+        % (args.workspace, args.workspace_root)
+    )
+    write_json(args.out, result)
+    return {"out": str(args.out), "workspace": args.workspace,
+            "adapter_id": args.adapter_id, "summary": result["summary"],
+            "ledger_effects_imported": result["ledger_effects_imported"],
+            "unresolved": len(result["unresolved"])}
+
+
 def cmd_ledger_import(args):
     store = JsonWorkspaceStore(args.workspace_root, args.workspace)
     bundle = load_json(args.input)
@@ -422,6 +463,17 @@ def build_parser():
     bg.add_argument("--ledger-control", default=None,
                     help="可选：radar ledger-control 生成的完整流水线结果 JSON")
     bg.set_defaults(func=cmd_business_graph)
+
+    la = sub.add_parser("ledger-adapt", help="按 Pack 显式字段映射解析 CSV/XLSX 并导入 Ledger Workspace")
+    la.add_argument("--workspace", required=True)
+    la.add_argument("--workspace-root", default=".")
+    la.add_argument("--pack", required=True)
+    la.add_argument("--business-model", default=None)
+    la.add_argument("--adapter-id", required=True)
+    la.add_argument("--input", required=True)
+    la.add_argument("--manifest", default=None, help="可选：独立的 JSONL 凭证抽取清单")
+    la.add_argument("--out", required=True)
+    la.set_defaults(func=cmd_ledger_adapt)
 
     li = sub.add_parser("ledger-import", help="将账本流水、凭证清单和聚合规则导入 Workspace")
     li.add_argument("--workspace", required=True)

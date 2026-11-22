@@ -24,6 +24,35 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual({item["ledger_kind"] for item in model["ledger_aggregations"]},
                          {"stock", "general_ledger"})
 
+    def test_pack_business_model_can_declare_explicit_ledger_source_adapter(self):
+        _, pack, model = self._data()
+        adapter = {
+            "id": "erp-stock-csv-v1", "source_system": "erp-a",
+            "format": "csv", "ledger_kind": "stock", "header_row": 1,
+            "delimiter": ",",
+            "field_map": {
+                "ledger_entry_id": "Ledger Entry ID",
+                "company_id": "Company ID",
+                "voucher_type": "Voucher Type",
+                "voucher_id": "Voucher ID",
+                "voucher_item_id": "Voucher Item ID",
+                "event_kind": "Event Kind",
+                "posting_status": "Posting Status",
+                "currency": "Currency",
+                "accounting_period": "Accounting Period",
+                "item_id": "Item ID", "warehouse_id": "Warehouse ID",
+                "quantity_delta": "Quantity Delta", "quantity_uom": "Quantity UOM",
+                "stock_value_delta": "Stock Value Delta",
+            },
+            "number_format": {"decimal_separator": ".", "thousands_separator": ","},
+        }
+        model["ledger_source_adapters"] = [adapter]
+        validated = validate_business_model(model, pack)
+        self.assertEqual(validated["ledger_source_adapters"][0]["id"], "erp-stock-csv-v1")
+        model["ledger_source_adapters"] = [adapter, dict(adapter)]
+        with self.assertRaises(BusinessModelError):
+            validate_business_model(model, pack)
+
     def test_unknown_transition_endpoint_is_rejected(self):
         _, pack, model = self._data()
         model["processes"][0]["transitions"][0]["to"] = "missing_entity"

@@ -60,3 +60,10 @@ Discovery can invoke ledger controls only when the Pack explicitly declares `led
 ```
 
 No ERP adapter is implied: Discovery runs controls only over ledger records already imported into the Workspace. Source completeness and ERP extraction semantics remain the responsibility of a future adapter and Pack-governed workflow.
+
+
+## Source Adapter integration
+
+The M13-H generic Ledger Source Adapter is documented in [ledger-source-adapter.md](ledger-source-adapter.md). It reads only explicitly mapped CSV/XLSX exports, creates or reuses source Assets and row-level Evidence, and then delegates Ledger Effect persistence to the existing Workspace importer.
+
+The adapter does not synthesize voucher extraction manifests from ledger rows. A separate JSONL export manifest must provide the expected ledger entry ids. Missing manifests remain unresolved. Run ledger controls with radar ledger-control after import; the adapter itself does not issue business assessments.

@@ -34,7 +34,11 @@ def _has_locator(locator: Any) -> bool:
     if locator.get("path") and isinstance(locator.get("row"), int) and isinstance(
             locator.get("column"), int):
         return locator["row"] > 0 and locator["column"] > 0
-    if locator.get("path") and locator.get("line") is not None:
+    if (locator.get("path") and isinstance(locator.get("row"), int)
+            and locator["row"] > 0 and locator.get("block") == "row"):
+        return True
+    if (locator.get("path") and isinstance(locator.get("line"), int)
+            and locator["line"] > 0):
         return True
     return False
 

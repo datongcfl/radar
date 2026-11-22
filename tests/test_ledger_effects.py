@@ -46,6 +46,14 @@ class TestLedgerEffects(unittest.TestCase):
         row.update(updates)
         return row
 
+    def test_row_block_locator_is_precise_for_ledger_effects(self):
+        locator = {"path": "ledger.csv", "row": 2, "block": "row"}
+        evidence = self._evidence("EV-1")
+        evidence["locator"] = locator
+        row = self._stock(locator=locator)
+        result = validate_ledger_effects([row], [evidence])
+        self.assertEqual(result["summary"]["accepted"], 1)
+
     def test_stock_and_gl_are_validated_as_distinct_streams(self):
         rows = [self._stock(), self._gl()]
         result = validate_ledger_effects(rows, [self._evidence("EV-1")])

@@ -274,6 +274,25 @@ python3 -m radar claims \
 
 详见 [ROADMAP.md](ROADMAP.md)。不承诺日期，也不承诺“收集所有开源信息”。
 
+## Ledger Source Adapter（M13-H）
+
+按业务模型中的显式字段映射，将 ERP 导出的 CSV/XLSX 转成带行级 Evidence 的 Stock Ledger / General Ledger 流水。凭证完整性需要独立 JSONL 抽取清单，不会从流水文件自行推导。
+
+详细契约见 [docs/architecture/ledger-source-adapter.md](docs/architecture/ledger-source-adapter.md)。示例中的 adapter id 是占位值，运行前必须在所用 Pack 的 business-model.json 中声明对应映射；当前 Pack 未绑定任何真实 ERP 厂商格式。
+
+~~~bash
+radar ledger-adapt \
+  --workspace ws_d03_material_procurement \
+  --workspace-root .radar-d03-workspace \
+  --pack packs/weak-current/pack.json \
+  --business-model packs/weak-current/business-model.json \
+  --adapter-id erp-stock-csv-v1 \
+  --input stock-ledger.csv \
+  --out stock-adapt-result.json
+~~~
+
+General Ledger 导入时另选 GL mapping，并通过 --manifest 提供独立 JSONL 凭证清单。导入后运行 radar ledger-control。
+
 ## 测试
 
 ```bash
