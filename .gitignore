@@ -9,3 +9,4 @@ runs/*-scan-*/
 build/
 dist/
 *.egg-info/
+.radar-*/

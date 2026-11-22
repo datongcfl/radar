@@ -67,3 +67,6 @@ No ERP adapter is implied: Discovery runs controls only over ledger records alre
 The M13-H generic Ledger Source Adapter is documented in [ledger-source-adapter.md](ledger-source-adapter.md). It reads only explicitly mapped CSV/XLSX exports, creates or reuses source Assets and row-level Evidence, and then delegates Ledger Effect persistence to the existing Workspace importer.
 
 The adapter does not synthesize voucher extraction manifests from ledger rows. A separate JSONL export manifest must provide the expected ledger entry ids. Missing manifests remain unresolved. Run ledger controls with radar ledger-control after import; the adapter itself does not issue business assessments.
+
+
+Source Adapter files are copied into the Workspace's content-addressed assets directory before Asset/Evidence records are written. The copy is SHA-256 verified, and Asset metadata records its Workspace-relative path. This avoids making a persisted Evidence record depend on a transient path on the importing machine.

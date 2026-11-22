@@ -87,7 +87,8 @@ Each non-empty source row creates or reuses a Workspace Evidence record:
 - CSV locator: path + row + block=row.
 - XLSX locator: path + sheet + row + block=row.
 - Evidence statement preserves the original headers and row values.
-- Asset metadata records the source file SHA-256, format, and adapter id.
+- The original source file is copied into the Workspace content-addressed assets directory; the persisted bytes are SHA-256 verified before the Asset is created.
+- Asset metadata records the source file SHA-256, format, adapter id, and Workspace-relative storage path; the Asset URI points to the persisted copy, not the caller's transient input path.
 - Re-importing the same file reuses the same Asset and row Evidence.
 
 The ledger validator now accepts a row-block locator. This points to the entire source row, not a fabricated single-cell locator.

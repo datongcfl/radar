@@ -149,6 +149,11 @@ class TestLedgerSourceAdapter(unittest.TestCase):
             })
             evidence = store.list_records("evidence")[0]
             self.assertEqual(evidence["verification_status"], "source_confirmed")
+            asset = store.list_records("asset")[0]
+            persisted_path = store.root / asset["metadata"]["workspace_relative_path"]
+            self.assertTrue(persisted_path.is_file())
+            self.assertEqual(persisted_path.read_bytes(), source.read_bytes())
+            self.assertEqual(asset["uri"], persisted_path.as_uri())
 
     def test_xlsx_source_uses_sheet_row_locator(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from io import BytesIO, StringIO
 import json
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -251,7 +252,30 @@ def _signature(effect: dict[str, Any]) -> str:
 def _get_asset(store: JsonWorkspaceStore, path_name: str, data: bytes,
                fmt: str, adapter_id: str):
     digest = sha256(data).hexdigest()
-    uri = "file:///radar-workspace-assets/%s/%s" % (digest, quote(path_name))
+    relative_path = Path("assets") / digest[:2] / digest / path_name
+    asset_path = store.root / relative_path
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    if asset_path.exists():
+        if sha256(asset_path.read_bytes()).hexdigest() != digest:
+            raise LedgerSourceAdapterError("content-addressed Workspace asset hash mismatch")
+    else:
+        temporary_path = None
+        try:
+            with NamedTemporaryFile(prefix=".radar-asset-", dir=str(asset_path.parent),
+                                    delete=False) as temporary:
+                temporary.write(data)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+                temporary_path = Path(temporary.name)
+            os.replace(str(temporary_path), str(asset_path))
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                temporary_path.unlink()
+        if sha256(asset_path.read_bytes()).hexdigest() != digest:
+            asset_path.unlink(missing_ok=True)
+            raise LedgerSourceAdapterError("persisted Workspace asset hash verification failed")
+
+    uri = asset_path.as_uri()
     source = next((r for r in store.list_records("source") if r.get("uri") == uri), None)
     if source is None:
         source = new_record("source", workspace_id=store.workspace_id,
@@ -264,10 +288,10 @@ def _get_asset(store: JsonWorkspaceStore, path_name: str, data: bytes,
         asset = new_record("asset", workspace_id=store.workspace_id,
             source_id=source["id"], asset_type="dataset", uri=uri, title=path_name,
             status="active", metadata={"content_sha256": digest, "format": fmt,
-                                       "source_adapter_id": adapter_id}).to_dict()
+                                       "source_adapter_id": adapter_id,
+                                       "workspace_relative_path": relative_path.as_posix()}).to_dict()
         store.append(asset)
     return asset, digest
-
 
 def _get_evidence(store: JsonWorkspaceStore, asset: dict[str, Any], path_name: str,
                   row_number: int, headers: list[str], cells: list[str],
