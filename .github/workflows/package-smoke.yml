@@ -38,10 +38,8 @@ jobs:
         with:
           version: "0.13.9"
 
-      - name: Generate universal lockfile (bootstrap only)
-        run: |
-          uv lock
-          cat uv.lock
+      - name: Verify committed universal lockfile
+        run: uv lock --check
 
       - name: Sync Core without optional extras
         run: uv sync --locked --no-dev --python "${{ matrix.python-version }}"

@@ -1,6 +1,6 @@
 # Radar Dependency Management
 
-> Status: M14-D design selected; packaging bootstrap is being introduced. Optional parser extras remain gated by adapter implementation and real-corpus qualification.
+> Status: M14-D bootstrap implemented; optional parser extras remain gated by adapter implementation and real-corpus qualification.
 
 ## 1. Chosen project model
 
@@ -25,7 +25,7 @@ https://docs.astral.sh/uv/concepts/projects/dependencies/
 | Build | build-system.requires | Isolated build environment; exact or tightly bounded versions |
 | External tool | Not a Python dependency | Installed separately and detected at runtime |
 
-Current pyproject.toml declares no third-party runtime dependencies. The first optional extras will be added only when their adapter is implemented and its tests pass. Benchmark-only tools stay in isolated benchmark workflows and do not become application dependencies.
+Current pyproject.toml declares no third-party runtime dependencies. The committed uv.lock was generated with uv 0.13.9 and currently locks only the editable Radar project. The first optional extras will be added only when their adapter is implemented and its tests pass. Benchmark-only tools stay in isolated benchmark workflows and do not become application dependencies.
 
 ## 3. Version and lock policy
 
@@ -61,13 +61,15 @@ Optional jobs must not make the Core test matrix depend on optional packages.
 
 ## 6. Current package bootstrap
 
-The initial pyproject.toml establishes:
+The initial pyproject.toml and uv.lock establish:
 
 - package name datongcfl-radar;
 - version sourced from radar.__version__;
 - Python >=3.9;
 - no third-party Core runtime dependencies;
 - radar console-script entry point.
+- a universal lockfile verified by uv lock --check.
+- a Python 3.9 / 3.13 package smoke workflow that runs all 242 tests, both CLI entry points, and builds wheel + sdist.
 
 No PDF or Tree-sitter extras are declared yet because the adapters have not been integrated into Radar's public runtime API. The isolated benchmark jobs pin their own packages independently.
 
