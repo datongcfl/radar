@@ -127,6 +127,7 @@ def main():
     args = parser.parse_args()
     results = [parse_one(name, spec) for name, spec in SAMPLES.items()]
 
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from radar.code_analyzer import analyze_python_source
     python_ast = analyze_python_source(SAMPLES["python"]["source"], "receipt.py")
     report = {
