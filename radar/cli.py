@@ -28,6 +28,7 @@ from .business_graph import build_business_graph, validate_business_model
 from .business_invariants import validate_observation_bundle
 from .business_observation_extractor import extract_table_observations
 from .document_parser import extract_csv_document, extract_office_document
+from .ledger_control_pipeline import run_ledger_control_pipeline
 from .discovery_store import JsonWorkspaceStore
 
 
@@ -281,10 +282,30 @@ def cmd_business_graph(args):
         discovery_runs=store.list_records("discovery_run"),
         relationships=store.list_records("relationship"),
         observations=load_json(args.observations) if getattr(args, "observations", None) else None,
+        ledger_control_results=load_json(args.ledger_control) if getattr(args, "ledger_control", None) else None,
     )
     write_json(args.out, graph)
     return {"out": str(args.out), "counts": graph["counts"],
             "pack": graph["pack"], "business_model_version": graph["business_model_version"]}
+
+
+def cmd_ledger_control(args):
+    bundle = load_json(args.input)
+    if not isinstance(bundle, dict):
+        raise RadarError("ledger-control input must be a JSON object")
+    required = ("ledger_effects", "evidence_records",
+                "extraction_manifests", "aggregation_rules")
+    missing = [field for field in required if field not in bundle]
+    if missing:
+        raise RadarError("ledger-control input missing fields: %s" % ", ".join(missing))
+    result = run_ledger_control_pipeline(
+        bundle["ledger_effects"], bundle["evidence_records"],
+        bundle["extraction_manifests"], bundle["aggregation_rules"],
+        reconciliation_tolerance=bundle.get("reconciliation_tolerance", "0.01"),
+        voucher_tolerance=bundle.get("voucher_tolerance", "0"))
+    write_json(args.out, result)
+    return {"out": str(args.out), "summary": result["summary"],
+            "schema_version": result["schema_version"]}
 
 
 def cmd_diff(args):
@@ -382,7 +403,16 @@ def build_parser():
     bg.add_argument("--out", required=True)
     bg.add_argument("--observations", default=None,
                     help="可选：schema_version=1 的结构化业务观察值 JSON")
+    bg.add_argument("--ledger-control", default=None,
+                    help="可选：radar ledger-control 生成的完整流水线结果 JSON")
     bg.set_defaults(func=cmd_business_graph)
+
+    lc = sub.add_parser("ledger-control",
+        help="运行来源账本验证、凭证平衡、账簿聚合和库存总账勾稽")
+    lc.add_argument("--input", required=True,
+                    help="包含 ledger_effects/evidence_records/extraction_manifests/aggregation_rules 的 JSON")
+    lc.add_argument("--out", required=True)
+    lc.set_defaults(func=cmd_ledger_control)
 
     d = sub.add_parser("diff", help="比较两次 run")
     d.add_argument("--from", dest="old", required=True)
