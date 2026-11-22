@@ -10,6 +10,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
+from urllib.parse import quote
 from zipfile import BadZipFile, ZipFile
 from typing import Any
 
@@ -250,7 +251,7 @@ def _signature(effect: dict[str, Any]) -> str:
 def _get_asset(store: JsonWorkspaceStore, path_name: str, data: bytes,
                fmt: str, adapter_id: str):
     digest = sha256(data).hexdigest()
-    uri = "file+sha256://%s/%s" % (digest, path_name)
+    uri = "file:///radar-workspace-assets/%s/%s" % (digest, quote(path_name))
     source = next((r for r in store.list_records("source") if r.get("uri") == uri), None)
     if source is None:
         source = new_record("source", workspace_id=store.workspace_id,
