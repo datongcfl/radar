@@ -337,7 +337,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          observations: Optional[dict[str, Any]] = None,
                          ledger_effects: Optional[Iterable[dict[str, Any]]] = None,
                          ledger_voucher_results: Optional[dict[str, Any]] = None,
-                         ledger_reconciliation_results: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+                         ledger_reconciliation_results: Optional[dict[str, Any]] = None,
+                         ledger_control_results: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
@@ -354,12 +355,31 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
     except ObservationAggregationError as exc:
         raise BusinessModelError("observation aggregation failed: %s" % exc)
     ledger_aggregation_results = []
-    try:
-        if ledger_effects is not None:
-            ledger_aggregation_results = aggregate_ledger_effects(
-                list(ledger_effects), evidence, model.get("ledger_aggregations", []))
-    except LedgerAggregationError as exc:
-        raise BusinessModelError("ledger aggregation failed: %s" % exc)
+    if ledger_control_results is not None:
+        if (ledger_effects is not None or ledger_voucher_results is not None
+                or ledger_reconciliation_results is not None):
+            raise BusinessModelError(
+                "ledger_control_results cannot be combined with individual ledger stage inputs")
+        if (not isinstance(ledger_control_results, dict)
+                or ledger_control_results.get("schema_version") != 1
+                or not isinstance(ledger_control_results.get("aggregations"), list)
+                or not isinstance(ledger_control_results.get("vouchers"), dict)
+                or not isinstance(ledger_control_results.get("reconciliation"), dict)):
+            raise BusinessModelError("ledger_control_results must be a schema_version 1 pipeline result")
+        ledger_aggregation_results = ledger_control_results["aggregations"]
+        if any(not isinstance(item, dict) or item.get("schema_version") != 1
+               or not isinstance(item.get("results"), list)
+               for item in ledger_aggregation_results):
+            raise BusinessModelError("ledger_control_results contains invalid aggregation results")
+        ledger_voucher_results = ledger_control_results["vouchers"]
+        ledger_reconciliation_results = ledger_control_results["reconciliation"]
+    else:
+        try:
+            if ledger_effects is not None:
+                ledger_aggregation_results = aggregate_ledger_effects(
+                    list(ledger_effects), evidence, model.get("ledger_aggregations", []))
+        except LedgerAggregationError as exc:
+            raise BusinessModelError("ledger aggregation failed: %s" % exc)
     if ledger_voucher_results is not None:
         if (not isinstance(ledger_voucher_results, dict)
                 or ledger_voucher_results.get("schema_version") != 1
@@ -886,4 +906,5 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         "ledger_aggregations":{"schema_version":1,"results":ledger_aggregation_results},
         "ledger_vouchers":ledger_voucher_results,
         "ledger_reconciliations":ledger_reconciliation_results,
+        "ledger_control_pipeline":ledger_control_results,
         "nodes":nodes,"edges":edges}

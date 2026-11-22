@@ -410,6 +410,54 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(graph["counts"]["ledger_reconciliations_matched"], 1)
         self.assertEqual(graph["counts"]["ledger_reconciliations_unresolved"], 1)
 
+    def test_complete_ledger_control_pipeline_result_can_be_projected(self):
+        _, pack, model = self._data()
+        asset = {"id":"ast_control","title":"ledger-control.json","asset_type":"file",
+                 "uri":"https://example.test/ledger-control.json"}
+        evidence = [{"id":"evd_control","asset_id":"ast_control",
+                     "statement":"ledger control evidence",
+                     "locator":{"path":"ledger-control.json","line":1}}]
+        pipeline = {
+            "schema_version":1,
+            "validation":{"schema_version":1,"ledger_effects":[],"skipped":[],
+                          "summary":{"input":0,"accepted":0,"skipped":0,
+                                     "stock_entries":0,"general_ledger_entries":0,
+                                     "reversal_entries":0,"missing_posting_date":0,
+                                     "missing_accounting_period":0}},
+            "vouchers":{"schema_version":1,"results":[{
+                "scope":{"voucher_id":"JV-1","accounting_period":"FY2026-P03"},
+                "manifest_id":"MAN-1","status":"balanced","debit_total":"10",
+                "credit_total":"10","difference":"0","tolerance":"0",
+                "ledger_entry_ids":[],"evidence_ids":["evd_control"]}],
+                "unresolved":[],"summary":{"balanced":1,"unbalanced":0,"unresolved":0}},
+            "aggregations":[],
+            "reconciliation":{"schema_version":1,"results":[{
+                "scope":{"company_id":"CO-1","currency":"USD",
+                         "accounting_period":"FY2026-P03"},
+                "status":"matched","stock_value":"10","general_ledger_value":"10",
+                "difference":"0","tolerance":"0.01",
+                "stock_aggregate_ids":[],"gl_aggregate_ids":[],
+                "evidence_ids":["evd_control"]}],
+                "unresolved":[],"summary":{"matched":1,"mismatched":0,"unresolved":0}},
+            "summary":{},"policy":{}}
+        graph = build_business_graph(model, pack, assets=[asset], evidence=evidence,
+                                     ledger_control_results=pipeline)
+        self.assertEqual(graph["ledger_control_pipeline"], pipeline)
+        voucher = next(item for item in graph["nodes"]
+                       if item["kind"] == "business_gl_voucher")
+        reconciliation = next(item for item in graph["nodes"]
+                               if item["kind"] == "business_ledger_reconciliation")
+        self.assertEqual(voucher["verification_status"], "computed_not_assessed")
+        self.assertEqual(reconciliation["verification_status"], "computed_not_assessed")
+
+    def test_pipeline_result_cannot_be_mixed_with_individual_ledger_inputs(self):
+        _, pack, model = self._data()
+        with self.assertRaises(BusinessModelError):
+            build_business_graph(model, pack, ledger_effects=[],
+                                 ledger_control_results={"schema_version":1,
+                                     "aggregations":[],"vouchers":{},
+                                     "reconciliation":{}})
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
