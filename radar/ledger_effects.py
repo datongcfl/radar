@@ -5,6 +5,7 @@ infer accounting entries, valuation, or business outcomes from source documents.
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
@@ -38,6 +39,18 @@ def _has_locator(locator: Any) -> bool:
     return False
 
 
+def _iso_date(value: Any, field: str) -> str:
+    if not isinstance(value, str):
+        raise LedgerEffectError("%s must be an ISO date (YYYY-MM-DD)" % field)
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        raise LedgerEffectError("%s must be an ISO date (YYYY-MM-DD)" % field)
+    if parsed.isoformat() != value:
+        raise LedgerEffectError("%s must be an ISO date (YYYY-MM-DD)" % field)
+    return value
+
+
 def _required_text(row: dict[str, Any], field: str, where: str) -> str:
     value = row.get(field)
     if not isinstance(value, str) or not value.strip():
@@ -61,6 +74,29 @@ def _normalize_one(row: dict[str, Any], evidence_by_id: dict[str, dict[str, Any]
         raise LedgerEffectError("%s.ledger_kind must be stock or general_ledger" % where)
     if normalized["posting_status"] not in ("posted", "reversal", "adjustment"):
         raise LedgerEffectError("%s.posting_status is unsupported" % where)
+
+    # Posting dates and accounting periods are source facts, not inferred values.
+    # A period label is intentionally opaque: fiscal calendars need not be monthly.
+    for field in ("posting_date", "period_start_date", "period_end_date"):
+        if row.get(field) is not None:
+            normalized[field] = _iso_date(row[field], where + "." + field)
+    if row.get("accounting_period") is not None:
+        normalized["accounting_period"] = _required_text(row, "accounting_period", where)
+    has_period_boundary = ("period_start_date" in normalized or
+                           "period_end_date" in normalized)
+    if has_period_boundary:
+        if ("period_start_date" not in normalized or
+                "period_end_date" not in normalized or
+                "accounting_period" not in normalized):
+            raise LedgerEffectError(
+                "%s period boundaries require accounting_period, period_start_date, "
+                "and period_end_date" % where)
+        if normalized["period_start_date"] > normalized["period_end_date"]:
+            raise LedgerEffectError("%s period_start_date must not exceed period_end_date" % where)
+        posting_date = normalized.get("posting_date")
+        if posting_date is not None and not (
+                normalized["period_start_date"] <= posting_date <= normalized["period_end_date"]):
+            raise LedgerEffectError("%s posting_date falls outside its accounting period bounds" % where)
 
     source_ref = row.get("source_document_ref")
     if not isinstance(source_ref, dict):
@@ -220,6 +256,9 @@ def validate_ledger_effects(ledger_effects: Iterable[dict[str, Any]],
                 1 for item in accepted if item["ledger_kind"] == "general_ledger"),
             "reversal_entries": sum(1 for item in accepted
                                     if item["posting_status"] == "reversal"),
+            "missing_posting_date": sum(1 for item in accepted if "posting_date" not in item),
+            "missing_accounting_period": sum(1 for item in accepted
+                                             if "accounting_period" not in item),
         },
         "policy": {
             "stock_and_gl_are_separate_streams": True,
@@ -227,6 +266,9 @@ def validate_ledger_effects(ledger_effects: Iterable[dict[str, Any]],
             "ledger_rows_require_evidence_and_locator": True,
             "reversal_requires_exact_original_ledger_identity": True,
             "reversal_must_match_original_scope_and_opposite_effect": True,
+            "posting_date_must_be_iso_date_when_present": True,
+            "accounting_period_is_explicit_and_never_inferred": True,
+            "period_boundaries_must_contain_posting_date_when_both_are_supplied": True,
             "validation_does_not_assess_business_invariants": True,
         },
     }

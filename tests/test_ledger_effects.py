@@ -111,6 +111,31 @@ class TestLedgerEffects(unittest.TestCase):
         self.assertEqual(result["skipped"][-1]["reason"],
                          "reversal_effect_does_not_reverse_original")
 
+    def test_explicit_fiscal_period_is_preserved_without_calendar_month_inference(self):
+        row = self._stock(posting_date="2026-11-22", accounting_period="FY2026-P03")
+        result = validate_ledger_effects([row], [self._evidence("EV-1")])
+        accepted = result["ledger_effects"][0]
+        self.assertEqual(accepted["accounting_period"], "FY2026-P03")
+        self.assertEqual(accepted["posting_date"], "2026-11-22")
+        self.assertEqual(result["summary"]["missing_accounting_period"], 0)
+
+    def test_invalid_posting_date_is_rejected(self):
+        row = self._stock(posting_date="2026-13-01")
+        with self.assertRaises(LedgerEffectError):
+            validate_ledger_effects([row], [self._evidence("EV-1")])
+
+    def test_period_bounds_must_contain_posting_date(self):
+        row = self._stock(posting_date="2026-11-22", accounting_period="FY2026-P03",
+                          period_start_date="2026-10-01", period_end_date="2026-10-31")
+        with self.assertRaises(LedgerEffectError):
+            validate_ledger_effects([row], [self._evidence("EV-1")])
+
+    def test_missing_period_metadata_is_reported_not_inferred(self):
+        result = validate_ledger_effects([self._stock()], [self._evidence("EV-1")])
+        self.assertEqual(result["summary"]["accepted"], 1)
+        self.assertEqual(result["summary"]["missing_posting_date"], 1)
+        self.assertEqual(result["summary"]["missing_accounting_period"], 1)
+
     def test_conflicting_duplicate_identity_excludes_both_rows(self):
         first = self._stock()
         second = self._stock(stock_value_delta="100")
