@@ -26,7 +26,7 @@ class TestLedgerControlCLI(unittest.TestCase):
             with redirect_stdout(StringIO()):
                 code = main(["ledger-control", "--input", str(source),
                              "--out", str(output)])
-            self.assertEqual(code, 0)
+            self.assertEqual(code, 0, captured.getvalue())
             result = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(result["schema_version"], 1)
             self.assertEqual(result["summary"]["ledger_effects_accepted"], 0)
@@ -104,7 +104,8 @@ class TestLedgerControlCLI(unittest.TestCase):
                 encoding="utf-8",
             )
             output = root / "adapt-result.json"
-            with redirect_stdout(StringIO()):
+            captured = StringIO()
+            with redirect_stdout(captured):
                 code = main([
                     "ledger-adapt", "--workspace", workspace["id"],
                     "--workspace-root", str(root), "--pack", str(pack_path),
