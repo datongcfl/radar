@@ -1,6 +1,74 @@
 # Roadmap
 
-原则：每个版本只加一层；不承诺日期；先定验收，再写功能。
+原则：每个版本只加一层；不承诺日期；先定验收，再写功能。以下 Current main 是当前事实；后续里程碑是建议顺序，需按每个 PR 的验收证据推进，不代表功能已经完成。
+
+## Current main — 2026-11-22
+
+基线：`40c0528141b88c0a80ed25015b982ae44a8f8992`（PR #43 合并后的 main）。
+
+### 已进入 main
+
+- Legacy Pack / Seeds：validate、run、scan、diff、Claims、覆盖矩阵和报告。
+- Capability Registry：显式注册的 source/parser 能力契约。
+- 可选文档解析：PDF、DOCX、XLSX、PPTX；有独立 hash-pinned requirements 文件和 CI jobs。
+- `radar parse`：解析单个本地文档并输出结构化片段。
+- GitHub Repository Asset Inventory：在固定 commit 上枚举候选文件资产。
+- Discovery 领域基础：对象契约、校验、Schema、JSONL Workspace Store。
+
+### 尚未形成完整闭环（明确不算已完成）
+
+- 当前 CLI 尚无 `radar discover` 命令。
+- GitHub Asset Inventory 尚未接入统一内容下载、hash 校验、解析、Evidence 入库。
+- Parser 的 `document_fragment` 尚不会自动成为 Discovery Evidence。
+- Issue / PR / review / CI checks 到代码修复与需求验收的完整追溯链尚未建立。
+- Business Graph / 行业流程分析不能仅凭关系对象定义宣称已完整落地。
+
+## Proposed next milestones（建议顺序，待逐项验收）
+
+### M17 — Repository asset ingestion
+
+- 将候选 Asset 绑定到固定 commit、path、blob SHA。
+- 获取内容后验证 Git blob / 内容哈希、文件大小、格式和安全边界。
+- 接入 PDF / Office / Text Parser，保留原生 locator。
+- 显式建立 fragment → Evidence 映射，保留 parser/version/source version。
+- 验收：同一 commit 的重复导入幂等；内容变化产生新版本；任何失败都保留 partial 状态；候选不会自动升级为 Evidence。
+
+### M18 — Requirement-driven Discovery CLI
+
+- 实现 `radar discover` 命令和可测试的 orchestration service。
+- 导入 Workspace、Requirement、Pack refs、Seeds；执行 source discovery、Asset 归档、Evidence/Relationship 持久化和逐 criterion Assessment。
+- 保留历史 Run 输入快照和阶段错误。
+- 验收：离线 fixture 可完整运行；缺证据、反证、部分失败、重复运行和 Requirement revision 均有确定结果。
+
+### M19 — Engineering traceability
+
+- 在授权范围内发现 GitHub Issues、PR、review threads、checks、merge commit。
+- 将讨论、diff、测试和修复关联为独立 Asset/Evidence/Relationship。
+- 区分 PR 提议、PR 合并、CI 通过和实际部署等不同事实。
+- 验收：从 Requirement criterion 可追溯到代码位置、测试结果、PR 状态和原始来源。
+
+### M20 — Industry knowledge packs and business validation
+
+- 建立通用底座 + 行业知识包的版本化模型。
+- 增强中英文 canonical terms、aliases、同义词和流程/对象/异常关系。
+- 建立业务对象、状态机、前置/后置条件、不变量和异常路径。
+- 验收：不同 Pack 可复用通用 Core；业务流程正例、反例、冲突和缺口均有可追溯证据。
+
+### M21 — Evidence quality and assessment governance
+
+- 将来源权威性、独立性、时效性、可访问性、许可、定位质量和复现状态分开评价。
+- 建立证据冲突、未决项、人工复核和 Assessment 版本机制。
+- 验收：任何结论可解释其证据、规则、版本、限制和未解决缺口。
+
+### M22 — Repository and release governance
+
+- 统一 README、架构、路线图、组件准入状态、CI 和发布流程。
+- 清理无主分支与重复/过期文档；所有清理先审计再执行。
+- 验收：新贡献者可以仅凭仓库材料构建、测试、扩展和提交 PR。
+
+## Historical version record
+
+以下 v0.x/v1.x 内容保留为历史演进记录，不应被误读为当前未完成路线图或当前产品能力边界。
 
 ## v0.1 — MVP（已合并）
 
