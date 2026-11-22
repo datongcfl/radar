@@ -196,3 +196,22 @@
 - 使用 `chore/m15-architecture-realignment` 承载 M15 治理文档和后续拆分工作。
 - 旧 fix 分支列为待清理，不在本次审计中自动删除。
 - 首个实现 PR 应是依赖治理/包管理工程基础；之后再拆 Discovery Core 和领域能力。
+
+
+## 8. Import coupling evidence (M15-C preflight)
+
+A first import-graph inspection of the feature snapshot found concrete cross-layer coupling:
+
+- `radar/discover.py` imports `github_discovery`, `business_graph`, `business_invariants`, `business_observation_extractor`, and `ledger_workspace` at module load time.
+- `radar/business_graph.py` imports `ledger_aggregator` and `ledger_source_adapter` directly, so the graph projection layer is not yet domain-neutral.
+- `radar/cli.py` eagerly imports Discovery, document, business, and Ledger modules in one command module.
+- The basic `radar/discovery.py` domain contract itself uses only the Python standard library and has no import dependency on Ledger or external packages.
+
+Implications:
+1. The first safe Core boundary is the pure domain contract and storage layer, not the current top-level `discover.py` orchestration module.
+2. Introduce capability registration/dispatch at orchestration boundaries before moving Ledger files. Core should call declared capability interfaces and receive normalized observations/results; it must not import concrete Ledger implementations.
+3. Split Business Graph into a generic graph/provenance projection and separately registered domain projections. Moving the whole current module into Core would preserve the existing Ledger coupling.
+4. CLI commands should lazy-load their implementation handlers so importing or running basic Core commands does not import optional domain capabilities.
+5. M15-C must include import-boundary tests (e.g. Core domain/store imports succeed with Ledger capability modules unavailable) in addition to behavior tests.
+
+This is a code-derived architectural finding, not a claim that the refactor has already been implemented.
