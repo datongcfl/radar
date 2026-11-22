@@ -59,14 +59,14 @@ class DocxDocumentParserCapability:
         return self._descriptor
 
     def _preflight(self, content: bytes) -> Optional[str]:
-        """Return a stable error code, or None when the package passes preflight."""
+        """Stream every ZIP member under hard bounds before handing it to lxml."""
         try:
             with zipfile.ZipFile(io.BytesIO(content)) as archive:
                 infos = archive.infolist()
                 if len(infos) > self.max_zip_entries:
                     return "docx_zip_entry_limit_exceeded"
-                total_size = 0
-                xml_size = 0
+                total_actual = 0
+                xml_actual = 0
                 names = set()
                 for info in infos:
                     name = info.filename
@@ -81,29 +81,43 @@ class DocxDocumentParserCapability:
                     if name in names:
                         return "docx_duplicate_archive_entry"
                     names.add(name)
-                    if info.file_size > self.max_entry_bytes:
-                        return "docx_zip_entry_too_large"
-                    total_size += info.file_size
-                    if total_size > self.max_total_uncompressed_bytes:
-                        return "docx_uncompressed_size_limit_exceeded"
-                    if info.file_size and info.compress_size == 0:
+                    is_xml = name.lower().endswith(".xml") or name.lower().endswith(".rels")
+                    chunks = [] if is_xml else None
+                    entry_actual = 0
+                    with archive.open(info, "r") as stream:
+                        while True:
+                            chunk = stream.read(64 * 1024)
+                            if not chunk:
+                                break
+                            entry_actual += len(chunk)
+                            total_actual += len(chunk)
+                            if entry_actual > self.max_entry_bytes:
+                                return "docx_zip_entry_too_large"
+                            if total_actual > self.max_total_uncompressed_bytes:
+                                return "docx_uncompressed_size_limit_exceeded"
+                            if is_xml:
+                                xml_actual += len(chunk)
+                                if xml_actual > self.max_xml_bytes:
+                                    return "docx_xml_size_limit_exceeded"
+                                chunks.append(chunk)
+                    if entry_actual != info.file_size:
+                        return "docx_archive_size_mismatch"
+                    if entry_actual and info.compress_size == 0:
                         return "docx_invalid_compression_metadata"
                     if info.compress_size:
-                        ratio = info.file_size / info.compress_size
+                        ratio = entry_actual / info.compress_size
                         if ratio > self.max_compression_ratio:
                             return "docx_compression_ratio_exceeded"
-                    if name.lower().endswith(".xml") or name.lower().endswith(".rels"):
-                        xml_size += info.file_size
-                        if xml_size > self.max_xml_bytes:
-                            return "docx_xml_size_limit_exceeded"
-                        raw = archive.read(info)
-                        upper = raw.upper()
+                    if is_xml:
+                        upper = b"".join(chunks).upper()
                         if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
                             return "docx_unsafe_xml_declaration"
                 if "[Content_Types].xml" not in names or "word/document.xml" not in names:
                     return "invalid_docx_package"
-        except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, RuntimeError,
-                EOFError, ValueError, zlib.error):
+        except (
+            zipfile.BadZipFile, zipfile.LargeZipFile, OSError, RuntimeError,
+            EOFError, ValueError, zlib.error, NotImplementedError,
+        ):
             return "invalid_docx_package"
         return None
 
