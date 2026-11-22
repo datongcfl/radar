@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from pathlib import Path
 
@@ -105,7 +105,7 @@ class TestLedgerControlCLI(unittest.TestCase):
             )
             output = root / "adapt-result.json"
             captured = StringIO()
-            with redirect_stdout(captured):
+            with redirect_stdout(captured), redirect_stderr(captured):
                 code = main([
                     "ledger-adapt", "--workspace", workspace["id"],
                     "--workspace-root", str(root), "--pack", str(pack_path),
