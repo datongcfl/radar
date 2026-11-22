@@ -30,6 +30,9 @@ _COLLECTIONS = {
     "evidence": "evidence.jsonl",
     "relationship": "relationships.jsonl",
     "assessment": "assessments.jsonl",
+    "ledger_effect": "ledger_effects.jsonl",
+    "ledger_manifest": "ledger_manifests.jsonl",
+    "ledger_aggregation_rule": "ledger_aggregation_rules.jsonl",
 }
 
 
@@ -122,6 +125,22 @@ class JsonWorkspaceStore:
             raise StorageError("record belongs to another workspace")
         if self.get(kind, data["id"]) is not None:
             raise StorageError("duplicate immutable record id: %s" % data["id"])
+        if kind in ("ledger_effect", "ledger_manifest"):
+            asset = self.get("asset", data["asset_id"])
+            evidence = self.get("evidence", data["evidence_id"])
+            if asset is None or evidence is None:
+                raise StorageError("%s must reference an Asset and Evidence in this Workspace" % kind)
+            if evidence.get("workspace_id") != self.workspace_id or evidence.get("asset_id") != data["asset_id"]:
+                raise StorageError("%s Evidence must belong to the referenced Workspace Asset" % kind)
+            if evidence.get("locator") != data["locator"]:
+                raise StorageError("%s locator must exactly match Workspace Evidence locator" % kind)
+        if kind == "ledger_effect":
+            for existing in self.list_records("ledger_effect"):
+                if (existing.get("source_system"), existing.get("ledger_entry_id")) == (data.get("source_system"), data.get("ledger_entry_id")):
+                    raise StorageError("duplicate ledger identity: %s/%s" % (data["source_system"], data["ledger_entry_id"]))
+        if kind == "ledger_aggregation_rule":
+            if self.get(kind, data["rule_id"]) is not None:
+                raise StorageError("duplicate ledger aggregation rule: %s" % data["rule_id"])
         if kind == "requirement":
             for existing in self.list_records("requirement"):
                 if existing.get("key") == data.get("key") and existing.get("version") == data.get("version"):

@@ -29,7 +29,7 @@ from .business_invariants import validate_observation_bundle
 from .business_observation_extractor import extract_table_observations
 from .document_parser import extract_csv_document, extract_office_document
 from .ledger_control_pipeline import run_ledger_control_pipeline
-from .discovery_store import JsonWorkspaceStore
+from .discovery_store import JsonWorkspaceStore\nfrom .ledger_workspace import import_ledger_bundle, load_ledger_bundle
 
 
 def _now():
@@ -289,8 +289,23 @@ def cmd_business_graph(args):
             "pack": graph["pack"], "business_model_version": graph["business_model_version"]}
 
 
-def cmd_ledger_control(args):
+def cmd_ledger_import(args):
+    store = JsonWorkspaceStore(args.workspace_root, args.workspace)
     bundle = load_json(args.input)
+    counts = import_ledger_bundle(store, bundle)
+    return {"workspace": args.workspace, "imported": counts}
+
+
+def cmd_ledger_control(args):
+    if args.workspace:
+        store = JsonWorkspaceStore(args.workspace_root, args.workspace)
+        bundle = load_ledger_bundle(store)
+        bundle["reconciliation_tolerance"] = args.reconciliation_tolerance
+        bundle["voucher_tolerance"] = args.voucher_tolerance
+    else:
+        if not args.input:
+            raise RadarError("ledger-control requires --input or --workspace")
+        bundle = load_json(args.input)
     if not isinstance(bundle, dict):
         raise RadarError("ledger-control input must be a JSON object")
     required = ("ledger_effects", "evidence_records",
@@ -304,8 +319,8 @@ def cmd_ledger_control(args):
         reconciliation_tolerance=bundle.get("reconciliation_tolerance", "0.01"),
         voucher_tolerance=bundle.get("voucher_tolerance", "0"))
     write_json(args.out, result)
-    return {"out": str(args.out), "summary": result["summary"],
-            "schema_version": result["schema_version"]}
+    return {"out": str(args.out), "workspace": args.workspace,
+            "summary": result["summary"], "schema_version": result["schema_version"]}
 
 
 def cmd_diff(args):
@@ -407,10 +422,20 @@ def build_parser():
                     help="可选：radar ledger-control 生成的完整流水线结果 JSON")
     bg.set_defaults(func=cmd_business_graph)
 
+    li = sub.add_parser("ledger-import", help="将账本流水、凭证清单和聚合规则导入 Workspace")
+    li.add_argument("--workspace", required=True)
+    li.add_argument("--workspace-root", default=".")
+    li.add_argument("--input", required=True, help="账本输入 JSON；Evidence 必须已存在于 Workspace")
+    li.set_defaults(func=cmd_ledger_import)
+
     lc = sub.add_parser("ledger-control",
         help="运行来源账本验证、凭证平衡、账簿聚合和库存总账勾稽")
-    lc.add_argument("--input", required=True,
-                    help="包含 ledger_effects/evidence_records/extraction_manifests/aggregation_rules 的 JSON")
+    source = lc.add_mutually_exclusive_group(required=True)
+    source.add_argument("--input", help="显式账本输入 JSON")
+    source.add_argument("--workspace", help="从已持久化的 Workspace 账本记录读取")
+    lc.add_argument("--workspace-root", default=".")
+    lc.add_argument("--reconciliation-tolerance", default="0.01")
+    lc.add_argument("--voucher-tolerance", default="0")
     lc.add_argument("--out", required=True)
     lc.set_defaults(func=cmd_ledger_control)
 

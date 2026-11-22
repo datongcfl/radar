@@ -13,7 +13,7 @@ SCHEMA_VERSION = 1
 PREFIXES = {
     "workspace": "ws", "requirement": "req", "source": "src", "asset": "ast",
     "evidence": "evd", "relationship": "rel", "assessment": "asm",
-    "discovery_run": "run",
+    "discovery_run": "run", "ledger_effect": "lef", "ledger_manifest": "lmn", "ledger_aggregation_rule": "lar",
 }
 REQUIRED = {
     "workspace": ("name", "status", "pack_refs"),
@@ -31,6 +31,11 @@ REQUIRED = {
     "discovery_run": ("workspace_id", "status", "requirement_refs", "pack_refs",
                       "source_scope", "started_at", "stages", "counts", "errors",
                       "parameters", "radar_version"),
+    "ledger_effect": ("workspace_id", "source_system", "ledger_entry_id", "asset_id",
+                      "evidence_id", "locator", "effect"),
+    "ledger_manifest": ("workspace_id", "source_system", "asset_id", "evidence_id",
+                        "locator", "manifest"),
+    "ledger_aggregation_rule": ("workspace_id", "rule_id", "rule"),
 }
 ENUMS = {
     ("workspace", "status"): {"active", "archived"},
@@ -216,6 +221,29 @@ def validate_record(record: Mapping[str, Any], expected_type: Optional[str] = No
                 raise DiscoveryValidationError("assessment criterion result has invalid status")
             if not isinstance(result.get("evidence_ids"), list):
                 raise DiscoveryValidationError("criterion result evidence_ids must be an array")
+    elif kind == "ledger_effect":
+        for field in ("workspace_id", "source_system", "ledger_entry_id", "asset_id", "evidence_id"):
+            _nonempty(data[field], "ledger_effect." + field)
+        if not isinstance(data["locator"], dict) or not data["locator"]:
+            raise DiscoveryValidationError("ledger_effect.locator must be a precise locator object")
+        if not isinstance(data["effect"], dict):
+            raise DiscoveryValidationError("ledger_effect.effect must be an object")
+        if data["effect"].get("ledger_entry_id") != data["ledger_entry_id"] or data["effect"].get("source_system") != data["source_system"]:
+            raise DiscoveryValidationError("ledger_effect envelope identity must match effect payload")
+        if data["effect"].get("asset_id") != data["asset_id"] or data["effect"].get("evidence_id") != data["evidence_id"] or data["effect"].get("locator") != data["locator"]:
+            raise DiscoveryValidationError("ledger_effect provenance must match effect payload")
+    elif kind == "ledger_manifest":
+        for field in ("workspace_id", "source_system", "asset_id", "evidence_id"):
+            _nonempty(data[field], "ledger_manifest." + field)
+        if not isinstance(data["locator"], dict) or not data["locator"] or not isinstance(data["manifest"], dict):
+            raise DiscoveryValidationError("ledger_manifest requires locator and manifest objects")
+        if data["manifest"].get("source_system") != data["source_system"]:
+            raise DiscoveryValidationError("ledger_manifest source_system mismatch")
+    elif kind == "ledger_aggregation_rule":
+        _nonempty(data["workspace_id"], "ledger_aggregation_rule.workspace_id")
+        _nonempty(data["rule_id"], "ledger_aggregation_rule.rule_id")
+        if not isinstance(data["rule"], dict) or data["rule"].get("rule_id") != data["rule_id"]:
+            raise DiscoveryValidationError("ledger_aggregation_rule rule identity mismatch")
     elif kind == "discovery_run":
         _timestamp(data["started_at"], "started_at")
         if data.get("finished_at") is not None:
