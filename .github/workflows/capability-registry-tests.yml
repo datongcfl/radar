@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - feat/m15-capability-registry
+      - feat/m15-github-source-capability
   pull_request:
     branches:
       - feat/m15-discovery-domain-core
+      - feat/m15-capability-registry
 
 permissions:
   contents: read
