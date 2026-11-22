@@ -1,4 +1,4 @@
-# radar · 最小行业雷达（v1.7.0）
+# Radar — 证据驱动的行业与软件资产发现（v1.7.0）
 
 **A minimal industry radar: does every module in your industry outline actually have evidence?**
 
@@ -20,6 +20,26 @@ python3 -m radar run --pack packs/weak-current/pack.json \
 输入一个行业 pack 和一批来源，输出：**目录 + 来源账本 + 覆盖度 + 缺口 + 报告 + diff**。
 
 不是爬虫，不是通用搜索引擎，也不是自动写 PRD。它只做一件事：**把“目录每一块有没有证据”算清楚。**
+
+## 当前能力与边界（2026-11-22）
+
+当前 main 已经超出最初的“Pack + Seeds 覆盖度 CLI”，但仍处于新旧两条能力路径逐步收敛阶段：
+
+- **Legacy Pack / Seeds 路径**：`validate`、`run`、`scan`、`diff`、`claims`，用于来源账本、覆盖矩阵、缺口和 Claim 复核。
+- **Capability Registry**：提供显式注册的 source/parser 能力边界；不是自动发现任意插件的插件市场。
+- **文档解析**：`radar parse` 支持文本、PDF、DOCX、XLSX、PPTX；PDF/Office 依赖通过独立、哈希固定的 requirements 文件安装。
+- **GitHub Repository Asset Inventory**：可以在固定 commit 上枚举文件候选，但当前不自动下载正文、不自动解析、不创建 Evidence。
+- **Discovery 领域基础**：Workspace、Requirement、Source、Asset、Evidence、Relationship、Assessment 等对象、Schema 和 JSONL 存储基础已存在；**当前 CLI 尚没有 `discover` 命令，完整需求驱动发现闭环尚未接通**。
+
+因此，不能把“发现了文件”“解析出了片段”直接等同于“产生了已核验 Evidence”或“需求已满足”。系统级架构见 [docs/architecture/ARCHITECTURE-OVERVIEW.md](docs/architecture/ARCHITECTURE-OVERVIEW.md)（该文档进入 main 后生效）；详细领域契约见 [docs/DISCOVERY-DATA-MODEL.md](docs/DISCOVERY-DATA-MODEL.md)。
+
+### 本地文档解析示例
+
+```bash
+python3 -m radar parse --file ./specification.pdf --format auto
+```
+
+可选解析器安装和许可证/安全治理见 [docs/OPEN_SOURCE_COMPONENT_SELECTION.md](docs/OPEN_SOURCE_COMPONENT_SELECTION.md)。
 
 ## 快速开始
 
@@ -253,7 +273,7 @@ python3 -m radar claims \
 python3 -m unittest discover -s tests -v
 ```
 
-77 个用例覆盖：pack/seeds 校验、Seed Lite 默认值、`--strict` 拒绝最小字段、URL 规范化、单源上限、双源 strong、mention/none、gaps、来源级变更、Gitee metadata 映射、fetch 状态、snowball fork 映射、HTML 抽取、中文 quote、404 不冒充成功、license 提示、claim 覆盖校验/双向矛盾/CSV 注入、merge 并集/ID 唯一/canonical/平台推断/许可顺序、独立 host/单源口径、坏访问、reusable、CLI 报错、残留清理、账本审计、CLI run/scan/diff。
+测试覆盖 Legacy Pack/Seeds/Claims、来源去重与许可、Capability Registry、CLI lazy imports、Discovery 领域校验与存储、GitHub 适配与 Asset Inventory、PDF/Office 解析、解析定位和 XML 安全。请以当前 CI 工作流为准，不在 README 中维护易过期的固定用例数量。
 
 ## 交给其他 Agent
 
