@@ -336,7 +336,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          relationships: Iterable[dict[str, Any]] = (),
                          observations: Optional[dict[str, Any]] = None,
                          ledger_effects: Optional[Iterable[dict[str, Any]]] = None,
-                         ledger_voucher_results: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+                         ledger_voucher_results: Optional[dict[str, Any]] = None,
+                         ledger_reconciliation_results: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
@@ -367,6 +368,15 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             raise BusinessModelError("ledger_voucher_results must be a schema_version 1 result")
     else:
         ledger_voucher_results = {"schema_version": 1, "results": [], "unresolved": []}
+    if ledger_reconciliation_results is not None:
+        if (not isinstance(ledger_reconciliation_results, dict)
+                or ledger_reconciliation_results.get("schema_version") != 1
+                or not isinstance(ledger_reconciliation_results.get("results"), list)
+                or not isinstance(ledger_reconciliation_results.get("unresolved"), list)):
+            raise BusinessModelError(
+                "ledger_reconciliation_results must be a schema_version 1 result")
+    else:
+        ledger_reconciliation_results = {"schema_version": 1, "results": [], "unresolved": []}
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -564,6 +574,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                         "source_backed", 1.0, [evidence_id])
 
     ledger_entry_aggregation_nodes: dict[str, set[str]] = {}
+    ledger_aggregate_nodes: dict[str, str] = {}
     for result in ledger_aggregation_results:
         for aggregate in result["results"]:
             ledger_node = node("business_ledger_aggregation", aggregate["id"],
@@ -574,6 +585,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 evidence_ids=aggregate["evidence_ids"],
                 account_mapping_status=aggregate.get("account_mapping_status"),
                 verification_status="computed_not_assessed")
+            ledger_aggregate_nodes[aggregate["id"]] = ledger_node
             for contribution in aggregate["contributions"]:
                 ledger_entry_aggregation_nodes.setdefault(
                     contribution["ledger_entry_id"], set()).add(ledger_node)
@@ -642,6 +654,56 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                     "voucher_completeness_from_evidence", "GL_VOUCHER.UNRESOLVED_EVIDENCE",
                     {"source":"voucher_extraction_manifest"},
                     "source_backed", 1.0, [evidence_id])
+
+    # Inventory-to-GL reconciliation remains a computed control, not an assessment.
+    for reconciliation in ledger_reconciliation_results["results"]:
+        if not isinstance(reconciliation, dict) or not isinstance(reconciliation.get("scope"), dict):
+            raise BusinessModelError("ledger reconciliation result must include a scope object")
+        reconciliation_node = node("business_ledger_reconciliation",
+            json.dumps(reconciliation, sort_keys=True, ensure_ascii=False),
+            scope=reconciliation["scope"], status=reconciliation.get("status"),
+            reason=reconciliation.get("reason"),
+            stock_value=reconciliation.get("stock_value"),
+            general_ledger_value=reconciliation.get("general_ledger_value"),
+            difference=reconciliation.get("difference"),
+            tolerance=reconciliation.get("tolerance"),
+            stock_aggregate_ids=reconciliation.get("stock_aggregate_ids", []),
+            gl_aggregate_ids=reconciliation.get("gl_aggregate_ids", []),
+            evidence_ids=reconciliation.get("evidence_ids", []),
+            verification_status="computed_not_assessed")
+        for aggregate_id in (reconciliation.get("stock_aggregate_ids", []) +
+                             reconciliation.get("gl_aggregate_ids", [])):
+            aggregate_node = ledger_aggregate_nodes.get(aggregate_id)
+            if aggregate_node:
+                _add_edge(edges, reconciliation_node, aggregate_node,
+                    "reconciles_ledger_aggregate", "LEDGER_RECONCILIATION.AGGREGATE",
+                    {"source":"explicit_inventory_gl_reconciliation",
+                     "aggregate_id":aggregate_id},
+                    "source_backed", 1.0)
+        for evidence_id in reconciliation.get("evidence_ids", []):
+            if evidence_id in evidence_ids_present:
+                _add_edge(edges, reconciliation_node, _node_id("evidence", evidence_id),
+                    "reconciliation_from_evidence", "LEDGER_RECONCILIATION.EVIDENCE",
+                    {"source":"ledger_aggregate_provenance"},
+                    "source_backed", 1.0, [evidence_id])
+
+    for unresolved_reconciliation in ledger_reconciliation_results["unresolved"]:
+        if not isinstance(unresolved_reconciliation, dict):
+            raise BusinessModelError("unresolved ledger reconciliation must be an object")
+        stable_key = json.dumps(unresolved_reconciliation, sort_keys=True, ensure_ascii=False)
+        unresolved_node = node("business_ledger_reconciliation_unresolved", stable_key,
+            record_id="unresolved_" + sha256(stable_key.encode("utf-8")).hexdigest()[:20],
+            side=unresolved_reconciliation.get("side"),
+            aggregate_id=unresolved_reconciliation.get("aggregate_id"),
+            reason=unresolved_reconciliation.get("reason"),
+            verification_status="unresolved")
+        aggregate_id = unresolved_reconciliation.get("aggregate_id")
+        aggregate_node = ledger_aggregate_nodes.get(aggregate_id)
+        if aggregate_node:
+            _add_edge(edges, unresolved_node, aggregate_node,
+                "reconciliation_unresolved_for_aggregate", "LEDGER_RECONCILIATION.UNRESOLVED",
+                {"source":"explicit_reconciliation_input","aggregate_id":aggregate_id},
+                "source_backed", 1.0)
 
     transition_rows = [(p, t) for p in model["processes"] for t in p["transitions"]]
     allowed_asset_relations = {"depends_on", "derived_from", "tests", "fixes", "implements", "supports"}
@@ -799,6 +861,9 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "ledger_vouchers_balanced":sum(1 for item in ledger_voucher_results["results"] if item.get("status")=="balanced"),
             "ledger_vouchers_unbalanced":sum(1 for item in ledger_voucher_results["results"] if item.get("status")=="unbalanced"),
             "ledger_vouchers_unresolved":len(ledger_voucher_results["unresolved"]),
+            "ledger_reconciliations_matched":sum(1 for item in ledger_reconciliation_results["results"] if item.get("status")=="matched"),
+            "ledger_reconciliations_mismatched":sum(1 for item in ledger_reconciliation_results["results"] if item.get("status")=="mismatch"),
+            "ledger_reconciliations_unresolved":sum(1 for item in ledger_reconciliation_results["results"] if item.get("status")=="unresolved") + len(ledger_reconciliation_results["unresolved"]),
             "assets":len(asset_nodes),"evidence":len(evidence),
             "nodes":len(nodes),"edges":len(edges),
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
@@ -820,4 +885,5 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         "observation_aggregations":{"schema_version":1,"results":aggregation_results},
         "ledger_aggregations":{"schema_version":1,"results":ledger_aggregation_results},
         "ledger_vouchers":ledger_voucher_results,
+        "ledger_reconciliations":ledger_reconciliation_results,
         "nodes":nodes,"edges":edges}

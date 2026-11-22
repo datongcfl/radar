@@ -381,6 +381,35 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(graph["counts"]["ledger_vouchers_unbalanced"], 1)
         self.assertEqual(graph["counts"]["ledger_vouchers_unresolved"], 1)
 
+    def test_inventory_gl_reconciliation_is_projected_to_both_aggregates_and_evidence(self):
+        _, pack, model = self._data()
+        asset = {"id":"ast_recon","title":"ledger-source.csv","asset_type":"file",
+                 "uri":"https://example.test/ledger-source.csv"}
+        evidence = [{"id":"evd_recon","asset_id":"ast_recon","statement":"ledger source row",
+                     "locator":{"path":"ledger-source.csv","row":2,"column":1}}]
+        reconciliation = {
+            "schema_version":1,
+            "results":[{
+                "scope":{"company_id":"CO-1","currency":"USD","accounting_period":"FY2026-P03"},
+                "status":"matched","stock_value":"100","general_ledger_value":"100",
+                "difference":"0","tolerance":"0.01",
+                "stock_aggregate_ids":["SA-1"],"gl_aggregate_ids":["GA-1"],
+                "evidence_ids":["evd_recon"]}],
+            "unresolved":[{"side":"stock","aggregate_id":"SA-2",
+                           "reason":"missing_company_currency_or_accounting_period"}]}
+        graph = build_business_graph(model, pack, assets=[asset], evidence=evidence,
+            ledger_reconciliation_results=reconciliation)
+        recon_node = next(item for item in graph["nodes"]
+                          if item["kind"] == "business_ledger_reconciliation")
+        self.assertEqual(recon_node["status"], "matched")
+        self.assertEqual(recon_node["verification_status"], "computed_not_assessed")
+        unresolved = next(item for item in graph["nodes"]
+                          if item["kind"] == "business_ledger_reconciliation_unresolved")
+        self.assertEqual(unresolved["aggregate_id"], "SA-2")
+        self.assertEqual(graph["ledger_reconciliations"]["results"], reconciliation["results"])
+        self.assertEqual(graph["counts"]["ledger_reconciliations_matched"], 1)
+        self.assertEqual(graph["counts"]["ledger_reconciliations_unresolved"], 1)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
