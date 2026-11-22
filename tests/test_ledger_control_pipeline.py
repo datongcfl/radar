@@ -40,7 +40,7 @@ class TestLedgerControlPipeline(unittest.TestCase):
             "accounting_period": "FY2026-P03",
             "expected_ledger_entry_ids": ["G1", "G2"],
             "evidence_id": evidence, "asset_id": "asset-1",
-            "locator": {"path": "ledger.csv", "row": 4, "column": 1},
+            "locator": {"path": "ledger.csv", "row": 5, "column": 1},
         }
 
     def _rules(self):
