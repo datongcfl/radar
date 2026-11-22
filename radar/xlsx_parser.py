@@ -196,15 +196,24 @@ class XlsxDocumentParserCapability:
             return CapabilityResult(status="failed", error={"code": preflight_error})
 
         try:
-            import openpyxl
             import defusedxml.ElementTree  # noqa: F401 - openpyxl selects its safe XML backend
-        except ImportError as exc:
-            missing = "openpyxl" if "openpyxl" in str(exc) else "defusedxml"
+        except ImportError:
             return CapabilityResult(
                 status="unavailable",
                 warnings=({
                     "code": "optional_dependency_missing",
-                    "dependency": missing,
+                    "dependency": "defusedxml",
+                    "install_hint": "pip install --require-hashes -r requirements-xlsx.txt",
+                },),
+            )
+        try:
+            import openpyxl
+        except ImportError:
+            return CapabilityResult(
+                status="unavailable",
+                warnings=({
+                    "code": "optional_dependency_missing",
+                    "dependency": "openpyxl",
                     "install_hint": "pip install --require-hashes -r requirements-xlsx.txt",
                 },),
             )
