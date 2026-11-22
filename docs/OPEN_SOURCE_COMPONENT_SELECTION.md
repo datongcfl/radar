@@ -114,9 +114,11 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 | 能力 | 候选 | 初步判断 | 主要约束 / 下一步 |
 |---|---|---|---|
 | 全文检索 | SQLite FTS5（Python sqlite3） | 优先做无新增依赖的基线试验 | 目标环境 SQLite 是否编译启用 FTS5；中文分词与同义词需要独立评估 |
-| PDF 基础文本 | pypdf | 高优先级候选，可评估进入 L1 或 L2 | 选定兼容 Python 3.9 的版本；测试页码、阅读顺序、扫描件边界及传递依赖 |
-| 文档智能解析 | Docling | 高价值 L2 插件候选 | MIT；要求 Python 3.10+，依赖较多，模型需下载/缓存；不得进入 L1 |
-| 多语言代码解析 | Tree-sitter + 各语言 grammar | 高优先级 L2 候选 | 核心、binding 和每个 grammar 分别审查许可证；与现有 Python AST 做差分基准 |
+| PDF 基础文本 | pypdf 6.21.4 / 7.1.1 | 轻量候选，但版本线需拆分 | 6.21.4 支持 Python 3.9；7.1.1 要求 Python 3.10+；BSD-3-Clause；评估旧版本维护与安全回补 |
+| PDF 表格/布局 | pdfplumber 0.11.11 | 高价值可选候选 | MIT、Python >=3.8；基于 pdfminer.six，需测复杂表格和坐标保真；上游当前测试矩阵从 3.10 起 |
+| PDF 渲染/文本 | pypdfium2 5.15.2 | 可选候选 | Python >=3.6；Apache-2.0/BSD-3-Clause 及 PDFium/随附依赖许可；包含原生二进制，需审查各平台构建与二进制供应链 |
+| 文档智能解析 | Docling 2.151.1 / docling-slim | 高价值 L2 插件候选 | MIT；Python >=3.10；docling-core 当前依赖包含 Pydantic、Pandas、Pillow、PyYAML、Typer 等；模型/下载与安装体积必须实测 |
+| 多语言代码解析 | tree-sitter 0.26.1 + grammar | L2 候选，不能默认采用 language-pack | Python binding MIT、Python >=3.10；tree-sitter-language-pack 1.25.2 MIT 但 Python >=3.11；逐个 grammar 审查许可证 |
 | PDF 高性能/布局 | PyMuPDF | 暂缓 / 法务审查 | AGPL 或商业许可路径；许可证结论前不得纳入默认安装 |
 | 许可证与 SBOM | ScanCode Toolkit | L3 外部工具候选 | 扫描深度较强，适合独立 CLI/服务；包、规则库、数据集和依赖许可证分别审查 |
 | OCR | Tesseract / Docling OCR pipeline | 后续对比 | 语言包、二进制、模型权重和识别准确率分别评估；必须保留页码和区域坐标 |
@@ -126,14 +128,21 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 
 - SQLite FTS5 是 SQLite 的全文检索虚拟表模块；是否可用需在目标 Python/SQLite 构建中检测。  
   https://www.sqlite.org/fts5.html
-- pypdf 支持 PDF 文本与元数据提取，许可证为 BSD-3-Clause；具体 Python 最低版本应以选定发布版元数据为准。  
-  https://pypi.org/project/pypdf/
+- pypdf 6.21.4 的 PyPI 元数据显示 Python >=3.9、BSD-3-Clause；7.1.1 要求 Python >=3.10。版本升级不能忽略最低 Python 版本变化。  
+  https://pypi.org/project/pypdf/6.21.4/  
+  https://pypi.org/project/pypdf/7.1.1/
+- pdfplumber 0.11.11 为 MIT、Python >=3.8，定位于字符/线条/矩形与表格抽取，基于 pdfminer.six；官方说明更适合机器生成 PDF，不提供 OCR。  
+  https://pypi.org/project/pdfplumber/  
+  https://github.com/jsvine/pdfplumber
+- pypdfium2 5.15.2 的 PyPI 元数据显示 Python >=3.6，项目采用 Apache-2.0/BSD-3-Clause，包含 PDFium 原生二进制及其依赖许可；平台覆盖和二进制再分发需要单独审查。  
+  https://pypi.org/project/pypdfium2/5.15.2/
 - Docling 提供 PDF、Office、HTML、图像等结构化解析，MIT；当前要求 Python 3.10+，并有模型/深度学习依赖。  
   https://github.com/docling-project/docling  
   https://github.com/docling-project/docling/blob/main/pyproject.toml
-- Tree-sitter 可构建多语言具体语法树，运行时核心为 MIT；各语言 grammar 是独立项目，必须逐个审查。  
-  https://github.com/tree-sitter/tree-sitter  
-  https://github.com/tree-sitter/py-tree-sitter
+- Tree-sitter Python binding 0.26.1 为 MIT、Python >=3.10；tree-sitter-language-pack 1.25.2 为 MIT、Python >=3.11。language-pack 并非 Core 可直接采用的兼容方案。各语言 grammar 仍需逐个审查。  
+  https://pypi.org/project/tree-sitter/0.26.1/  
+  https://pypi.org/project/tree-sitter-language-pack/1.25.2/  
+  https://github.com/tree-sitter/tree-sitter
 - PyMuPDF 的上游许可说明包含 AGPL 与商业许可选项。  
   https://pymupdf.readthedocs.io/en/latest/about.html
 - ScanCode 可通过 CLI 或库扫描许可证、版权和依赖；许可证和数据资产需分层核查。  
@@ -175,7 +184,7 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 
 - **批准的政策**：Core 可以引入少量经过严格评估的成熟依赖；不再强制零依赖。
 - **当前默认安装**：本次只改策略和文档，没有新增第三方运行时依赖。
-- **优先基线**：先评估 SQLite FTS5（无需 Python 第三方包）和 pypdf；对比现有实现与组件。
+- **优先基线**：先评估 SQLite FTS5（无需 Python 第三方包）；PDF 解析并行比较 pypdf、pdfplumber、pypdfium2，不预设赢家。
 - **L2 候选**：Docling、Tree-sitter；先做安装隔离和真实样本评估。
 - **L3 候选**：ScanCode、OCR 工具链；独立运行并评估。
 - **暂缓**：PyMuPDF，待许可证审查；图数据库，待性能证据。
@@ -183,4 +192,5 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 
 ## 12. 变更记录
 
-- 2026-11-22：M14-A 将“核心必须零依赖”修订为分层依赖策略；补充准入门槛、工程化要求和候选状态。M14-B/C/D 尚待执行。
+- 2026-11-22：M14-A 将“核心必须零依赖”修订为分层依赖策略；补充准入门槛、工程化要求和候选状态。
+- 2026-11-22：M14-B 根据 PyPI 官方元数据更新 pypdf、pdfplumber、pypdfium2、Docling 和 Tree-sitter 的版本/兼容性预筛选；真实样本基准尚未完成。
