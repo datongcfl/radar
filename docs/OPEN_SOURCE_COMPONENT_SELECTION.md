@@ -1,6 +1,6 @@
 # Radar 开源组件选型与依赖治理策略
 
-> 状态：M14-A 已批准策略 / M14-B、M14-C、M14-D 进行中  
+> 状态：依赖治理策略已批准；M15 Registry / PDF / Office parser capability 与 M16 GitHub Asset Inventory 已进入 main；候选准入状态以各决策记录为准  
 > 适用范围：Radar 通用核心、来源适配器、文档解析器、代码分析器、搜索与索引、知识存储、可选 Agent 集成。  
 > 本文件定义准入规则和候选评估记录，不代表候选组件已获准接入。
 
@@ -55,12 +55,12 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 
 ## 4. 当前仓库基线与迁移约束
 
-截至 M14-A，仓库 README 声明 Python 3.9+、离线可运行；CI 覆盖 Python 3.9 和当前 Python 3.x。核心目前大量使用标准库。仓库尚未发现 pyproject.toml、setup.py 或 requirements.txt 等统一 Python 包依赖声明入口。
+截至 2026-11-22，main 已包含 `pyproject.toml`、`uv.lock` 和 `requirements-pdf.txt`、`requirements-docx.txt`、`requirements-xlsx.txt`、`requirements-pptx.txt`。Core 的 `project.dependencies` 仍为空，Python 最低版本为 3.9；可选解析器依赖通过独立 requirements 文件和 CI job 安装。当前 pyproject 尚未声明统一的 `[project.optional-dependencies]` extras，因此这些文件是分开的可选能力安装入口，而不是已打包成 extras 的插件系统。
 
 因此：
 
 1. 不再要求未来 Core 永远 stdlib-only；允许通过本文件准入的少量 L1 依赖。
-2. 在包管理、依赖声明、版本锁定和 CI 安装流程建立前，不得零散增加运行时第三方导入。
+2. 新增依赖必须进入明确的依赖分组和锁定流程；不能绕过 `pyproject.toml`、`uv.lock` 与 hash-pinned requirements 的现有治理。
 3. 保持 Python 3.9 兼容作为当前基线。需要 Python 3.10+ 的能力只能先放入隔离的 L2 环境，不得抬高 Core 最低版本。
 4. 可选依赖必须延迟导入；未安装时给出可操作提示，不能导致基础 CLI import 失败。
 5. 新依赖不得破坏离线运行、旧命令、基础 Pack 校验和现有 Workspace。
@@ -175,7 +175,7 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 
 ## 10. 依赖工程化要求
 
-在首个第三方运行时依赖进入项目之前，必须完成：
+在新增第三方运行时依赖或把现有可选 requirements 提升为正式 extras 之前，必须完成：
 
 - 明确的包构建与依赖声明入口（例如 pyproject.toml，具体方案待 M14-D 决策）。
 - Core 与 optional extras 的分组，避免可选依赖污染基础安装。
@@ -208,3 +208,17 @@ L1 并非“依赖越少越好”，而是“依赖的工程收益必须高于�
 - The optional dependency is hash-pinned in `requirements-pdf.txt`; it is not installed by Core and is not added to `uv.lock` in this increment. A future packaging PR should add a named extra and regenerate the universal lock atomically.
 - The adapter emits page-level fragments only. It does not claim OCR, table cells, bounding boxes, reading-order fidelity, or Evidence promotion.
 - Source: https://pypi.org/project/pypdf/6.21.4/ ; https://pypi.org/project/pypdf/7.1.1/ ; https://pypi.org/project/pdfplumber/0.11.11/ ; https://github.com/py-pdf/pypdf/blob/main/docs/user/extract-text.md
+
+
+## 14. Mainline capability status (2026-11-22)
+
+The current mainline has moved beyond the M14-A policy-only stage:
+
+- `pyproject.toml` defines a Python >=3.9 package with no default runtime dependencies.
+- `uv.lock` is present for reproducible project/build tooling.
+- PDF, DOCX, XLSX and PPTX parser modules are present and have separate hash-pinned requirement files and optional CI jobs.
+- The parser CLI imports the selected parser lazily; the core command path is tested separately from optional parser installation.
+- GitHub Repository Asset Inventory is present as a bounded candidate inventory capability. It does not fetch content or promote candidates to Evidence.
+- The Discovery domain model and JSONL store exist, but the current CLI does not yet provide a `discover` command or a complete ingestion workflow.
+
+These are implementation facts, not blanket approval for every candidate in Section 8. No new default runtime dependency is approved by this status note. Future extras/lockfile changes must preserve Python 3.9 Core compatibility and the no-optional-dependency test path.
