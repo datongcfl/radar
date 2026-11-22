@@ -89,3 +89,24 @@ jobs:
         run: python -m compileall -q radar tests
       - name: Run full test suite with DOCX capability enabled
         run: python -m unittest discover -s tests -v
+
+  xlsx-optional:
+    name: Optional XLSX parser (Python ${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.13"]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install optional XLSX dependencies with hash verification
+        run: python -m pip install --require-hashes -r requirements-xlsx.txt
+      - name: Compile source and tests
+        run: python -m compileall -q radar tests
+      - name: Run full test suite with XLSX capability enabled
+        run: python -m unittest discover -s tests -v
