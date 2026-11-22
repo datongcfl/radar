@@ -75,6 +75,42 @@ class TestLedgerEffects(unittest.TestCase):
         self.assertEqual(result["ledger_effects"], [])
         self.assertEqual(result["skipped"][0]["reason"], "unresolved_reversal_target")
 
+    def test_reversal_must_match_original_scope_and_document(self):
+        original = self._stock()
+        reversal = self._stock("SLE-2", "EV-2", posting_status="reversal",
+                               reversal_of="SLE-1", quantity_delta="-10",
+                               stock_value_delta="-99.64", warehouse_id="WH-OTHER")
+        result = validate_ledger_effects(
+            [original, reversal],
+            [self._evidence("EV-1"), self._evidence("EV-2")])
+        self.assertEqual(result["summary"]["accepted"], 1)
+        self.assertEqual(result["skipped"][-1]["reason"],
+                         "reversal_target_semantics_mismatch")
+
+    def test_reversal_must_reverse_original_stock_effect(self):
+        original = self._stock()
+        reversal = self._stock("SLE-2", "EV-2", posting_status="reversal",
+                               reversal_of="SLE-1", quantity_delta="-10",
+                               stock_value_delta="-90")
+        result = validate_ledger_effects(
+            [original, reversal],
+            [self._evidence("EV-1"), self._evidence("EV-2")])
+        self.assertEqual(result["summary"]["accepted"], 1)
+        self.assertEqual(result["skipped"][-1]["reason"],
+                         "reversal_effect_does_not_reverse_original")
+
+    def test_gl_reversal_must_reverse_signed_amount(self):
+        original = self._gl()
+        reversal = self._gl("GL-2", "EV-2", posting_status="reversal",
+                            reversal_of="GL-1", debit_amount="0",
+                            credit_amount="90")
+        result = validate_ledger_effects(
+            [original, reversal],
+            [self._evidence("EV-1"), self._evidence("EV-2")])
+        self.assertEqual(result["summary"]["accepted"], 1)
+        self.assertEqual(result["skipped"][-1]["reason"],
+                         "reversal_effect_does_not_reverse_original")
+
     def test_conflicting_duplicate_identity_excludes_both_rows(self):
         first = self._stock()
         second = self._stock(stock_value_delta="100")

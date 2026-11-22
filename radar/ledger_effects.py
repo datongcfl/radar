@@ -165,12 +165,37 @@ def validate_ledger_effects(ledger_effects: Iterable[dict[str, Any]],
     available_ids = {(item["source_system"], item["ledger_entry_id"])
                      for item in normalized}
     accepted = []
+    normalized_by_identity = {
+        (item["source_system"], item["ledger_entry_id"]): item for item in normalized
+    }
     for item in normalized:
         if item["posting_status"] == "reversal":
             target = (item["source_system"], item["reversal_of"])
-            if target not in available_ids:
+            original = normalized_by_identity.get(target)
+            if original is None:
                 skipped.append({"ledger_entry_id": item["ledger_entry_id"],
                                 "reason": "unresolved_reversal_target",
+                                "reversal_of": item["reversal_of"]})
+                continue
+            identity_fields = ("ledger_kind", "company_id", "currency", "voucher_type",
+                               "voucher_id", "voucher_item_id")
+            if any(item.get(field) != original.get(field) for field in identity_fields):
+                skipped.append({"ledger_entry_id": item["ledger_entry_id"],
+                                "reason": "reversal_target_semantics_mismatch",
+                                "reversal_of": item["reversal_of"]})
+                continue
+            if item["ledger_kind"] == "stock":
+                effect_matches = (
+                    Decimal(item["quantity_delta"]) == -Decimal(original["quantity_delta"])
+                    and Decimal(item["stock_value_delta"]) == -Decimal(original["stock_value_delta"])
+                )
+            else:
+                reversal_net = Decimal(item["debit_amount"]) - Decimal(item["credit_amount"])
+                original_net = Decimal(original["debit_amount"]) - Decimal(original["credit_amount"])
+                effect_matches = reversal_net == -original_net
+            if not effect_matches:
+                skipped.append({"ledger_entry_id": item["ledger_entry_id"],
+                                "reason": "reversal_effect_does_not_reverse_original",
                                 "reversal_of": item["reversal_of"]})
                 continue
         accepted.append(item)
@@ -197,6 +222,7 @@ def validate_ledger_effects(ledger_effects: Iterable[dict[str, Any]],
             "valuation_is_not_inferred_from_document_rate": True,
             "ledger_rows_require_evidence_and_locator": True,
             "reversal_requires_exact_original_ledger_identity": True,
+            "reversal_must_match_original_scope_and_opposite_effect": True,
             "validation_does_not_assess_business_invariants": True,
         },
     }
