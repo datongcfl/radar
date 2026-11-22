@@ -11,6 +11,7 @@ on:
       - "uv.lock"
       - "radar/**"
       - "tests/**"
+      - "scripts/**"
       - ".github/workflows/package-smoke.yml"
 
 permissions:
