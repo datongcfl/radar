@@ -99,8 +99,8 @@ class TestLedgerControlCLI(unittest.TestCase):
 
             source = root / "stock.csv"
             source.write_text(
-                "Ledger Entry ID,Company ID,Voucher Type,Voucher ID,Voucher Item ID,Event Kind,Posting Status,Currency,Accounting Period,Item ID,Warehouse ID,Quantity Delta,Quantity UOM,Stock Value Delta\\n"
-                "SLE-CLI-1,C1,Receipt,GR-CLI-1,ROW-1,receipt,Posted,USD,2026-11,CABLE-1,WH-1,5,EA,50\\n",
+                "Ledger Entry ID,Company ID,Voucher Type,Voucher ID,Voucher Item ID,Event Kind,Posting Status,Currency,Accounting Period,Item ID,Warehouse ID,Quantity Delta,Quantity UOM,Stock Value Delta\n"
+                "SLE-CLI-1,C1,Receipt,GR-CLI-1,ROW-1,receipt,Posted,USD,2026-11,CABLE-1,WH-1,5,EA,50\n",
                 encoding="utf-8",
             )
             output = root / "adapt-result.json"
