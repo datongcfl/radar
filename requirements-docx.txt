@@ -1,0 +1,9 @@
+# Optional DOCX parser dependency set for CPython 3.9/3.13 Linux CI.
+# python-docx is MIT; lxml is BSD-3-Clause.
+# Hashes include the CI wheels and the lxml source archive fallback.
+python-docx==1.2.0 \
+    --hash=sha256:3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7
+lxml==6.1.3 \
+    --hash=sha256:aa9fd1ee2a5dacfc41039ed49ffeeacfa75bafbd255b69f3b578e11897a0e623 \
+    --hash=sha256:d85dfab42dd672f87a7f76e9de7172962aee69fa12044f0d6e1a23cbd53fb80e \
+    --hash=sha256:45222d94ddd511536f3b2f7d9deae3b2339b4ce0f075f1ca25703b07cad9dd21
