@@ -520,8 +520,6 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 verification_status="computed_not_assessed")
             aggregation_node_ids[aggregate["id"]] = aid
             for contribution in aggregate["contributions"]:
-                ledger_entry_aggregation_nodes.setdefault(
-                    contribution["ledger_entry_id"], set()).add(ledger_node)
                 evidence_id = contribution["evidence_id"]
                 if evidence_id in {item["id"] for item in evidence}:
                     _add_edge(edges, aid, _node_id("evidence", evidence_id),
@@ -577,6 +575,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 account_mapping_status=aggregate.get("account_mapping_status"),
                 verification_status="computed_not_assessed")
             for contribution in aggregate["contributions"]:
+                ledger_entry_aggregation_nodes.setdefault(
+                    contribution["ledger_entry_id"], set()).add(ledger_node)
                 evidence_id = contribution["evidence_id"]
                 if evidence_id in {item["id"] for item in evidence}:
                     _add_edge(edges, ledger_node, _node_id("evidence", evidence_id),
