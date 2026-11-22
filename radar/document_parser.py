@@ -6,9 +6,8 @@ caller must bind fragments to a validated Asset and apply Radar's Evidence polic
 from __future__ import annotations
 
 import hashlib
-import mimetypes
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from .capabilities import (
     CapabilityContext,
@@ -24,9 +23,6 @@ _SOURCE_EXTENSIONS = {
     ".yaml", ".yml", ".toml", ".ini", ".xml", ".html", ".css",
 }
 _TEXT_EXTENSIONS = {".txt", ".text", ".rst", ".log", ".csv"}
-_SUPPORTED_EXTENSIONS = (
-    _MARKDOWN_EXTENSIONS | _SOURCE_EXTENSIONS | _TEXT_EXTENSIONS
-)
 _HEADING = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 _LIST = re.compile(r"^\s*(?:[-+*]|\d+[.)])\s+")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
@@ -198,12 +194,10 @@ class TextDocumentParserCapability:
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         spans = _split_blocks(content, document_format)
         records = []
-        byte_cursor = 0
         for index, span in enumerate(spans):
             char_start, char_end, line_start, line_end, fragment_type, heading_path = span
-            byte_start = byte_cursor + len(content[byte_cursor * 0:char_start].encode("utf-8")) if False else len(content[:char_start].encode("utf-8"))
+            byte_start = len(content[:char_start].encode("utf-8"))
             byte_end = len(content[:char_end].encode("utf-8"))
-            byte_cursor = byte_end
             fragment = content[char_start:char_end]
             records.append({
                 "record_type": "document_fragment",
