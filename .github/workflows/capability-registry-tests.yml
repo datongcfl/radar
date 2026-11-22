@@ -5,8 +5,10 @@ on:
     branches:
       - feat/m15-capability-registry
       - feat/m15-github-source-capability
+      - feat/m15-gitee-source-capability
       - feat/m15-github-source-capability
       - feat/m15-gitee-source-capability
+      - feat/m15-cli-lazy-capabilities
   pull_request:
     branches:
       - feat/m15-discovery-domain-core
