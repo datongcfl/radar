@@ -1,11 +1,29 @@
+import builtins
 import hashlib
 import importlib.util
 import io
 import unittest
 import zipfile
+from unittest.mock import patch
 
 from radar.capabilities import CapabilityContext
 from radar.docx_parser import DocxDocumentParserCapability
+
+
+def make_minimal_docx(document_xml=None):
+    if document_xml is None:
+        document_xml = (
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            b'<w:body><w:p><w:r><w:t>hello</w:t></w:r></w:p>'
+            b'<w:sectPr/></w:body></w:document>'
+        )
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        archive.writestr("_rels/.rels", b'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>')
+        archive.writestr("word/document.xml", document_xml)
+    return output.getvalue()
 
 
 def make_docx():
@@ -23,6 +41,45 @@ def make_docx():
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
+
+
+class TestDocxPreflightAndOptionalBoundary(unittest.TestCase):
+    def setUp(self):
+        self.parser = DocxDocumentParserCapability()
+
+    def parse(self, content):
+        return self.parser.execute(CapabilityContext(
+            operation="parse",
+            inputs={"content": content, "uri": "https://example.test/contract.docx",
+                    "filename": "contract.docx"},
+        ))
+
+    def test_missing_optional_dependency_returns_unavailable(self):
+        original_import = builtins.__import__
+
+        def import_without_docx(name, *args, **kwargs):
+            if name == "docx":
+                raise ImportError("simulated missing optional dependency")
+            return original_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=import_without_docx):
+            result = self.parse(make_minimal_docx())
+        self.assertEqual(result.status, "unavailable")
+        self.assertEqual(result.warnings[0]["dependency"], "python-docx")
+
+    def test_unsafe_xml_is_rejected_before_optional_import(self):
+        xml = b'<!DOCTYPE x [<!ENTITY e "unsafe">]><document/>'
+        result = self.parse(make_minimal_docx(xml))
+        self.assertEqual(result.error["code"], "docx_unsafe_xml_declaration")
+
+    def test_input_size_limit_is_enforced_without_optional_dependency(self):
+        parser = DocxDocumentParserCapability(max_bytes=20)
+        result = parser.execute(CapabilityContext(
+            operation="parse",
+            inputs={"content": make_minimal_docx(), "uri": "file:///x.docx",
+                    "filename": "x.docx"},
+        ))
+        self.assertEqual(result.error["code"], "docx_too_large")
 
 
 @unittest.skipUnless(importlib.util.find_spec("docx"), "install optional python-docx dependency")

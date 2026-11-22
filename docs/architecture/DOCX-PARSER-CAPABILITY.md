@@ -64,4 +64,4 @@ PyPI records no Trusted Publishing provenance for python-docx 1.2.0 and lxml 6.1
 
 ## Acceptance status
 
-The code includes generated-document tests for headings, paragraphs, tables, nested tables, locators, SHA-256, invalid input, ZIP limits, unsafe XML declarations, and the Evidence boundary. These tests execute only when python-docx is installed; the default Core environment remains dependency-free. Full optional-dependency CI qualification and real-world DOCX corpus testing remain outstanding.
+Generated-document extraction tests cover headings, paragraphs, tables, nested tables, locators, source hash, and the Evidence boundary. They run only when python-docx is installed. Dependency-independent tests always cover the missing-package `unavailable` response, input limits, and unsafe XML rejection. Full optional-dependency CI qualification and real-world DOCX corpus testing remain outstanding.
