@@ -6,8 +6,7 @@ Give it an industry outline (`pack`) and a list of sources (`seeds`). It reports
 by module, what is backed by evidence, what is only mentioned, and what is empty — plus a
 source ledger, a gap list, and a diff between runs.
 
-Zero dependencies, Python 3.9+, runs offline. Coverage levels: `strong` / `evidence` /
-`mention` / `none`; a single source can never reach `strong`, by design.
+Core uses Python 3.9+ and has no default runtime dependencies; PDF/Office parsers are optional, hash-pinned capabilities. Base Pack/Seeds commands can run offline. Network discovery/enrichment is opt-in. Coverage levels: `strong` / `evidence` / `mention` / `none`; `strong` requires independent, web-verified evidence.
 
 ```bash
 python3 -m radar run --pack packs/weak-current/pack.json \
@@ -199,7 +198,9 @@ token 只通过 `Authorization: Bearer` 发送，不拼进 URL、不写日志；
 
 v1.3 用 `--verify-quotes --require-web-verify` 实际抓取后：weak-current 3 strong（M01/M06/M13），video-kb 仍 0 strong；claim 只认已验证来源。详见 [docs/QUOTES.md](docs/QUOTES.md)。
 
-## 当前 MVP 的边界
+## Legacy Pack / Seeds 路径的边界
+
+> 本节描述传统 `run` / `scan` 路径，不代表整个 main 的全部能力。新 Discovery、Asset Inventory 和 Parser 的当前边界见上文与架构文档。
 
 - **包含**：Seed Lite（最小 6 字段 + 默认值 + `--strict`）、pack/seeds 校验、URL 去重、覆盖度、目录/缺口/报告、`scan --since` 账本层变更检测 + 覆盖 diff、可选 GitHub/Gitee metadata 搜索、`--snowball`（GitHub forks）、`--fetch`（ETag/content_hash）、`--web`（静态正文抽取 + 许可提示，可选 `--respect-robots`）、`claims`（claim 账本 + 置信度/复核队列）、`quote_verified`（quote 子串校验）、`--verify-quotes`（抓正文校验）、`--require-web-verify`（只认本次验证）；
 - **不包含**：浏览器/登录、全量爬虫、UI、自动 PRD、OCR、定时任务（scan 是手动触发）、Gitee forks、GitHub dependents/引用图；`--fetch` 只抓公开 URL 的头/体 hash；`--web` 只做静态 HTML，不执行 JS、不绕登录；Playwright/docling/ScanCode 未做，v0.3 是**部分完成**；
@@ -256,16 +257,7 @@ python3 -m radar claims \
 
 ## 路线图
 
-| 版本 | 主题 | 关键交付 |
-| --- | --- | --- |
-| v0.1 | MVP（已合并） | pack/seeds、覆盖度、缺口、`scan --base`、GitHub metadata |
-| v0.2 | 可迭代 | `scan --since`、来源 hash/ETag、定时触发 |
-| v0.3 | 多平台 | Gitee、网页/浏览器、docling、grant/ScanCode |
-| v0.4 | 证据层 | claim/置信度/矛盾/复核队列 |
-| v0.5 | 弱电真实来源（当前） | 13→34 条来源 + 基线；第二行业待定 |
-| v1.0 | 稳定契约 | schema 冻结、迁移、handoff、可选 plugin/MCP |
-
-详见 [ROADMAP.md](ROADMAP.md)。不承诺日期，也不承诺“收集所有开源信息”。
+历史 v0.x/v1.x 版本记录保留在 [ROADMAP.md](ROADMAP.md) 中；当前主线的实际状态、下一阶段目标和验收顺序以该文件顶部的“Current mainline”章节为准。不承诺日期，也不承诺“收集所有开源信息”。
 
 ## 测试
 
@@ -292,11 +284,13 @@ python3 -m unittest discover -s tests -v
 
 ```text
 radar/
-├── radar/            # CLI + 校验 + 覆盖度 + diff
-├── packs/            # weak-current / video-kb / data-center-ops / pet-hospital
-├── seeds/            # 两个行业的种子来源
-├── tests/            # 77 个单测
-├── docs/             # PACK / MVP
-├── .dsh/skills/radar # Skill
-└── runs/             # demo 输出
+├── radar/            # CLI、Legacy pipeline、Discovery domain、capabilities、parsers
+├── packs/            # 行业知识包
+├── seeds/            # Legacy 来源账本
+├── schemas/          # Pack / Seeds / Claims / Discovery contracts
+├── requirements-*.txt# Optional parser dependency sets (hash-pinned)
+├── tests/            # unit / contract / parser / security tests
+├── docs/architecture/# architecture and capability contracts
+├── .github/workflows/# core and optional-capability CI
+└── runs/             # checked-in demonstration artifacts
 ```
