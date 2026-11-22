@@ -15,10 +15,10 @@ The immediate remedy is not to move every file. First freeze the boundaries and 
 
 | Area | Current modules | Responsibility |
 |---|---|---|
-| CLI / orchestration | `radar/cli.py`, `radar/__main__.py` | Commands, argument parsing, composition of providers, orchestration |
+| CLI / orchestration | `radar/cli.py`, `radar/__main__.py` | Legacy run/scan/claims/validate/diff and local parse command; no discover command in current main |
 | Legacy domain | `model.py`, `coverage.py`, `claims.py`, `state.py`, `report.py`, `diff.py` | Pack/Seeds validation, legacy source merge, coverage and claim reports |
 | Legacy source acquisition | `adapters.py`, `github_capability.py`, `gitee_capability.py`, `snowball.py`, `fetch.py`, `web.py`, `verify.py` | Provider calls, enrichment, quote verification |
-| New discovery domain | `discovery.py`, `discovery_store.py` | Typed records, validation, immutable Evidence, Requirement revision and JSONL persistence |
+| New discovery domain | `discovery.py`, `discovery_store.py`, `schemas/discovery.schema.json` | Typed records, validation, immutable Evidence, Requirement revision and JSONL persistence primitives; not yet wired to a discover CLI workflow |
 | Repository inventory | `github_asset_inventory.py` | GitHub file candidate inventory at immutable commit/path/blob identity |
 | Capability boundary | `capabilities.py` | Capability Protocol, context/result, explicit registry and failure states |
 | Document parsing | `document_parser.py`, `pdf_parser.py`, `docx_parser.py`, `xlsx_parser.py`, `pptx_parser.py`, `xml_safety.py` | Format-specific fragments, native locators, XML safety |
@@ -30,7 +30,7 @@ This map describes file ownership, not a claim that every capability is fully in
 
 ### H1. CLI is the composition root and a large orchestration surface
 
-The CLI currently builds legacy commands, requirement-driven discovery, parser invocation and explicit capability registration. A composition root is a valid place to wire concrete capabilities, but domain orchestration and command-specific workflows should not grow indefinitely inside one module.
+The CLI currently builds legacy Pack/Seeds commands and local parser invocation, with explicit capability registration for selected source/parser paths. The new Discovery domain and store exist as a library foundation, but the current CLI has no `discover` command and does not orchestrate a full Requirement-to-Assessment workflow. A composition root is a valid place to wire concrete capabilities, but domain orchestration and command-specific workflows should not grow indefinitely inside one module.
 
 **Risk:** command behavior, provider wiring, storage, and business semantics become difficult to review independently.
 
@@ -82,9 +82,9 @@ Tests cover capabilities, CLI lazy imports, Discovery, storage, parsers and lega
 |---|---|---|---|
 | G3-0 | Baseline contract map and test inventory | `docs/architecture/ARCHITECTURE-OVERVIEW.md`, tests | Every module has an owner and each critical invariant has a test reference |
 | G3-1 | Characterization tests for legacy/new boundaries | `tests/test_radar.py`, `tests/test_discovery.py`, `tests/test_discovery_store.py`, new focused tests | Existing CLI outputs, merge rules, evidence immutability and partial failures are pinned before refactor |
-| G3-2 | CLI orchestration extraction | `radar/cli.py`, new command modules | CLI flags/output/exit codes unchanged; lazy import and optional dependency tests pass |
+| G3-2 | CLI boundary and Discovery workflow implementation | `radar/cli.py`, new discovery orchestration module, `discovery_store.py` | Preserve existing CLI behavior; add an explicit discover command only after its contract, failure semantics and fixtures are frozen; per-stage partial failures remain visible |
 | G3-3 | Provider transport boundary | `radar/adapters.py`, `radar/snowball.py`, provider capabilities | No private cross-module imports; provider tests and offline tests pass |
-| G3-4 | Explicit inventory-to-ingestion boundary | `github_asset_inventory.py`, new ingestion module, parser modules, discovery store | Blob/content hashes and locators validated; candidate never auto-promotes to Evidence |
+| G3-4 | Explicit inventory-to-ingestion boundary | `github_asset_inventory.py`, new ingestion module, parser modules, discovery store | Blob/content hashes and locators validated; candidate never auto-promotes to Evidence; integration must be callable from the future discovery workflow |
 | G3-5 | Domain specialization boundary | `discovery.py`, ledger-specific modules/tests if owner-approved | Core domain validator remains stable; ledger-specific invariants are isolated without schema drift |
 | G3-6 | Test layout/CI alignment | `tests/`, workflow | Contract/unit/integration/security suites are independently runnable and full suite remains green |
 
