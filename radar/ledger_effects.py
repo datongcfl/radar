@@ -177,8 +177,12 @@ def validate_ledger_effects(ledger_effects: Iterable[dict[str, Any]],
                                 "reason": "unresolved_reversal_target",
                                 "reversal_of": item["reversal_of"]})
                 continue
-            identity_fields = ("ledger_kind", "company_id", "currency", "voucher_type",
-                               "voucher_id", "voucher_item_id")
+            identity_fields = ["ledger_kind", "company_id", "currency", "voucher_type",
+                               "voucher_id", "voucher_item_id"]
+            if item["ledger_kind"] == "stock":
+                identity_fields.extend(("item_id", "warehouse_id", "quantity_uom"))
+            else:
+                identity_fields.append("account_id")
             if any(item.get(field) != original.get(field) for field in identity_fields):
                 skipped.append({"ledger_entry_id": item["ledger_entry_id"],
                                 "reason": "reversal_target_semantics_mismatch",
