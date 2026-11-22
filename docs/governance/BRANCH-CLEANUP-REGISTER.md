@@ -7,7 +7,7 @@
 
 ## 1. Summary
 
-The branch count grew from 19 to 23 during this consolidation work because four short-lived documentation branches were created for G1–G4. They each target main through a separate draft PR.
+The branch count grew from 19 to 24 during this consolidation work because five short-lived documentation branches were created for G1–G5. At the time the initial inventory list was captured, the G5 report branch had not yet been created; it is included below as a fifth consolidation branch. Each targets main through a separate draft PR.
 
 The repository has three distinct branch populations:
 
@@ -45,6 +45,7 @@ Ahead/behind values below compare each branch tip against current main. For bran
 | `docs/repository-consolidation-g2` | 2 | 0 | Active consolidation PR branch | Keep until PR #45 disposition |
 | `docs/repository-consolidation-g3-plan` | 2 | 0 | Active consolidation PR branch | Keep until PR #46 disposition |
 | `docs/repository-consolidation-g4` | 5 | 0 | Active consolidation PR branch | Keep until PR #47 disposition |
+| `docs/repository-consolidation-g5` | 1 | 0 | Active consolidation PR branch | Keep until PR #48 disposition |
 
 ## 3. Divergent branches: strict handling
 
@@ -79,12 +80,13 @@ Only after all five checks pass should an owner approve deletion. A branch being
 
 ## 5. Consolidation PR branches
 
-The four branches created during this work are intentionally separate:
+The five branches created during this work are intentionally separate:
 
 - [PR #44 — G1 issue register](https://github.com/datongcfl/radar/pull/44)
 - [PR #45 — G2 architecture overview](https://github.com/datongcfl/radar/pull/45)
 - [PR #46 — G3 code consolidation plan](https://github.com/datongcfl/radar/pull/46)
 - [PR #47 — G4 documentation and CI alignment](https://github.com/datongcfl/radar/pull/47)
+- [PR #48 — G5 branch cleanup register](https://github.com/datongcfl/radar/pull/48)
 
 They must not be deleted until each PR is reviewed and either merged or explicitly closed. They are not production feature branches.
 
