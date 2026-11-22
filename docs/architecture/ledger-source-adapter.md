@@ -182,12 +182,13 @@ The first implementation covers:
 - CLI enforces the Workspace Pack lock;
 - locale-aware decimal parsing rejects malformed thousands grouping;
 - normalized value-map key collisions and cross-ledger-kind field mappings are rejected;
-- floating-point constants are rejected to avoid silently importing binary floating-point approximations.
+- floating-point constants are rejected to avoid silently importing binary floating-point approximations;
+- imported stock effects are rehydrated from Workspace and passed through the full Ledger Control Pipeline, including aggregation, without being promoted to business Assessment.
 
 
 ## 9. CI validation
 
-The first implementation passed 254 tests on Python 3.9 and Python 3.13. The mapping/numeric hardening pass added five regression tests; the full 259-test suite passed on both versions. The dedicated adapter tests cover CSV, XLSX, row Evidence, idempotency, ambiguous headers, locale-specific decimal parsing, malformed thousands grouping, normalized value-map collisions, cross-ledger-kind mapping rejection, float-constant rejection, duplicate identities, and external GL voucher manifests. Both the regular Radar test workflow and the package smoke workflow passed:
+The first implementation passed 254 tests on Python 3.9 and Python 3.13. The mapping/numeric hardening pass added five regression tests; the full 259-test suite passed on both versions. The dedicated adapter tests cover CSV, XLSX, row Evidence, idempotency, ambiguous headers, locale-specific decimal parsing, malformed thousands grouping, normalized value-map collisions, cross-ledger-kind mapping rejection, float-constant rejection, duplicate identities, external GL voucher manifests, and an end-to-end adapter-to-Ledger-Control-Pipeline test. Both the regular Radar test workflow and the package smoke workflow passed:
 
 - https://github.com/datongcfl/radar/actions/runs/44981403964
 - https://github.com/datongcfl/radar/actions/runs/44981403973
