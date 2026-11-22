@@ -73,10 +73,25 @@ pypdf 7.1.1 不能直接用于当前 Python 3.9 Core；如测试 7.x，应放入
 | 候选 | 公开元数据 | 优势 | 风险 |
 |---|---|---|---|
 | Python ast | Python 标准库 | 零额外依赖，当前 Python 分析结果可精确定位 | 仅 Python；动态调用、跨模块关系和其他语言不支持 |
-| tree-sitter 0.26.1 | MIT；Python >=3.10 | 多语言增量语法树，保留字节/行列范围 | Core Python 3.9 不兼容当前版本；grammar 许可需分别审查 |
-| tree-sitter-language-pack 1.25.2 | MIT；Python >=3.11 | 快速获得多个语言 grammar | Python 下限更高；预编译 grammar 的供应链和许可证要逐项检查 |
+| tree-sitter 0.26.1 + individual grammar wheels | Core binding MIT、Python >=3.10；本次测试 Python/JS/Go grammar 0.25.0、Java 0.23.5，均为 MIT | 明确选择语言 grammar；不需要运行时自动下载 | 需要多个独立包；每个 grammar 单独锁版本、许可证和供应链；Python 3.9 不兼容当前 binding |
+| tree-sitter-language-pack 1.25.2 | MIT；Python >=3.11 | 一体化提供大量语言 grammar | 首次使用可自动下载 parser；离线需预下载缓存；Python 下限更高；不作为本次首选方案 |
 
 **结论：** 不替换现有 Python AST。Tree-sitter 的目标是给 JavaScript/TypeScript、Java、Go 等语言提供语法结构和精确位置。业务状态机、业务对象关系和不变量仍由 Radar 自己解释。当前候选更适合隔离 L2 运行环境。
+
+### Tree-sitter 合成多语言实测（GitHub Actions，2026-11-22）
+
+使用 `tree-sitter==0.26.1`，以及独立 grammar wheels：Python 0.25.0、JavaScript 0.25.0、Java 0.23.5、Go 0.25.0，在 Python 3.10.22 环境运行。四种语言均满足：
+
+- 正常样本根节点无语法错误；
+- 预期 import / class / function / method / type 节点全部找到；
+- 每个节点保留 0-based 行列和 UTF-8 byte range；
+- 四个故意损坏的语法样本均被标记为有语法错误。
+
+单次解析耗时（仅作可运行性记录，不作性能排名）：Python 0.0001084 s、JavaScript 0.0000869 s、Java 0.0000669 s、Go 0.0000741 s。Python AST baseline 同时从同一份 Python 样本识别出 1 个 import 和 1 个状态转换候选。
+
+**阶段结论：** Tree-sitter 已证明可以用五个 MIT 包的组合提供 Python、JavaScript、Java、Go 的语法树和精确位置。它解决的是多语言语法结构缺口；Radar Python AST 已识别的显式状态转换仍属于更高层语义。不能把 Tree-sitter 节点本身当成业务流程事实。
+
+限制：样本是人工构造的短代码，未覆盖真实仓库、相对导入、跨文件引用、宏/生成代码、不同语言版本、复杂错误恢复和增量解析。Python 3.10 是当前依赖组合最低可用基线，不能因此把 Radar Core 最低版本提升到 3.10。
 
 ## 6. 外部候选比较：检索与知识处理
 
@@ -199,7 +214,11 @@ M14-C 需要创建有授权、可固定哈希的样本集，至少包括：
 - Docling：https://github.com/docling-project/docling
 - Docling package metadata：https://github.com/docling-project/docling/blob/main/pyproject.toml
 - Tree-sitter Python binding：https://pypi.org/project/tree-sitter/0.26.1/
-- Tree-sitter language pack：https://pypi.org/project/tree-sitter-language-pack/1.25.2/
+- Python grammar：https://pypi.org/project/tree-sitter-python/0.25.0/
+- JavaScript grammar：https://pypi.org/project/tree-sitter-javascript/0.25.0/
+- Java grammar：https://pypi.org/project/tree-sitter-java/0.23.5/
+- Go grammar：https://pypi.org/project/tree-sitter-go/0.25.0/
+- Tree-sitter language pack（Python >=3.11）：https://pypi.org/project/tree-sitter-language-pack/1.25.2/
 - SQLite FTS5：https://www.sqlite.org/fts5.html
 - Python sqlite3：https://docs.python.org/3/library/sqlite3.html
 - ScanCode Toolkit：https://scancode-toolkit.readthedocs.io/en/stable/
@@ -210,3 +229,4 @@ M14-C 需要创建有授权、可固定哈希的样本集，至少包括：
 - 2026-11-22：完成仓库代码、测试、架构、行业 Pack 和研究资料盘点；建立 PDF、代码解析、检索、OCR、许可证扫描候选比较；明确 M14-C 基准数据集和指标。
 - 2026-11-22：完成 SQLite FTS5 小型可行性探针；当前运行环境可用，但默认中文 tokenizer 不支持二字子词召回，预分词方案待真实语料验证。
 - 2026-11-22：新增隔离 PDF 候选基准 workflow；pypdf 6.21.4 / 7.1.1、pdfplumber 0.11.11、pypdfium2 5.15.2 均通过合成样本解析，完整记录版本、定位能力、表格结果和限制。
+- 2026-11-22：新增 Tree-sitter 多语言基准；Python、JavaScript、Java、Go grammar 全部通过语法节点、错误恢复和 locator 探针；当前组合要求 Python 3.10+。
