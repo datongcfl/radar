@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/requirement-driven-discovery
-      - feat/m15-dependency-governance
   pull_request:
 
 permissions:
