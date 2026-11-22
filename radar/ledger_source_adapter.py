@@ -11,7 +11,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from urllib.parse import quote
+from tempfile import NamedTemporaryFile
 from zipfile import BadZipFile, ZipFile
 from typing import Any
 
