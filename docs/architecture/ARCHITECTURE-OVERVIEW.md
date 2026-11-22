@@ -21,7 +21,7 @@ The durable product value is the traceable chain from requirement to source, ass
 
 ## 2. Current architecture at a glance
 
-The current main contains two related but distinct execution paths.
+The current main contains a legacy executable path and a newer domain/storage foundation, plus parser and inventory capabilities. These pieces are related but are not yet one integrated discovery workflow.
 
 ### 2.1 Legacy Pack / Seeds evidence-coverage path
 
@@ -45,30 +45,22 @@ This path is implemented around `radar/model.py`, `radar/coverage.py`, `radar/cl
 
 Its output is an evidence-coverage view over Pack units. It is not, by itself, the complete requirement-level assessment system.
 
-### 2.2 Requirement-driven Discovery path
+### 2.2 Requirement-driven domain model and storage (not yet an end-to-end CLI workflow)
 
 ```mermaid
 flowchart TD
-  W[Workspace] --> D[Discover orchestration]
-  REQ[Versioned Requirements + acceptance criteria] --> D
-  PACK[Pack refs + unit mapping] --> D
-  SEEDS[Legacy Seeds import] --> D
-  GH[Optional GitHub discovery] --> D
-  D --> SRC[Source records]
-  D --> AST[Asset records]
-  D --> EVD[Locator-bound Evidence records]
-  D --> REL[Typed Relationships]
-  SRC --> STORE[Append-only Workspace Store]
-  AST --> STORE
-  EVD --> STORE
-  REL --> STORE
-  D --> ASM[Per-requirement Assessment]
-  ASM --> STORE
-  D --> RUN[Immutable DiscoveryRun record]
-  RUN --> STORE
+  SPEC[Discovery domain contract + JSON Schema] --> REC[Typed domain records and validation]
+  REC --> STORE[Append-only Workspace Store]
+  REQ[Requirement records] --> REC
+  SRC[Source / Asset / Evidence records] --> REC
+  REL[Relationship records] --> REC
+  ASM[Assessment records] --> REC
+  RUN[DiscoveryRun records] --> REC
+  CLI[Current CLI] -. no discover command yet .-> GAP[Workflow orchestration gap]
+  GAP -. target integration .-> REC
 ```
 
-The new domain model is implemented in `radar/discovery.py`; persistence is implemented in `radar/discovery_store.py`; orchestration and adapters are in `radar/cli.py` and the source capability modules. The canonical object semantics are specified in [DISCOVERY-DATA-MODEL.md](../DISCOVERY-DATA-MODEL.md).
+The new domain model and validators are implemented in `radar/discovery.py`; persistence primitives are implemented in `radar/discovery_store.py`; the JSON Schema is in `schemas/discovery.schema.json`. **The current `radar/cli.py` does not expose a `discover` command, and the current main does not yet connect these records into a complete Requirement → discovery → Evidence → Assessment workflow.** The canonical object semantics are specified in [DISCOVERY-DATA-MODEL.md](../DISCOVERY-DATA-MODEL.md).
 
 Important semantic rules:
 
@@ -144,8 +136,8 @@ The physical store may evolve (for example, to a database) only behind the Stora
 |---|---|---|
 | Legacy Pack / Seeds run, scan, diff, coverage and Claims | Implemented | Does not replace requirement-by-criterion assessment |
 | GitHub / Gitee legacy repository metadata discovery | Implemented, opt-in | Metadata is not repository file content |
-| Requirement-driven Discovery domain and Workspace storage | Present in main | Verify every CLI path and schema/test alignment before claiming full workflow completeness |
-| GitHub code / Issue / PR discovery | Specified in Discovery contract and represented in source implementation | Must verify execution coverage, pagination, permissions, review threads and CI status semantics |
+| Requirement-driven Discovery domain and Workspace storage | Domain records, validators, schema and JSONL storage primitives are present | No `discover` CLI command or end-to-end workflow orchestration in current main |
+| GitHub code / Issue / PR discovery | Described in the Discovery data-model document's historical M6/M7 sections | Not established as an executable end-to-end capability in current main; the current legacy GitHub capability is repository metadata discovery |
 | GitHub Repository Asset Inventory | Implemented as candidate inventory | No file body fetch, no parser invocation, no Evidence/Assessment promotion |
 | Text / PDF / DOCX / XLSX / PPTX parser capabilities | Present in main with optional dependency workflows | Parser fragments are not Evidence; OCR, universal layout fidelity and all document edge cases are not implied |
 | Capability Registry | Implemented | Explicit composition/registration remains required; not a general plugin marketplace |
