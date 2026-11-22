@@ -7,6 +7,7 @@ from typing import Any, Iterable, Optional
 
 from .business_invariants import evaluate_business_invariants
 from .observation_aggregator import aggregate_observations, ObservationAggregationError
+from .ledger_aggregator import aggregate_ledger_effects, LedgerAggregationError
 
 class BusinessModelError(ValueError):
     """Invalid declarative business model."""
@@ -264,6 +265,45 @@ def validate_business_model(data: dict[str, Any], pack: dict[str, Any] | None = 
             if (not semantics["return_reference_match_fields"]
                     or set(semantics["return_reference_match_fields"]) - set(semantics["deduplicate_by"])):
                 raise BusinessModelError("%s return_reference_match_fields must be included in deduplicate_by" % where)
+    ledger_rules = data.get("ledger_aggregations", [])
+    if not isinstance(ledger_rules, list):
+        raise BusinessModelError("business model ledger_aggregations must be an array")
+    ledger_rule_ids = set()
+    for i, rule in enumerate(ledger_rules):
+        where = "ledger_aggregations[%d]" % i
+        if not isinstance(rule, dict):
+            raise BusinessModelError("%s must be an object" % where)
+        for key in ("id", "ledger_kind", "group_by", "metric", "output_field"):
+            if key not in rule:
+                raise BusinessModelError("%s missing %s" % (where, key))
+        _strings([rule["id"], rule["ledger_kind"], rule["metric"], rule["output_field"]], where)
+        if rule["id"] in ledger_rule_ids:
+            raise BusinessModelError("duplicate ledger aggregation id: %s" % rule["id"])
+        ledger_rule_ids.add(rule["id"])
+        _strings(rule["group_by"], where + ".group_by")
+        if len(set(rule["group_by"])) != len(rule["group_by"]):
+            raise BusinessModelError("%s.group_by must be unique" % where)
+        if rule["ledger_kind"] == "stock":
+            if rule["metric"] not in ("quantity_delta", "stock_value_delta"):
+                raise BusinessModelError("%s has unsupported stock metric" % where)
+            required_scope = {"company_id", "currency", "item_id", "warehouse_id", "quantity_uom"}
+            if not required_scope.issubset(set(rule["group_by"])):
+                raise BusinessModelError("%s stock grouping must include company, currency, item, warehouse and UOM" % where)
+            if rule.get("account_mapping") is not None:
+                raise BusinessModelError("%s stock rule cannot declare account_mapping" % where)
+        elif rule["ledger_kind"] == "general_ledger":
+            if rule["metric"] != "signed_amount":
+                raise BusinessModelError("%s has unsupported general-ledger metric" % where)
+            if not {"company_id", "currency", "account_id"}.issubset(set(rule["group_by"])):
+                raise BusinessModelError("%s general-ledger grouping must include company, currency and account" % where)
+            mapping = rule.get("account_mapping", {})
+            if not isinstance(mapping, dict) or any(
+                    not isinstance(key, str) or not key.strip() or
+                    not isinstance(value, str) or not value.strip()
+                    for key, value in mapping.items()):
+                raise BusinessModelError("%s.account_mapping must map non-empty account IDs to roles" % where)
+        else:
+            raise BusinessModelError("%s.ledger_kind must be stock or general_ledger" % where)
     return data
 
 def _node_id(kind: str, key: str) -> str:
@@ -294,7 +334,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          workspace_id: Optional[str] = None,
                          discovery_runs: Iterable[dict[str, Any]] = (),
                          relationships: Iterable[dict[str, Any]] = (),
-                         observations: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+                         observations: Optional[dict[str, Any]] = None,
+                         ledger_effects: Optional[Iterable[dict[str, Any]]] = None) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
@@ -310,6 +351,13 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                     rule, observations.get("observations", []), evidence_records=evidence))
     except ObservationAggregationError as exc:
         raise BusinessModelError("observation aggregation failed: %s" % exc)
+    ledger_aggregation_results = []
+    try:
+        if ledger_effects is not None:
+            ledger_aggregation_results = aggregate_ledger_effects(
+                list(ledger_effects), evidence, model.get("ledger_aggregations", []))
+    except LedgerAggregationError as exc:
+        raise BusinessModelError("ledger aggregation failed: %s" % exc)
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -506,6 +554,35 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          "observation_id":contribution["observation_id"]},
                         "source_backed", 1.0, [evidence_id])
 
+    for result in ledger_aggregation_results:
+        for aggregate in result["results"]:
+            ledger_node = node("business_ledger_aggregation", aggregate["id"],
+                record_id=aggregate["id"], aggregation_id=aggregate["aggregation_id"],
+                ledger_kind=aggregate["ledger_kind"], metric=aggregate["metric"],
+                scope_key=aggregate["scope_key"], business_scope=aggregate["business_scope"],
+                values=aggregate["values"], contribution_count=aggregate["contribution_count"],
+                evidence_ids=aggregate["evidence_ids"],
+                account_mapping_status=aggregate.get("account_mapping_status"),
+                verification_status="computed_not_assessed")
+            for contribution in aggregate["contributions"]:
+                evidence_id = contribution["evidence_id"]
+                if evidence_id in {item["id"] for item in evidence}:
+                    _add_edge(edges, ledger_node, _node_id("evidence", evidence_id),
+                        "ledger_aggregation_from_evidence", "LEDGER_AGGREGATION.EVIDENCE",
+                        {"source":"ledger_effect_validation",
+                         "aggregation_id":aggregate["aggregation_id"],
+                         "ledger_entry_id":contribution["ledger_entry_id"],
+                         "asset_id":contribution["asset_id"],
+                         "locator":contribution["locator"]},
+                        "source_backed", 1.0, [evidence_id])
+                if contribution["asset_id"] in asset_nodes:
+                    _add_edge(edges, ledger_node, asset_nodes[contribution["asset_id"]],
+                        "ledger_aggregation_from_asset", "LEDGER_AGGREGATION.ASSET",
+                        {"source":"ledger_effect_validation",
+                         "aggregation_id":aggregate["aggregation_id"],
+                         "ledger_entry_id":contribution["ledger_entry_id"]},
+                        "source_backed", 1.0, [evidence_id])
+
     # Reconstruct only candidate cross-file transitions when a typed Asset relationship
     # connects evidence-bearing assets that mention the declared source/target entities.
     transition_rows = [(p, t) for p in model["processes"] for t in p["transitions"]]
@@ -657,6 +734,10 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "aggregation_groups":sum(item["summary"]["groups"] for item in aggregation_results),
             "aggregation_contributions":sum(item["summary"]["contributions"] for item in aggregation_results),
             "aggregation_skipped":sum(item["summary"]["skipped"] for item in aggregation_results),
+            "ledger_aggregation_rules":len(model.get("ledger_aggregations", [])),
+            "ledger_aggregation_groups":sum(item["summary"]["groups"] for item in ledger_aggregation_results),
+            "ledger_aggregation_contributions":sum(item["summary"]["contributions"] for item in ledger_aggregation_results),
+            "ledger_aggregation_skipped":sum(item["summary"]["skipped"] for item in ledger_aggregation_results),
             "assets":len(asset_nodes),"evidence":len(evidence),
             "nodes":len(nodes),"edges":len(edges),
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
@@ -676,4 +757,5 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         "criterion_evidence_matrix":sorted(criterion_summaries,key=lambda item:(item["requirement_id"],item["criterion_id"])),
         "invariant_evaluations":invariant_results,
         "observation_aggregations":{"schema_version":1,"results":aggregation_results},
+        "ledger_aggregations":{"schema_version":1,"results":ledger_aggregation_results},
         "nodes":nodes,"edges":edges}
