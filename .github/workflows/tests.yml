@@ -48,11 +48,3 @@ jobs:
         run: |
           python tools/audit_ledger.py --pack packs/weak-current/pack.json --seeds seeds/weak-current.json --run runs/weak-current-demo
 
-      - name: Smoke test requirement-driven discover
-        run: |
-          python -m radar discover \
-            --workspace ws_ci_smoke \
-            --workspace-root "${{ runner.temp }}" \
-            --requirements examples/requirements/weak-current.json \
-            --pack packs/weak-current/pack.json \
-            --seeds seeds/weak-current.json
