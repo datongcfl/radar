@@ -6,8 +6,11 @@ Give it an industry outline (`pack`) and a list of sources (`seeds`). It reports
 by module, what is backed by evidence, what is only mentioned, and what is empty — plus a
 source ledger, a gap list, and a diff between runs.
 
-Zero dependencies, Python 3.9+, runs offline. Coverage levels: `strong` / `evidence` /
-`mention` / `none`; a single source can never reach `strong`, by design.
+Python 3.9+, runs offline. Radar follows a **light-core, extensible-capabilities** dependency
+policy: the core may adopt a small number of carefully reviewed dependencies when they provide
+clear engineering value; heavier or specialized capabilities remain optional or external.
+No additional runtime dependency is approved by this policy change alone. Coverage levels:
+`strong` / `evidence` / `mention` / `none`; a single source can never reach `strong`, by design.
 
 ```bash
 python3 -m radar run --pack packs/weak-current/pack.json \
@@ -61,6 +64,19 @@ runs/weak-current-demo/
 ├── report.md         # 汇总/低星发现/许可问题/来源清单
 └── state.json        # run 元数据、pack/seeds 哈希
 ```
+
+## 依赖策略
+
+Radar 采用**核心轻依赖、能力模块可扩展、行业 Pack 不绑定运行时**的策略：
+
+- **Core**：核心数据模型、Evidence/Asset 溯源、业务规则、Assessment 和 CLI。允许在有明确收益且通过许可证、安全、兼容性和基准审查后引入少量默认依赖；不以零依赖为教条。
+- **Optional capabilities**：PDF/Office 深度解析、多语言语法分析、OCR、专门检索等按需安装，不能影响基础命令。
+- **External tools/services**：重型或平台相关工具通过独立进程或服务适配，不强迫所有用户安装。
+- **Industry Packs**：只声明行业知识、字段映射和规则，不绑定特定第三方库。
+
+所有组件输出必须经过 Radar Adapter 归一化并保留 Evidence 定位。解析器不能代替 Radar 判定证据可信度、业务不变量或验收结论。
+
+**当前状态：** 本次政策调整没有新增运行时依赖。候选组件只有完成评估、固定版本、依赖锁定和 CI 验证后才会进入正式安装方案。详细准入规则见 [docs/OPEN_SOURCE_COMPONENT_SELECTION.md](docs/OPEN_SOURCE_COMPONENT_SELECTION.md)。
 
 ## data-center-ops 第三真实 pack（v1.7.0）
 
