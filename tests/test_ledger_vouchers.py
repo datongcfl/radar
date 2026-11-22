@@ -62,7 +62,7 @@ class TestLedgerVouchers(unittest.TestCase):
 
     def test_missing_manifest_is_unresolved(self):
         result = validate_gl_vouchers(
-            [self._row("L1", "100", "100")], [], [self._evidence()])
+            [self._row("L1", "100", "0")], [], [self._evidence()])
         self.assertEqual(result["unresolved"][0]["reason"],
                          "missing_voucher_extraction_manifest")
 
