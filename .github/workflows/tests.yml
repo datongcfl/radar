@@ -23,30 +23,22 @@ jobs:
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Compile source and tests
         run: python -m compileall -q radar tests
-
       - name: Run unit and regression tests
         run: python -m unittest discover -s tests -v
-
       - name: Validate industry Packs
         run: |
           python -m radar validate --pack packs/weak-current/pack.json --seeds seeds/weak-current.json
           python -m radar validate --pack packs/video-kb/pack.json --seeds seeds/video-kb.json
           python -m radar validate --pack packs/data-center-ops/pack.json --seeds seeds/data-center-ops.json
           python -m radar validate --pack packs/pet-hospital/pack.json --seeds seeds/pet-hospital.json
-
       - name: Audit weak-current source ledger
-        run: |
-          python tools/audit_ledger.py --pack packs/weak-current/pack.json --seeds seeds/weak-current.json --run runs/weak-current-demo
+        run: python tools/audit_ledger.py --pack packs/weak-current/pack.json --seeds seeds/weak-current.json --run runs/weak-current-demo
 
   pdf-optional:
     name: Optional PDF parser (Python ${{ matrix.python-version }})
@@ -56,18 +48,13 @@ jobs:
         python-version: ["3.9", "3.13"]
     runs-on: ubuntu-22.04
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install optional PDF dependency with hash verification
-        run: python -m pip install --require-hashes -r requirements-pdf.txt
-      - name: Compile source and tests
-        run: python -m compileall -q radar tests
-      - name: Run full test suite with PDF capability enabled
-        run: python -m unittest discover -s tests -v
+      - run: python -m pip install --require-hashes -r requirements-pdf.txt
+      - run: python -m compileall -q radar tests
+      - run: python -m unittest discover -s tests -v
 
   docx-optional:
     name: Optional DOCX parser (Python ${{ matrix.python-version }})
@@ -77,18 +64,13 @@ jobs:
         python-version: ["3.9", "3.13"]
     runs-on: ubuntu-22.04
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install optional DOCX dependency with hash verification
-        run: python -m pip install --require-hashes -r requirements-docx.txt
-      - name: Compile source and tests
-        run: python -m compileall -q radar tests
-      - name: Run full test suite with DOCX capability enabled
-        run: python -m unittest discover -s tests -v
+      - run: python -m pip install --require-hashes -r requirements-docx.txt
+      - run: python -m compileall -q radar tests
+      - run: python -m unittest discover -s tests -v
 
   xlsx-optional:
     name: Optional XLSX parser (Python ${{ matrix.python-version }})
@@ -98,15 +80,27 @@ jobs:
         python-version: ["3.9", "3.13"]
     runs-on: ubuntu-22.04
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install optional XLSX dependencies with hash verification
-        run: python -m pip install --require-hashes -r requirements-xlsx.txt
-      - name: Compile source and tests
-        run: python -m compileall -q radar tests
-      - name: Run full test suite with XLSX capability enabled
-        run: python -m unittest discover -s tests -v
+      - run: python -m pip install --require-hashes -r requirements-xlsx.txt
+      - run: python -m compileall -q radar tests
+      - run: python -m unittest discover -s tests -v
+
+  pptx-optional:
+    name: Optional PPTX parser (Python ${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.13"]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install optional PPTX dependencies with hash verification
+        run: python -m pip install --require-hashes -r requirements-pptx.txt
+      - run: python -m compileall -q radar tests
+      - run: python -m unittest discover -s tests -v

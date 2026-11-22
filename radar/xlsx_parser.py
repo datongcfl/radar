@@ -14,6 +14,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, List, Optional
 
 from .capabilities import CapabilityContext, CapabilityDescriptor, CapabilityResult
+from .xml_safety import contains_forbidden_xml_declarations
 
 
 class XlsxDocumentParserCapability:
@@ -112,8 +113,7 @@ class XlsxDocumentParserCapability:
                         return "xlsx_compression_ratio_exceeded"
                     if is_xml:
                         xml_bytes = b"".join(chunks)
-                        upper = xml_bytes.upper()
-                        if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+                        if contains_forbidden_xml_declarations(xml_bytes):
                             return "xlsx_unsafe_xml_declaration"
                         if name == "xl/workbook.xml":
                             workbook_xml = xml_bytes
