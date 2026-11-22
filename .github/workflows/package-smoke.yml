@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feat/requirement-driven-discovery
+      - feat/m15-dependency-governance
     paths:
       - "pyproject.toml"
       - "uv.lock"
