@@ -335,7 +335,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          discovery_runs: Iterable[dict[str, Any]] = (),
                          relationships: Iterable[dict[str, Any]] = (),
                          observations: Optional[dict[str, Any]] = None,
-                         ledger_effects: Optional[Iterable[dict[str, Any]]] = None) -> dict[str, Any]:
+                         ledger_effects: Optional[Iterable[dict[str, Any]]] = None,
+                         ledger_voucher_results: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Build a deterministic, provenance-carrying projection from Pack + discovered records."""
     validate_business_model(model, pack)
     requirements, assets, evidence = list(requirements), list(assets), list(evidence)
@@ -358,6 +359,14 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 list(ledger_effects), evidence, model.get("ledger_aggregations", []))
     except LedgerAggregationError as exc:
         raise BusinessModelError("ledger aggregation failed: %s" % exc)
+    if ledger_voucher_results is not None:
+        if (not isinstance(ledger_voucher_results, dict)
+                or ledger_voucher_results.get("schema_version") != 1
+                or not isinstance(ledger_voucher_results.get("results"), list)
+                or not isinstance(ledger_voucher_results.get("unresolved"), list)):
+            raise BusinessModelError("ledger_voucher_results must be a schema_version 1 result")
+    else:
+        ledger_voucher_results = {"schema_version": 1, "results": [], "unresolved": []}
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     entity_nodes: dict[str, str] = {}
@@ -511,6 +520,8 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                 verification_status="computed_not_assessed")
             aggregation_node_ids[aggregate["id"]] = aid
             for contribution in aggregate["contributions"]:
+                ledger_entry_aggregation_nodes.setdefault(
+                    contribution["ledger_entry_id"], set()).add(ledger_node)
                 evidence_id = contribution["evidence_id"]
                 if evidence_id in {item["id"] for item in evidence}:
                     _add_edge(edges, aid, _node_id("evidence", evidence_id),
@@ -554,6 +565,7 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
                          "observation_id":contribution["observation_id"]},
                         "source_backed", 1.0, [evidence_id])
 
+    ledger_entry_aggregation_nodes: dict[str, set[str]] = {}
     for result in ledger_aggregation_results:
         for aggregate in result["results"]:
             ledger_node = node("business_ledger_aggregation", aggregate["id"],
@@ -585,6 +597,52 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
 
     # Reconstruct only candidate cross-file transitions when a typed Asset relationship
     # connects evidence-bearing assets that mention the declared source/target entities.
+    # Voucher balance is a computed accounting control, never an automatic assessment.
+    evidence_ids_present = {item["id"] for item in evidence}
+    for voucher in ledger_voucher_results["results"]:
+        if not isinstance(voucher, dict) or not isinstance(voucher.get("scope"), dict):
+            raise BusinessModelError("ledger voucher result must include a scope object")
+        voucher_node = node("business_gl_voucher", voucher.get("manifest_id") or
+            json.dumps(voucher, sort_keys=True, ensure_ascii=False),
+            record_id=voucher.get("manifest_id"), scope=voucher["scope"],
+            status=voucher.get("status"), debit_total=voucher.get("debit_total"),
+            credit_total=voucher.get("credit_total"), difference=voucher.get("difference"),
+            tolerance=voucher.get("tolerance"),
+            ledger_entry_ids=voucher.get("ledger_entry_ids", []),
+            evidence_ids=voucher.get("evidence_ids", []),
+            verification_status="computed_not_assessed")
+        for evidence_id in voucher.get("evidence_ids", []):
+            if evidence_id in evidence_ids_present:
+                _add_edge(edges, voucher_node, _node_id("evidence", evidence_id),
+                    "voucher_balance_from_evidence", "GL_VOUCHER.EVIDENCE",
+                    {"source":"voucher_extraction_manifest_and_ledger_effects"},
+                    "source_backed", 1.0, [evidence_id])
+        for entry_id in voucher.get("ledger_entry_ids", []):
+            for aggregate_node in sorted(ledger_entry_aggregation_nodes.get(entry_id, set())):
+                _add_edge(edges, voucher_node, aggregate_node,
+                    "voucher_contains_ledger_aggregate_contribution", "GL_VOUCHER.LEDGER_AGGREGATE",
+                    {"source":"shared_ledger_entry_identity","ledger_entry_id":entry_id},
+                    "source_backed", 1.0)
+
+    for unresolved_voucher in ledger_voucher_results["unresolved"]:
+        if not isinstance(unresolved_voucher, dict):
+            raise BusinessModelError("unresolved ledger voucher must be an object")
+        stable_key = json.dumps(unresolved_voucher, sort_keys=True, ensure_ascii=False)
+        unresolved_node = node("business_gl_voucher_unresolved", stable_key,
+            record_id="unresolved_" + sha256(stable_key.encode("utf-8")).hexdigest()[:20],
+            scope=unresolved_voucher.get("scope"),
+            reason=unresolved_voucher.get("reason"),
+            manifest_id=unresolved_voucher.get("manifest_id"),
+            missing_ledger_entry_ids=unresolved_voucher.get("missing_ledger_entry_ids", []),
+            unexpected_ledger_entry_ids=unresolved_voucher.get("unexpected_ledger_entry_ids", []),
+            verification_status="unresolved")
+        for evidence_id in unresolved_voucher.get("evidence_ids", []):
+            if evidence_id in evidence_ids_present:
+                _add_edge(edges, unresolved_node, _node_id("evidence", evidence_id),
+                    "voucher_completeness_from_evidence", "GL_VOUCHER.UNRESOLVED_EVIDENCE",
+                    {"source":"voucher_extraction_manifest"},
+                    "source_backed", 1.0, [evidence_id])
+
     transition_rows = [(p, t) for p in model["processes"] for t in p["transitions"]]
     allowed_asset_relations = {"depends_on", "derived_from", "tests", "fixes", "implements", "supports"}
     for relation in relationships:
@@ -738,6 +796,9 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
             "ledger_aggregation_groups":sum(item["summary"]["groups"] for item in ledger_aggregation_results),
             "ledger_aggregation_contributions":sum(item["summary"]["contributions"] for item in ledger_aggregation_results),
             "ledger_aggregation_skipped":sum(item["summary"]["skipped"] for item in ledger_aggregation_results),
+            "ledger_vouchers_balanced":sum(1 for item in ledger_voucher_results["results"] if item.get("status")=="balanced"),
+            "ledger_vouchers_unbalanced":sum(1 for item in ledger_voucher_results["results"] if item.get("status")=="unbalanced"),
+            "ledger_vouchers_unresolved":len(ledger_voucher_results["unresolved"]),
             "assets":len(asset_nodes),"evidence":len(evidence),
             "nodes":len(nodes),"edges":len(edges),
             "candidate_entity_mentions":sum(1 for e in edges if e["relation"]=="candidate_mention"),
@@ -758,4 +819,5 @@ def build_business_graph(model: dict[str, Any], pack: dict[str, Any],
         "invariant_evaluations":invariant_results,
         "observation_aggregations":{"schema_version":1,"results":aggregation_results},
         "ledger_aggregations":{"schema_version":1,"results":ledger_aggregation_results},
+        "ledger_vouchers":ledger_voucher_results,
         "nodes":nodes,"edges":edges}

@@ -347,6 +347,40 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(graph["counts"]["ledger_aggregation_groups"], 1)
         self.assertEqual(graph["counts"]["ledger_aggregation_contributions"], 1)
 
+    def test_gl_voucher_balance_is_projected_with_manifest_evidence(self):
+        _, pack, model = self._data()
+        asset = {"id":"ast_manifest","title":"voucher-manifest.json","asset_type":"file",
+                 "uri":"https://example.test/voucher-manifest.json"}
+        evidence = [{"id":"evd_manifest","asset_id":"ast_manifest",
+                     "statement":"complete voucher extraction manifest",
+                     "locator":{"path":"voucher-manifest.json","line":4}}]
+        voucher_results = {
+            "schema_version":1,
+            "results":[{
+                "scope":{"source_system":"erp","company_id":"CO-1","currency":"USD",
+                         "voucher_type":"Journal Entry","voucher_id":"JV-1",
+                         "accounting_period":"FY2026-P03"},
+                "manifest_id":"MAN-1","status":"unbalanced","debit_total":"100",
+                "credit_total":"90","difference":"10","tolerance":"0",
+                "ledger_entry_ids":["GL-1","GL-2"],"evidence_ids":["evd_manifest"]}],
+            "unresolved":[{"scope":{"voucher_id":"JV-2"},
+                           "reason":"incomplete_voucher_extract",
+                           "missing_ledger_entry_ids":["GL-3"]}]}
+        graph = build_business_graph(model, pack, assets=[asset], evidence=evidence,
+                                     ledger_voucher_results=voucher_results)
+        voucher_node = next(item for item in graph["nodes"]
+                            if item["kind"] == "business_gl_voucher")
+        self.assertEqual(voucher_node["status"], "unbalanced")
+        self.assertEqual(voucher_node["verification_status"], "computed_not_assessed")
+        evidence_edges = [edge for edge in graph["edges"]
+                          if edge["relation"] == "voucher_balance_from_evidence"]
+        self.assertEqual(len(evidence_edges), 1)
+        unresolved_node = next(item for item in graph["nodes"]
+                               if item["kind"] == "business_gl_voucher_unresolved")
+        self.assertEqual(unresolved_node["reason"], "incomplete_voucher_extract")
+        self.assertEqual(graph["counts"]["ledger_vouchers_unbalanced"], 1)
+        self.assertEqual(graph["counts"]["ledger_vouchers_unresolved"], 1)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
