@@ -17,7 +17,10 @@ def aggregate_ledger_effects(ledger_effects: Iterable[dict[str, Any]],
                              rules: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Aggregate only explicitly declared dimensions; never infer valuation or account roles."""
     evidence = list(evidence_records)
-    validated = validate_ledger_effects(ledger_effects, evidence)
+    try:
+        validated = validate_ledger_effects(ledger_effects, evidence)
+    except LedgerEffectError as exc:
+        raise LedgerAggregationError("ledger effect validation failed: %s" % exc)
     rows = validated["ledger_effects"]
     outputs = []
     for rule in rules:

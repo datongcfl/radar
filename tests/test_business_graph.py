@@ -311,6 +311,39 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(len(transaction_links), 9)
         self.assertTrue(all(e["status"] == "source_backed" for e in links + scope_links + transaction_links))
 
+    def test_ledger_effects_are_projected_with_source_evidence_edges(self):
+        _, pack, model = self._data()
+        model["ledger_aggregations"] = [{
+            "id":"stock_value_by_item_warehouse", "ledger_kind":"stock",
+            "metric":"stock_value_delta", "output_field":"stock_value",
+            "group_by":["company_id","currency","item_id","warehouse_id","quantity_uom"]}]
+        asset = {"id":"ast_ledger","title":"stock-ledger.csv","asset_type":"file",
+                 "uri":"https://example.test/stock-ledger.csv"}
+        evidence = [{"id":"evd_ledger","asset_id":"ast_ledger","statement":"stock ledger row",
+                     "locator":{"path":"stock-ledger.csv","row":2,"column":1}}]
+        ledger_row = {
+            "ledger_entry_id":"SLE-1","source_system":"erp","ledger_kind":"stock",
+            "company_id":"CO-1","voucher_type":"Purchase Receipt","voucher_id":"PR-1",
+            "voucher_item_id":"PR-ROW-1",
+            "source_document_ref":{"voucher_type":"Purchase Receipt","voucher_id":"PR-1",
+                                   "voucher_item_id":"PR-ROW-1"},
+            "event_kind":"receipt","posting_status":"posted","currency":"USD",
+            "asset_id":"ast_ledger","item_id":"ITEM-1","warehouse_id":"WH-1",
+            "quantity_delta":"10","quantity_uom":"EA","stock_value_delta":"99.64",
+            "evidence_id":"evd_ledger","locator":{"path":"stock-ledger.csv","row":2,"column":1}}
+        graph = build_business_graph(model, pack, assets=[asset], evidence=evidence,
+                                     ledger_effects=[ledger_row])
+        aggregate = next(item for item in graph["nodes"]
+                         if item["kind"] == "business_ledger_aggregation")
+        self.assertEqual(aggregate["values"]["stock_value"], "99.64")
+        self.assertEqual(aggregate["verification_status"], "computed_not_assessed")
+        links = [edge for edge in graph["edges"]
+                 if edge["relation"] == "ledger_aggregation_from_evidence"]
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["evidence_ids"], ["evd_ledger"])
+        self.assertEqual(graph["counts"]["ledger_aggregation_groups"], 1)
+        self.assertEqual(graph["counts"]["ledger_aggregation_contributions"], 1)
+
     def test_projection_is_deterministic(self):
         _, pack, model = self._data()
         assets = [{"id":"ast_file_1","title":"x","asset_type":"file","uri":"https://x"}]
