@@ -14,6 +14,7 @@ from radar.ledger_source_adapter import (
 )
 from radar.ledger_vouchers import validate_gl_vouchers
 from radar.ledger_workspace import load_ledger_bundle
+from radar.ledger_control_pipeline import run_ledger_control_pipeline
 
 
 def make_workspace(root):
@@ -154,6 +155,23 @@ class TestLedgerSourceAdapter(unittest.TestCase):
             self.assertTrue(persisted_path.is_file())
             self.assertEqual(persisted_path.read_bytes(), source.read_bytes())
             self.assertEqual(asset["uri"], persisted_path.as_uri())
+
+            bundle = load_ledger_bundle(store)
+            controls = run_ledger_control_pipeline(
+                bundle["ledger_effects"], bundle["evidence_records"],
+                bundle["extraction_manifests"],
+                [{
+                    "id": "stock-quantity-by-location",
+                    "ledger_kind": "stock",
+                    "group_by": ["company_id", "currency", "item_id",
+                                 "warehouse_id", "quantity_uom"],
+                    "metric": "quantity_delta",
+                    "output_field": "net_quantity_delta",
+                }],
+            )
+            self.assertEqual(controls["summary"]["ledger_effects_accepted"], 1)
+            self.assertEqual(controls["summary"]["aggregates"], 1)
+            self.assertTrue(controls["policy"]["computed_results_are_not_business_assessments"])
 
     def test_xlsx_source_uses_sheet_row_locator(self):
         with tempfile.TemporaryDirectory() as tmp:
