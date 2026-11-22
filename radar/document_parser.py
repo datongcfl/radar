@@ -194,11 +194,17 @@ class TextDocumentParserCapability:
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         spans = _split_blocks(content, document_format)
         records = []
+        previous_char_end = 0
+        previous_byte_end = 0
         for index, span in enumerate(spans):
             char_start, char_end, line_start, line_end, fragment_type, heading_path = span
-            byte_start = len(content[:char_start].encode("utf-8"))
-            byte_end = len(content[:char_end].encode("utf-8"))
+            byte_start = previous_byte_end + len(
+                content[previous_char_end:char_start].encode("utf-8")
+            )
             fragment = content[char_start:char_end]
+            byte_end = byte_start + len(fragment.encode("utf-8"))
+            previous_char_end = char_end
+            previous_byte_end = byte_end
             records.append({
                 "record_type": "document_fragment",
                 "document_uri": uri,
