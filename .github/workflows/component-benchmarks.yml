@@ -48,7 +48,7 @@ jobs:
 
       - name: Install isolated benchmark tools
         run: |
-          python -m pip install --disable-pip-version-check "reportlab==5.1.0" "${{ matrix.package }}"
+          python -m pip install --disable-pip-version-check "reportlab==4.5.1" "${{ matrix.package }}"
           mkdir -p benchmark-results
           python -m pip freeze > "benchmark-results/${{ matrix.candidate }}-environment.txt"
 
