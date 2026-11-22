@@ -277,33 +277,52 @@ def aggregate_observations(rule: dict[str, Any],
         target_field = semantics["return_reference_target_field"]
         item_target_field = semantics["return_reference_item_target_field"]
         match_fields = semantics["return_reference_match_fields"]
-        original_receipts = set()
+        original_receipts = {}
+        return_contributions = {}
         for contributions in grouped.values():
             for item in contributions:
                 flag = item["transaction"].get(return_field, "").strip().casefold()
+                identity = item["transaction_identity"]
+                if (target_field not in identity or item_target_field not in identity
+                        or not all(name in identity for name in match_fields)):
+                    continue
+                receipt_key = ((identity[target_field], identity[item_target_field]) +
+                               tuple(identity[name] for name in match_fields))
                 if flag in normal_values:
-                    identity = item["transaction_identity"]
-                    if (target_field in identity and item_target_field in identity
-                            and all(name in identity for name in match_fields)):
-                        original_receipts.add((identity[target_field], identity[item_target_field]) +
-                                              tuple(identity[name] for name in match_fields))
-        for key, contributions in list(grouped.items()):
-            retained = []
-            for item in contributions:
-                flag = item["transaction"].get(return_field, "").strip().casefold()
-                if flag in return_values:
+                    original_receipts[receipt_key] = item["value"]
+                elif flag in return_values:
                     reference = item["transaction"].get(semantics["return_reference_field"], "")
                     item_reference = item["transaction"].get(semantics["return_reference_item_field"], "")
-                    identity = item["transaction_identity"]
-                    reference_key = (reference, item_reference) + tuple(
-                        identity.get(name, "") for name in match_fields)
-                    if reference_key not in original_receipts:
-                        skipped.append({"observation_id": item["observation_id"],
-                                        "reason": "unresolved_return_target",
-                                        "return_reference": reference})
-                        continue
-                retained.append(item)
-            grouped[key] = retained
+                    return_key = ((reference, item_reference) +
+                                  tuple(identity.get(name, "") for name in match_fields))
+                    return_contributions.setdefault(return_key, []).append(item)
+
+        invalid_return_ids = set()
+        for return_key, items in return_contributions.items():
+            original_quantity = original_receipts.get(return_key)
+            if original_quantity is None:
+                for item in items:
+                    skipped.append({"observation_id": item["observation_id"],
+                                    "reason": "unresolved_return_target",
+                                    "return_reference": return_key[0]})
+                    invalid_return_ids.add(item["observation_id"])
+                continue
+            returned_quantity = sum((abs(item["value"]) for item in items), Decimal("0"))
+            if returned_quantity > original_quantity:
+                for item in items:
+                    skipped.append({
+                        "observation_id": item["observation_id"],
+                        "reason": "return_quantity_exceeds_original_receipt",
+                        "return_reference": return_key[0],
+                        "original_received_qty": str(original_quantity),
+                        "cumulative_return_qty": str(returned_quantity),
+                    })
+                    invalid_return_ids.add(item["observation_id"])
+
+        if invalid_return_ids:
+            for key, contributions in list(grouped.items()):
+                grouped[key] = [item for item in contributions
+                                if item["observation_id"] not in invalid_return_ids]
 
     results = []
     duplicate_evidence = []
