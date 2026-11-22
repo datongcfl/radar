@@ -73,7 +73,6 @@ class TestLedgerWorkspace(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store, evidence = self._store(tmp)
             bundle = self._bundle(evidence)
-            bundle["aggregation_rules"] = []
             import_ledger_bundle(store, bundle)
             result = run_workspace_ledger_control(store, {
                 "enabled": True, "run_on_discover": True,
@@ -82,6 +81,7 @@ class TestLedgerWorkspace(unittest.TestCase):
             self.assertEqual(result["status"], "succeeded")
             snapshot = json.loads(store.read_snapshot(result["snapshot_sha256"]))
             self.assertEqual(snapshot["summary"]["ledger_effects_accepted"], 1)
+            self.assertEqual(snapshot["summary"]["aggregates"], 1)
 
     def test_pack_must_explicitly_opt_in(self):
         with tempfile.TemporaryDirectory() as tmp:

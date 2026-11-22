@@ -64,10 +64,10 @@ def import_ledger_bundle(store: JsonWorkspaceStore, bundle: dict[str, Any]) -> d
             evidence_id=evidence_id, locator=manifest.get("locator"), manifest=manifest).to_dict())
 
     for rule in bundle["aggregation_rules"]:
-        if not isinstance(rule, dict) or not isinstance(rule.get("rule_id"), str):
-            raise StorageError("aggregation rule requires rule_id")
+        if not isinstance(rule, dict) or not isinstance(rule.get("id"), str):
+            raise StorageError("aggregation rule requires id")
         records.append(new_record("ledger_aggregation_rule", workspace_id=store.workspace_id,
-            rule_id=rule["rule_id"], rule=rule).to_dict())
+            rule_id=rule["id"], rule=rule).to_dict())
 
     # Preflight all IDs and source identities before mutating append-only storage.
     existing_effects = {(item["source_system"], item["ledger_entry_id"])

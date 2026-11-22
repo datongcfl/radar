@@ -242,7 +242,7 @@ def validate_record(record: Mapping[str, Any], expected_type: Optional[str] = No
     elif kind == "ledger_aggregation_rule":
         _nonempty(data["workspace_id"], "ledger_aggregation_rule.workspace_id")
         _nonempty(data["rule_id"], "ledger_aggregation_rule.rule_id")
-        if not isinstance(data["rule"], dict) or data["rule"].get("rule_id") != data["rule_id"]:
+        if not isinstance(data["rule"], dict) or data["rule"].get("id") != data["rule_id"]:
             raise DiscoveryValidationError("ledger_aggregation_rule rule identity mismatch")
     elif kind == "discovery_run":
         _timestamp(data["started_at"], "started_at")
