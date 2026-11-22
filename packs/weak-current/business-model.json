@@ -1088,5 +1088,48 @@
         "return_reference_item_target_field": "receipt_item_id"
       }
     }
+  ],
+  "ledger_aggregations": [
+    {
+      "id": "stock_quantity_by_item_warehouse",
+      "ledger_kind": "stock",
+      "metric": "quantity_delta",
+      "output_field": "net_quantity_delta",
+      "group_by": [
+        "company_id",
+        "currency",
+        "item_id",
+        "warehouse_id",
+        "quantity_uom"
+      ],
+      "description": "按公司、币种、物料、仓库和计量单位汇总库存数量变化"
+    },
+    {
+      "id": "stock_value_by_item_warehouse",
+      "ledger_kind": "stock",
+      "metric": "stock_value_delta",
+      "output_field": "net_stock_value_delta",
+      "group_by": [
+        "company_id",
+        "currency",
+        "item_id",
+        "warehouse_id",
+        "quantity_uom"
+      ],
+      "description": "按公司、币种、物料、仓库和计量单位汇总库存账面价值变化"
+    },
+    {
+      "id": "general_ledger_by_account",
+      "ledger_kind": "general_ledger",
+      "metric": "signed_amount",
+      "output_field": "net_signed_amount",
+      "group_by": [
+        "company_id",
+        "currency",
+        "account_id"
+      ],
+      "account_mapping": {},
+      "description": "按公司、币种和总账科目汇总借方减贷方；账户角色须由真实科目映射提供"
+    }
   ]
 }

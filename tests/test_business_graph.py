@@ -20,6 +20,9 @@ class TestBusinessGraph(unittest.TestCase):
         self.assertEqual(validate_business_model(model, pack)["pack"], "weak-current")
         self.assertEqual(len(model["entities"]), 7)
         self.assertEqual(len(model["exceptions"]), 6)
+        self.assertEqual(len(model["ledger_aggregations"]), 3)
+        self.assertEqual({item["ledger_kind"] for item in model["ledger_aggregations"]},
+                         {"stock", "general_ledger"})
 
     def test_unknown_transition_endpoint_is_rejected(self):
         _, pack, model = self._data()
