@@ -69,7 +69,7 @@ The initial pyproject.toml and uv.lock establish:
 - no third-party Core runtime dependencies;
 - radar console-script entry point.
 - a universal lockfile verified by uv lock --check.
-- a Python 3.9 / 3.13 package smoke workflow that runs all 259 tests, both CLI entry points, and builds wheel + sdist.
+- a Python 3.9 / 3.13 package smoke workflow that runs the repository's full test suite, both CLI entry points, and builds wheel + sdist.
 
 No PDF or Tree-sitter extras are declared yet because the adapters have not been integrated into Radar's public runtime API. The isolated benchmark jobs pin their own packages independently.
 
