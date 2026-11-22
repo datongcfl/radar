@@ -11,14 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import __version__
-from .adapters import collect_gitee
 from .capabilities import CapabilityContext, CapabilityRegistry
-from .github_capability import GithubSourceCapability
-from .gitee_capability import GiteeSourceCapability
-from .fetch import fetch_sources
-from .snowball import snowball
-from .web import enrich_web
-from .verify import verify_sources
 from .coverage import compute_coverage
 from .claims import evaluate_claims, write_claims
 from .diff import diff_runs
@@ -55,6 +48,8 @@ def _gitee_token():
 
 def _collect_github_via_registry(pack, limit_per_query, max_queries, token=None):
     """Compose the GitHub source explicitly and execute it through the Core contract."""
+    from .github_capability import GithubSourceCapability
+
     registry = CapabilityRegistry()
     registry.register(GithubSourceCapability())
     result = registry.execute(
@@ -87,6 +82,8 @@ def _collect_github_via_registry(pack, limit_per_query, max_queries, token=None)
 
 def _collect_gitee_via_registry(pack, limit_per_query, max_queries, token=None):
     """Compose the Gitee source explicitly and execute it through the Core contract."""
+    from .gitee_capability import GiteeSourceCapability
+
     registry = CapabilityRegistry()
     registry.register(GiteeSourceCapability())
     result = registry.execute(
@@ -137,22 +134,30 @@ def cmd_run(args):
         sources.extend(got)
         warnings.extend(warns)
     if args.snowball:
+        from .snowball import snowball
+
         got, warns = snowball(sources, pack, token=os.environ.get("GITHUB_TOKEN"),
                                per_source=args.snowball_per_source,
                                max_sources=args.snowball_max)
         sources.extend(got)
         warnings.extend(warns)
     if args.fetch:
+        from .fetch import fetch_sources
+
         sources, warns = fetch_sources(sources, limit=args.fetch_limit,
                                         timeout=args.fetch_timeout)
         warnings.extend(warns)
     if args.web:
+        from .web import enrich_web
+
         sources, warns = enrich_web(sources, limit=args.web_limit,
                                      timeout=args.web_timeout,
                                      respect_robots=args.respect_robots)
         warnings.extend(warns)
     sources = merge_sources(sources)
     if args.verify_quotes:
+        from .verify import verify_sources
+
         sources, warns = verify_sources(sources, limit=args.verify_limit,
                                         timeout=args.verify_timeout)
         warnings.extend(warns)
