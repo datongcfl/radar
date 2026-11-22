@@ -1,6 +1,6 @@
 # Generic Ledger Source Adapter
 
-> Status: M13-H first implementation; CSV/XLSX mapping is explicit and source-system agnostic. No real ERP connector is claimed.
+> Status: M13-H first implementation plus mapping/numeric hardening; CSV/XLSX mapping is explicit and source-system agnostic. No real ERP connector is claimed.
 
 ## 1. Purpose
 
@@ -179,12 +179,15 @@ The first implementation covers:
 - external JSONL voucher manifest imported as separate Evidence;
 - GL voucher completeness and balancing checked against the independent manifest;
 - Pack business-model adapter declarations validated;
-- CLI enforces the Workspace Pack lock.
+- CLI enforces the Workspace Pack lock;
+- locale-aware decimal parsing rejects malformed thousands grouping;
+- normalized value-map key collisions and cross-ledger-kind field mappings are rejected;
+- floating-point constants are rejected to avoid silently importing binary floating-point approximations.
 
 
 ## 9. CI validation
 
-The first implementation passed the full 254-test suite on Python 3.9 and Python 3.13. The dedicated adapter tests cover CSV, XLSX, row Evidence, idempotency, ambiguous headers, invalid numeric values, duplicate identities, and external GL voucher manifests. Both the regular Radar test workflow and the package smoke workflow passed:
+The first implementation passed 254 tests on Python 3.9 and Python 3.13. The mapping/numeric hardening pass added five regression tests; the full 259-test suite passed on both versions. The dedicated adapter tests cover CSV, XLSX, row Evidence, idempotency, ambiguous headers, locale-specific decimal parsing, malformed thousands grouping, normalized value-map collisions, cross-ledger-kind mapping rejection, float-constant rejection, duplicate identities, and external GL voucher manifests. Both the regular Radar test workflow and the package smoke workflow passed:
 
-- https://github.com/datongcfl/radar/actions/runs/44980860137
-- https://github.com/datongcfl/radar/actions/runs/44980860095
+- https://github.com/datongcfl/radar/actions/runs/44981403964
+- https://github.com/datongcfl/radar/actions/runs/44981403973
