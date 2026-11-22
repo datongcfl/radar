@@ -41,8 +41,9 @@ class TestLedgerWorkspace(unittest.TestCase):
             "item_id":"ITEM-1", "warehouse_id":"WH-1", "quantity_uom":"EA",
             "quantity_delta":"2", "stock_value_delta":"20"
         }
-        rule = {"rule_id":"stock-by-period", "ledger_kind":"stock",
-                "dimensions":["company_id","currency","accounting_period"]}
+        rule = {"id":"stock-by-period", "ledger_kind":"stock",
+                "group_by":["company_id","currency","item_id","warehouse_id","quantity_uom"],
+                "metric":"quantity_delta", "output_field":"quantity_total"}
         return {"ledger_effects":[effect], "evidence_records":[evidence],
                 "extraction_manifests":[], "aggregation_rules":[rule]}
 
