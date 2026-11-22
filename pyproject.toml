@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datongcfl-radar"
+dynamic = ["version"]
+description = "Requirement-driven discovery and evidence mapping for software and industry knowledge assets"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: OS Independent",
+]
+
+[project.scripts]
+radar = "radar.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/datongcfl/radar"
+Repository = "https://github.com/datongcfl/radar"
+
+[tool.setuptools]
+packages = ["radar"]
+
+[tool.setuptools.dynamic]
+version = { attr = "radar.__version__" }
+
+[tool.uv]
+package = true

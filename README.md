@@ -24,6 +24,17 @@ python3 -m radar run --pack packs/weak-current/pack.json \
 
 不是爬虫，不是通用搜索引擎，也不是自动写 PRD。它只做一件事：**把“目录每一块有没有证据”算清楚。**
 
+## 安装
+
+从源码仓库安装 CLI（Core 当前不安装第三方运行时依赖）：
+
+~~~bash
+python -m pip install .
+radar --help
+~~~
+
+也可以继续使用 python -m radar ...，无需安装。
+
 ## 快速开始
 
 ```bash
