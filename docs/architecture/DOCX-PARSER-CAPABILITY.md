@@ -48,8 +48,9 @@ These checks reduce common archive/XML resource risks; they are not a substitute
 
 - Direct dependency: `python-docx==1.2.0` (MIT; Python >=3.9).
 - XML backend: `lxml==6.1.3`, a transitive dependency (BSD-3-Clause).
-- Neither package is a Core dependency.
-- `requirements-docx.txt` pins both packages and verifies SHA-256 hashes for the Python 3.9/3.13 Linux CI wheels plus the lxml source archive.
+- Compatibility dependency: `typing_extensions==4.16.0` (PSF-2.0), required by the selected python-docx release metadata.
+- None of these packages is a Core dependency.
+- `requirements-docx.txt` pins all three packages and verifies SHA-256 hashes for the Python 3.9/3.13 Linux CI wheels plus the lxml source archive.
 - The optional CI matrix installs the dependency set with `pip --require-hashes`; the default Core matrix remains dependency-free.
 - `uv.lock` remains unchanged because the optional capability is not yet promoted to a named project extra. A later packaging decision can integrate it into the universal lock once the supported OS/platform policy is agreed.
 
