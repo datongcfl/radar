@@ -11,7 +11,9 @@ from datetime import datetime
 from pathlib import Path
 
 from . import __version__
-from .adapters import collect_github, collect_gitee
+from .adapters import collect_gitee
+from .capabilities import CapabilityContext, CapabilityRegistry
+from .github_capability import GithubSourceCapability
 from .fetch import fetch_sources
 from .snowball import snowball
 from .web import enrich_web
@@ -50,6 +52,38 @@ def _gitee_token():
     return None
 
 
+def _collect_github_via_registry(pack, limit_per_query, max_queries, token=None):
+    """Compose the GitHub source explicitly and execute it through the Core contract."""
+    registry = CapabilityRegistry()
+    registry.register(GithubSourceCapability())
+    result = registry.execute(
+        "github",
+        CapabilityContext(
+            operation="discover",
+            inputs={"pack": pack},
+            parameters={
+                "limit_per_query": limit_per_query,
+                "max_queries": max_queries,
+                "token": token,
+            },
+        ),
+        kind="source",
+    )
+    sources = [dict(item) for item in result.records]
+    warnings = []
+    for warning in result.warnings:
+        message = warning.get("message")
+        if message:
+            warnings.append(str(message))
+    if result.status == "failed":
+        warnings.append("GitHub source capability failed (%s)" % (
+            (result.error or {}).get("code", "unknown_error")
+        ))
+    elif result.status == "unavailable":
+        warnings.append("GitHub source capability is unavailable")
+    return sources, warnings
+
+
 def cmd_run(args):
     if (args.github or args.gitee or args.snowball or args.fetch or args.web) and not shutil.which("curl"):
         raise RadarError("网络选项需要 curl；请先安装 curl，或去掉 --github/--gitee/--snowball/--fetch/--web")
@@ -58,9 +92,9 @@ def cmd_run(args):
     warnings = []
     sources = list(seeds)
     if args.github:
-        got, warns = collect_github(pack, limit_per_query=args.limit,
-                                    max_queries=args.max_queries,
-                                    token=os.environ.get("GITHUB_TOKEN"))
+        got, warns = _collect_github_via_registry(
+            pack, limit_per_query=args.limit, max_queries=args.max_queries,
+            token=os.environ.get("GITHUB_TOKEN"))
         sources.extend(got)
         warnings.extend(warns)
     if args.gitee:
