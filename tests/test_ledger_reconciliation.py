@@ -36,21 +36,24 @@ class TestLedgerReconciliation(unittest.TestCase):
         self.assertEqual(result["results"][0]["stock_value"], "100")
         self.assertEqual(result["results"][0]["general_ledger_value"], "100")
 
-    def test_unmapped_account_is_not_compared(self):
+    def test_unmapped_account_leaves_period_unresolved(self):
         result = reconcile_inventory_gl([stock()], [gl(mapped=False)])
-        self.assertEqual(result["results"], [])
-        self.assertEqual(result["summary"]["unresolved"], 1)
+        self.assertEqual(result["results"][0]["status"], "unresolved")
+        self.assertEqual(result["unresolved"][0]["reason"],
+                         "inventory_account_mapping_missing_or_not_inventory_asset")
 
-    def test_non_inventory_account_role_is_not_compared(self):
+    def test_non_inventory_account_role_leaves_period_unresolved(self):
         result = reconcile_inventory_gl([stock()], [gl(role="expense")])
-        self.assertEqual(result["results"], [])
-        self.assertEqual(result["summary"]["unresolved"], 1)
+        self.assertEqual(result["results"][0]["status"], "unresolved")
+        self.assertEqual(result["unresolved"][0]["reason"],
+                         "inventory_account_mapping_missing_or_not_inventory_asset")
 
     def test_missing_period_is_unresolved(self):
         result = reconcile_inventory_gl(
             [stock({"company_id": "CO-1", "currency": "USD"})], [gl()])
-        self.assertEqual(result["results"], [])
-        self.assertEqual(result["summary"]["unresolved"], 1)
+        self.assertEqual(result["results"][0]["status"], "unresolved")
+        self.assertEqual(result["unresolved"][0]["reason"],
+                         "missing_company_currency_or_accounting_period")
 
     def test_missing_counterpart_is_not_zero(self):
         result = reconcile_inventory_gl([stock()], [])
