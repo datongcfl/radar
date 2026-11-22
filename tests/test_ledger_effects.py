@@ -52,7 +52,9 @@ class TestLedgerEffects(unittest.TestCase):
         self.assertEqual(result["summary"]["accepted"], 2)
         self.assertEqual(result["summary"]["stock_entries"], 1)
         self.assertEqual(result["summary"]["general_ledger_entries"], 1)
-        self.assertEqual(result["ledger_effects"][0]["stock_value_delta"], "99.64")
+        stock_row = next(item for item in result["ledger_effects"]
+                         if item["ledger_kind"] == "stock")
+        self.assertEqual(stock_row["stock_value_delta"], "99.64")
 
     def test_reversal_requires_exact_original_ledger_entry(self):
         original = self._stock()
@@ -91,6 +93,7 @@ class TestLedgerEffects(unittest.TestCase):
 
     def test_debit_note_is_not_automatically_a_stock_effect(self):
         debit_note = self._gl(voucher_type="Debit Note", voucher_id="DN-1",
+                              voucher_item_id="DN-ROW-1",
                               source_document_ref={"voucher_type": "Debit Note",
                                                    "voucher_id": "DN-1",
                                                    "voucher_item_id": "DN-ROW-1"})
