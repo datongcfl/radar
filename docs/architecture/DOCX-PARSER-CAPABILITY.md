@@ -47,9 +47,11 @@ These checks reduce common archive/XML resource risks; they are not a substitute
 ## Dependency decision
 
 - Direct dependency: `python-docx==1.2.0` (MIT; Python >=3.9).
-- XML backend: `lxml`, a transitive dependency (BSD-3-Clause).
+- XML backend: `lxml==6.1.3`, a transitive dependency (BSD-3-Clause).
 - Neither package is a Core dependency.
-- This implementation deliberately does not add an unhashed requirements file or silently modify the universal lock. The separately tracked packaging task must lock the complete transitive wheel set and hashes for the supported platforms before the optional installation workflow is promoted to a reproducible release path.
+- `requirements-docx.txt` pins both packages and verifies SHA-256 hashes for the Python 3.9/3.13 Linux CI wheels plus the lxml source archive.
+- The optional CI matrix installs the dependency set with `pip --require-hashes`; the default Core matrix remains dependency-free.
+- `uv.lock` remains unchanged because the optional capability is not yet promoted to a named project extra. A later packaging decision can integrate it into the universal lock once the supported OS/platform policy is agreed.
 
 PyPI records no Trusted Publishing provenance for python-docx 1.2.0 and lxml 6.1.3. This is a supply-chain observation, not a claim that either package is malicious.
 
@@ -64,4 +66,4 @@ PyPI records no Trusted Publishing provenance for python-docx 1.2.0 and lxml 6.1
 
 ## Acceptance status
 
-Generated-document extraction tests cover headings, paragraphs, tables, nested tables, locators, source hash, and the Evidence boundary. They run only when python-docx is installed. Dependency-independent tests always cover the missing-package `unavailable` response, input limits, and unsafe XML rejection. Full optional-dependency CI qualification and real-world DOCX corpus testing remain outstanding.
+Generated-document extraction tests cover headings, paragraphs, tables, nested tables, locators, source hash, and the Evidence boundary. They run in the optional DOCX CI matrix. Dependency-independent tests always cover the missing-package `unavailable` response, input limits, and unsafe XML rejection. Real-world DOCX corpus testing remains outstanding.
