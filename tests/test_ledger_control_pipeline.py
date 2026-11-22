@@ -83,7 +83,7 @@ class TestLedgerControlPipeline(unittest.TestCase):
         self.assertEqual(result["summary"]["vouchers_unresolved"], 1)
         self.assertEqual(result["vouchers"]["unresolved"][0]["reason"],
                          "incomplete_voucher_extract")
-        self.assertEqual(result["summary"]["reconciliations_unresolved"], 1)
+        self.assertEqual(result["summary"]["reconciliations_matched"], 1)
 
     def test_invalid_evidence_stops_pipeline_before_computation(self):
         row = self._row("G1", "MISSING", 2, "general_ledger", debit="1")
