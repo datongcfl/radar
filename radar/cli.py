@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import shutil
@@ -271,6 +272,77 @@ def cmd_diff(args):
     return {"old": args.old, "new": args.new, "out": args.out, "bytes": len(text)}
 
 
+def cmd_parse(args):
+    """Parse one local document through the explicit capability registry."""
+    path = Path(args.file).expanduser()
+    if not path.is_file():
+        raise RadarError("input file does not exist or is not a regular file: %s" % path)
+    if not isinstance(args.max_bytes, int) or args.max_bytes < 1:
+        raise RadarError("--max-bytes must be a positive integer")
+    file_size = path.stat().st_size
+    if file_size > args.max_bytes:
+        raise RadarError(
+            "input file exceeds --max-bytes (%d > %d)" % (file_size, args.max_bytes)
+        )
+
+    parser_name = args.format
+    if parser_name == "auto":
+        parser_name = {
+            ".pdf": "pdf",
+            ".docx": "docx",
+            ".xlsx": "xlsx",
+            ".pptx": "pptx",
+        }.get(path.suffix.lower(), "text")
+
+    parser_specs = {
+        "text": ("radar.document_parser", "TextDocumentParserCapability"),
+        "pdf": ("radar.pdf_parser", "PdfDocumentParserCapability"),
+        "docx": ("radar.docx_parser", "DocxDocumentParserCapability"),
+        "xlsx": ("radar.xlsx_parser", "XlsxDocumentParserCapability"),
+        "pptx": ("radar.pptx_parser", "PptxDocumentParserCapability"),
+    }
+    module_name, class_name = parser_specs[parser_name]
+    module = importlib.import_module(module_name)
+    capability_type = getattr(module, class_name)
+    registry = CapabilityRegistry()
+    registry.register(capability_type())
+
+    raw_content = path.read_bytes()
+    if parser_name == "text":
+        try:
+            content = raw_content.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise RadarError("text input must be valid UTF-8: %s" % path) from exc
+    else:
+        content = raw_content
+
+    uri = args.uri or path.resolve().as_uri()
+    result = registry.execute(
+        parser_name,
+        CapabilityContext(
+            operation="parse",
+            inputs={
+                "content": content,
+                "uri": uri,
+                "filename": path.name,
+                "media_type": args.media_type or "",
+            },
+        ),
+        kind="parser",
+    )
+    payload = {
+        "status": result.status,
+        "parser": parser_name,
+        "records": [dict(record) for record in result.records],
+        "warnings": [dict(warning) for warning in result.warnings],
+        "error": dict(result.error) if result.error is not None else None,
+        "metadata": dict(result.metadata),
+    }
+    if result.status in ("failed", "unavailable"):
+        payload["_exit_code"] = 1
+    return payload
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="radar", description="最小行业雷达：pack + 来源账本 + 覆盖度")
     sub = p.add_subparsers(dest="command", required=True)
@@ -325,6 +397,16 @@ def build_parser():
     v.add_argument("--seeds", required=True)
     v.add_argument("--strict", action="store_true", help="要求 v0.1 的完整 12 字段")
     v.set_defaults(func=cmd_validate)
+
+    ps = sub.add_parser("parse", help="解析单个本地文档并输出结构化片段")
+    ps.add_argument("--file", required=True, help="本地 PDF/DOCX/XLSX/PPTX/文本文件")
+    ps.add_argument("--format", choices=("auto", "text", "pdf", "docx", "xlsx", "pptx"),
+                    default="auto", help="默认按扩展名选择解析器")
+    ps.add_argument("--uri", default=None, help="覆盖默认 file:// 来源 URI")
+    ps.add_argument("--media-type", default="", help="可选 MIME 类型提示（主要用于文本）")
+    ps.add_argument("--max-bytes", type=int, default=30 * 1024 * 1024,
+                    help="读取前执行的文件大小上限，默认 30 MiB")
+    ps.set_defaults(func=cmd_parse)
 
     d = sub.add_parser("diff", help="比较两次 run")
     d.add_argument("--from", dest="old", required=True)
