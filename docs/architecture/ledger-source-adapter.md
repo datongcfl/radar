@@ -179,3 +179,11 @@ The first implementation covers:
 - GL voucher completeness and balancing checked against the independent manifest;
 - Pack business-model adapter declarations validated;
 - CLI enforces the Workspace Pack lock.
+
+
+## 9. CI validation
+
+The first implementation passed the full 254-test suite on Python 3.9 and Python 3.13. The dedicated adapter tests cover CSV, XLSX, row Evidence, idempotency, ambiguous headers, invalid numeric values, duplicate identities, and external GL voucher manifests. Both the regular Radar test workflow and the package smoke workflow passed:
+
+- https://github.com/datongcfl/radar/actions/runs/44980531886
+- https://github.com/datongcfl/radar/actions/runs/44980531908

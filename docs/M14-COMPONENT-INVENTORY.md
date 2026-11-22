@@ -205,7 +205,16 @@ M14-C 需要创建有授权、可固定哈希的样本集，至少包括：
 - ScanCode 和 OCR 先作为外部工具。
 - 目前尚未有组件获得 L1/L2 正式接入批准；也尚未建立完整授权 PDF/Office/多语言代码语料，因此性能/准确率分数暂不填报。
 
-## 11. 参考资料（官方项目 / PyPI 元数据）
+## 11. M14-D 依赖管理与打包基线
+
+- 新增 pyproject.toml：Python >=3.9、datongcfl-radar 包元数据、radar CLI entry point。
+- 新增 uv.lock：由 uv 0.13.9 生成并在 CI 用 uv lock --check 验证；当前 Core 无第三方运行时依赖。
+- setuptools 80.9.0 作为精确锁定的构建后端；uv 只作为开发/CI 环境工具，不进入 Radar 运行时依赖。
+- Package smoke 在 Python 3.9 和 3.13 分别通过：Core 安装、radar / python -m radar CLI、254 项测试、wheel 与 sdist 构建。
+- CI：[Package and dependency smoke](https://github.com/datongcfl/radar/actions/runs/44980531908)，[Radar tests](https://github.com/datongcfl/radar/actions/runs/44980531886)。
+- pypdf、pdfplumber、pypdfium2、Tree-sitter 尚未加入正式 optional extras；对应 Adapter 和真实语料评估完成前不宣称已批准。
+
+## 12. 参考资料（官方项目 / PyPI 元数据）
 
 - pypdf 6.21.4（Python >=3.9，BSD-3-Clause）：https://pypi.org/project/pypdf/6.21.4/
 - pypdf 7.1.1（Python >=3.10，BSD-3-Clause）：https://pypi.org/project/pypdf/7.1.1/
@@ -224,9 +233,10 @@ M14-C 需要创建有授权、可固定哈希的样本集，至少包括：
 - ScanCode Toolkit：https://scancode-toolkit.readthedocs.io/en/stable/
 - Tesseract license：https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE
 
-## 12. 变更记录
+## 13. 变更记录
 
 - 2026-11-22：完成仓库代码、测试、架构、行业 Pack 和研究资料盘点；建立 PDF、代码解析、检索、OCR、许可证扫描候选比较；明确 M14-C 基准数据集和指标。
 - 2026-11-22：完成 SQLite FTS5 小型可行性探针；当前运行环境可用，但默认中文 tokenizer 不支持二字子词召回，预分词方案待真实语料验证。
 - 2026-11-22：新增隔离 PDF 候选基准 workflow；pypdf 6.21.4 / 7.1.1、pdfplumber 0.11.11、pypdfium2 5.15.2 均通过合成样本解析，完整记录版本、定位能力、表格结果和限制。
 - 2026-11-22：新增 Tree-sitter 多语言基准；Python、JavaScript、Java、Go grammar 全部通过语法节点、错误恢复和 locator 探针；当前组合要求 Python 3.10+。
+- 2026-11-22：M14-D 打包基线完成；pyproject.toml、uv.lock、Core package smoke workflow 双 Python 版本通过，254 项测试通过并构建 wheel/sdist。
