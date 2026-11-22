@@ -83,10 +83,17 @@ def validate_ledger_source_adapter(config: dict[str, Any]) -> dict[str, Any]:
     for field, value in constants.items():
         if field not in allowed or field in field_map:
             raise LedgerSourceAdapterError("invalid or duplicate constant field: %s" % field)
-        if isinstance(value, bool) or not isinstance(value, (str, int, float)) or not str(value).strip():
-            raise LedgerSourceAdapterError("constants.%s must be a non-empty scalar" % field)
+        if isinstance(value, bool) or not isinstance(value, (str, int)) or not str(value).strip():
+            raise LedgerSourceAdapterError("constants.%s must be a non-empty string or integer; floats are not accepted" % field)
 
     required = COMMON | (STOCK if config["ledger_kind"] == "stock" else GL)
+    incompatible = (GL if config["ledger_kind"] == "stock" else STOCK)
+    configured_fields = set(field_map) | set(constants)
+    wrong_kind = sorted(configured_fields.intersection(incompatible))
+    if wrong_kind:
+        raise LedgerSourceAdapterError(
+            "fields are incompatible with %s ledger: %s" %
+            (config["ledger_kind"], ", ".join(wrong_kind)))
     missing = sorted(required - (set(field_map) | set(constants)))
     if missing:
         raise LedgerSourceAdapterError("mapping missing required fields: %s" % ", ".join(missing))
@@ -107,11 +114,15 @@ def validate_ledger_source_adapter(config: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(value_maps, dict):
         raise LedgerSourceAdapterError("value_maps must be an object")
     for field, mapping in value_maps.items():
-        if field not in allowed or not isinstance(mapping, dict) or not mapping:
+        if field not in configured_fields or not isinstance(mapping, dict) or not mapping:
             raise LedgerSourceAdapterError("invalid value map for %s" % field)
         if any(not isinstance(k, str) or not isinstance(v, str) or not v.strip()
                for k, v in mapping.items()):
             raise LedgerSourceAdapterError("value map keys/values must be non-empty strings")
+        normalized_keys = [_norm(key) for key in mapping]
+        if len(set(normalized_keys)) != len(normalized_keys):
+            raise LedgerSourceAdapterError(
+                "value map for %s has keys that collide after normalization" % field)
     return config
 
 
@@ -207,13 +218,52 @@ def _decimal(value: Any, config: dict[str, Any], field: str) -> str:
     if text.startswith("(") and text.endswith(")"):
         if not fmt.get("negative_parentheses", False):
             raise LedgerSourceAdapterError("%s uses undeclared negative-parentheses format" % field)
-        text = "-" + text[1:-1].strip()
-    if fmt["thousands_separator"]:
-        text = text.replace(fmt["thousands_separator"], "")
-    if fmt["decimal_separator"] != ".":
-        text = text.replace(fmt["decimal_separator"], ".")
+        inner = text[1:-1].strip()
+        if inner.startswith(("+", "-")):
+            raise LedgerSourceAdapterError("%s has an invalid parenthesized sign" % field)
+        text = "-" + inner
+
+    decimal_sep = fmt["decimal_separator"]
+    thousands_sep = fmt["thousands_separator"]
+    exponent = ""
+    exponent_match = re.search(r"[eE][+-]?\d+$", text)
+    if exponent_match:
+        exponent = exponent_match.group(0)
+        text = text[:exponent_match.start()]
+    if text.count(decimal_sep) > 1:
+        raise LedgerSourceAdapterError("%s has multiple decimal separators" % field)
+    if decimal_sep in text:
+        integer_part, fraction_part = text.split(decimal_sep, 1)
+        if not fraction_part or not fraction_part.isdigit():
+            raise LedgerSourceAdapterError("%s has an invalid fractional part" % field)
+    else:
+        integer_part, fraction_part = text, None
+    sign = ""
+    if integer_part.startswith(("+", "-")):
+        sign, integer_part = integer_part[0], integer_part[1:]
+    if not integer_part:
+        raise LedgerSourceAdapterError("%s has no integer digits" % field)
+    if thousands_sep:
+        if thousands_sep in integer_part:
+            groups = integer_part.split(thousands_sep)
+            if (not groups[0].isdigit() or not 1 <= len(groups[0]) <= 3
+                    or any(len(group) != 3 or not group.isdigit() for group in groups[1:])):
+                raise LedgerSourceAdapterError("%s has invalid thousands grouping" % field)
+            integer_digits = "".join(groups)
+        else:
+            if not integer_part.isdigit():
+                raise LedgerSourceAdapterError("%s is not a valid decimal" % field)
+            integer_digits = integer_part
+    else:
+        if not integer_part.isdigit():
+            raise LedgerSourceAdapterError("%s is not a valid decimal" % field)
+        integer_digits = integer_part
+    normalized = sign + integer_digits
+    if fraction_part is not None:
+        normalized += "." + fraction_part
+    normalized += exponent
     try:
-        parsed = Decimal(text)
+        parsed = Decimal(normalized)
     except InvalidOperation:
         raise LedgerSourceAdapterError("%s is not a valid decimal" % field)
     if not parsed.is_finite():

@@ -281,6 +281,41 @@ class TestLedgerSourceAdapter(unittest.TestCase):
         with self.assertRaises(LedgerSourceAdapterError):
             validate_ledger_source_adapter(mapping)
 
+    def test_number_format_rejects_malformed_thousands_grouping(self):
+        mapping = stock_mapping()
+        with self.assertRaisesRegex(LedgerSourceAdapterError, "thousands grouping"):
+            from radar.ledger_source_adapter import _decimal
+            _decimal("1,2,3", mapping, "quantity_delta")
+
+    def test_number_format_supports_explicit_european_locale(self):
+        from radar.ledger_source_adapter import _decimal
+        mapping = stock_mapping()
+        mapping["number_format"] = {
+            "decimal_separator": ",", "thousands_separator": "."
+        }
+        self.assertEqual(_decimal("1.234,56", mapping, "stock_value_delta"), "1234.56")
+
+    def test_mapping_rejects_fields_for_the_other_ledger_kind(self):
+        mapping = stock_mapping()
+        mapping["field_map"]["account_id"] = "Account ID"
+        with self.assertRaisesRegex(LedgerSourceAdapterError, "incompatible"):
+            validate_ledger_source_adapter(mapping)
+
+    def test_value_map_rejects_normalized_key_collisions(self):
+        mapping = stock_mapping()
+        mapping["value_maps"]["posting_status"] = {
+            "Posted": "posted", "posted": "adjustment"
+        }
+        with self.assertRaisesRegex(LedgerSourceAdapterError, "collide"):
+            validate_ledger_source_adapter(mapping)
+
+    def test_numeric_float_constants_are_rejected(self):
+        mapping = stock_mapping()
+        mapping["constants"] = {"stock_value_delta": 0.1}
+        mapping["field_map"].pop("stock_value_delta")
+        with self.assertRaisesRegex(LedgerSourceAdapterError, "floats are not accepted"):
+            validate_ledger_source_adapter(mapping)
+
 
 if __name__ == "__main__":
     unittest.main()
