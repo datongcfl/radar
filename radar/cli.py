@@ -14,6 +14,7 @@ from . import __version__
 from .adapters import collect_gitee
 from .capabilities import CapabilityContext, CapabilityRegistry
 from .github_capability import GithubSourceCapability
+from .gitee_capability import GiteeSourceCapability
 from .fetch import fetch_sources
 from .snowball import snowball
 from .web import enrich_web
@@ -84,6 +85,38 @@ def _collect_github_via_registry(pack, limit_per_query, max_queries, token=None)
     return sources, warnings
 
 
+def _collect_gitee_via_registry(pack, limit_per_query, max_queries, token=None):
+    """Compose the Gitee source explicitly and execute it through the Core contract."""
+    registry = CapabilityRegistry()
+    registry.register(GiteeSourceCapability())
+    result = registry.execute(
+        "gitee",
+        CapabilityContext(
+            operation="discover",
+            inputs={"pack": pack},
+            parameters={
+                "limit_per_query": limit_per_query,
+                "max_queries": max_queries,
+                "token": token,
+            },
+        ),
+        kind="source",
+    )
+    sources = [dict(item) for item in result.records]
+    warnings = []
+    for warning in result.warnings:
+        message = warning.get("message")
+        if message:
+            warnings.append(str(message))
+    if result.status == "failed":
+        warnings.append("Gitee source capability failed (%s)" % (
+            (result.error or {}).get("code", "unknown_error")
+        ))
+    elif result.status == "unavailable":
+        warnings.append("Gitee source capability is unavailable")
+    return sources, warnings
+
+
 def cmd_run(args):
     if (args.github or args.gitee or args.snowball or args.fetch or args.web) and not shutil.which("curl"):
         raise RadarError("网络选项需要 curl；请先安装 curl，或去掉 --github/--gitee/--snowball/--fetch/--web")
@@ -98,9 +131,9 @@ def cmd_run(args):
         sources.extend(got)
         warnings.extend(warns)
     if args.gitee:
-        got, warns = collect_gitee(pack, limit_per_query=args.limit,
-                                   max_queries=args.max_queries,
-                                   token=_gitee_token())
+        got, warns = _collect_gitee_via_registry(
+            pack, limit_per_query=args.limit, max_queries=args.max_queries,
+            token=_gitee_token())
         sources.extend(got)
         warnings.extend(warns)
     if args.snowball:
