@@ -1,0 +1,63 @@
+name: Component candidate benchmarks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/requirement-driven-discovery
+    paths:
+      - "tools/benchmarks/**"
+      - ".github/workflows/component-benchmarks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pdf-candidates:
+    name: PDF candidate (${{ matrix.candidate }}, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - candidate: pypdf_6_21_4
+            python-version: "3.9"
+            package: "pypdf==6.21.4"
+          - candidate: pypdf_7_1_1
+            python-version: "3.13"
+            package: "pypdf==7.1.1"
+          - candidate: pdfplumber_0_11_11
+            python-version: "3.13"
+            package: "pdfplumber==0.11.11"
+          - candidate: pypdfium2_5_15_2
+            python-version: "3.9"
+            package: "pypdfium2==5.15.2"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install isolated benchmark tools
+        run: |
+          python -m pip install --disable-pip-version-check "reportlab==5.1.0" "${{ matrix.package }}"
+          mkdir -p benchmark-results
+          python -m pip freeze > "benchmark-results/${{ matrix.candidate }}-environment.txt"
+
+      - name: Run synthetic PDF benchmark
+        run: |
+          python tools/benchmarks/pdf_candidates.py \
+            --candidate "${{ matrix.candidate }}" \
+            --output "benchmark-results/${{ matrix.candidate }}.json"
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: "pdf-benchmark-${{ matrix.candidate }}"
+          path: benchmark-results/
+          if-no-files-found: error
+          retention-days: 30
