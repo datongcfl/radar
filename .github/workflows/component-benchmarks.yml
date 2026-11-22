@@ -15,22 +15,26 @@ permissions:
 jobs:
   pdf-candidates:
     name: PDF candidate (${{ matrix.candidate }}, Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - candidate: pypdf_6_21_4
             python-version: "3.9"
+            os: ubuntu-22.04
             package: "pypdf==6.21.4"
           - candidate: pypdf_7_1_1
             python-version: "3.13"
+            os: ubuntu-latest
             package: "pypdf==7.1.1"
           - candidate: pdfplumber_0_11_11
             python-version: "3.13"
+            os: ubuntu-latest
             package: "pdfplumber==0.11.11"
           - candidate: pypdfium2_5_15_2
             python-version: "3.9"
+            os: ubuntu-22.04
             package: "pypdfium2==5.15.2"
 
     steps:
