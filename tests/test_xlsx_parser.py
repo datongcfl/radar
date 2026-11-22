@@ -91,7 +91,8 @@ class TestXlsxPreflightAndOptionalBoundary(unittest.TestCase):
         with patch("builtins.__import__", side_effect=import_without_openpyxl):
             result = self.parse(make_minimal_xlsx())
         self.assertEqual(result.status, "unavailable")
-        self.assertEqual(result.warnings[0]["dependency"], "openpyxl")
+        expected_missing = "openpyxl" if importlib.util.find_spec("defusedxml") else "defusedxml"
+        self.assertEqual(result.warnings[0]["dependency"], expected_missing)
 
     def test_unsafe_xml_is_rejected_before_optional_import(self):
         xml = b'<!DOCTYPE x [<!ENTITY e "unsafe">]><workbook/>'
