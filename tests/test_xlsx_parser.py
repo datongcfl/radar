@@ -38,6 +38,7 @@ def make_workbook():
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Data"
+    workbook.create_sheet("Visible")
     sheet.append(["Item", "Amount"])
     sheet.append(["Steel", 10])
     sheet.append(["Copper", 20])
