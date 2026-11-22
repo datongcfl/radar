@@ -13,6 +13,7 @@ import zlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from .capabilities import CapabilityContext, CapabilityDescriptor, CapabilityResult
+from .xml_safety import contains_forbidden_xml_declarations
 
 
 class DocxParserError(ValueError):
@@ -108,10 +109,8 @@ class DocxDocumentParserCapability:
                         ratio = entry_actual / info.compress_size
                         if ratio > self.max_compression_ratio:
                             return "docx_compression_ratio_exceeded"
-                    if is_xml:
-                        upper = b"".join(chunks).upper()
-                        if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
-                            return "docx_unsafe_xml_declaration"
+                    if is_xml and contains_forbidden_xml_declarations(b"".join(chunks)):
+                        return "docx_unsafe_xml_declaration"
                 if "[Content_Types].xml" not in names or "word/document.xml" not in names:
                     return "invalid_docx_package"
         except (

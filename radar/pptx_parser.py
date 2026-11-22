@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib, io, re, zipfile, zlib
 from typing import Any, Dict, List, Optional
 from .capabilities import CapabilityContext, CapabilityDescriptor, CapabilityResult
+from .xml_safety import contains_forbidden_xml_declarations
 
 class PptxDocumentParserCapability:
     def __init__(self, max_bytes=30*1024*1024, max_zip_entries=4096,
@@ -72,8 +73,7 @@ class PptxDocumentParserCapability:
                     if info.compress_size and actual / info.compress_size > self.max_compression_ratio:
                         return "pptx_compression_ratio_exceeded"
                     if is_xml:
-                        upper = b"".join(chunks).upper()
-                        if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+                        if contains_forbidden_xml_declarations(b"".join(chunks)):
                             return "pptx_unsafe_xml_declaration"
                 if "[Content_Types].xml" not in names or "ppt/presentation.xml" not in names:
                     return "invalid_pptx_package"

@@ -72,6 +72,11 @@ class TestDocxPreflightAndOptionalBoundary(unittest.TestCase):
         result = self.parse(make_minimal_docx(xml))
         self.assertEqual(result.error["code"], "docx_unsafe_xml_declaration")
 
+    def test_utf16_dtd_is_rejected_before_optional_import(self):
+        xml = '<!DOCTYPE x [<!ENTITY e "unsafe">]><document/>'.encode("utf-16")
+        result = self.parse(make_minimal_docx(xml))
+        self.assertEqual(result.error["code"], "docx_unsafe_xml_declaration")
+
     def test_input_size_limit_is_enforced_without_optional_dependency(self):
         parser = DocxDocumentParserCapability(max_bytes=20)
         result = parser.execute(CapabilityContext(

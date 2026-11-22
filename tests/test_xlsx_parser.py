@@ -99,6 +99,11 @@ class TestXlsxPreflightAndOptionalBoundary(unittest.TestCase):
         result = self.parse(make_minimal_xlsx(xml))
         self.assertEqual(result.error["code"], "xlsx_unsafe_xml_declaration")
 
+    def test_utf16_dtd_is_rejected_before_optional_import(self):
+        xml = '<!DOCTYPE x [<!ENTITY e "unsafe">]><workbook/>'.encode("utf-16")
+        result = self.parse(make_minimal_xlsx(xml))
+        self.assertEqual(result.error["code"], "xlsx_unsafe_xml_declaration")
+
     def test_input_cell_and_sheet_limits(self):
         limited = XlsxDocumentParserCapability(max_bytes=20).execute(CapabilityContext(
             operation="parse",

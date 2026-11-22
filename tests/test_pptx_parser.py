@@ -41,6 +41,10 @@ class TestPptxPreflight(unittest.TestCase):
     def test_dtd_rejected_before_import(self):
         r=self.parse(minimal(b'<!DOCTYPE x [<!ENTITY e "x">]><p:presentation/>'))
         self.assertEqual(r.error["code"],"pptx_unsafe_xml_declaration")
+    def test_utf16_dtd_rejected_before_import(self):
+        xml='<!DOCTYPE x [<!ENTITY e "x">]><p:presentation/>'.encode("utf-16")
+        r=self.parse(minimal(xml))
+        self.assertEqual(r.error["code"],"pptx_unsafe_xml_declaration")
     def test_input_slide_and_extension_limits(self):
         r=PptxDocumentParserCapability(max_bytes=20).execute(CapabilityContext(
             operation="parse",inputs={"content":minimal(),"uri":"file:///x","filename":"x.pptx"}))
