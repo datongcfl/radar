@@ -27,7 +27,7 @@ A feature's existence is not proof that its quality, completeness, or end-to-end
 - Open Issues: #20, #11, #1, #2.
 - Visible branches: 19.
 - Protected main: enabled; changes must be delivered through PRs.
-- The current main tree contains Capability Registry, legacy Seeds/Claims flow, Discovery data model and store, GitHub discovery, repository asset inventory, PDF/DOCX/XLSX/PPTX parsers, parser CLI integration, and XML safety tests.
+- The current main tree contains Capability Registry, legacy Seeds/Claims flow, Discovery data model and store, legacy GitHub metadata discovery, repository asset inventory, PDF/DOCX/XLSX/PPTX parsers, parser CLI integration, and XML safety tests.
 
 ## 3. Recovered historical issue register
 
