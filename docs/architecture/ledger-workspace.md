@@ -46,4 +46,17 @@ radar ledger-control --input ledger-control-input.json --out ledger-control-resu
 - `ledger_manifests.jsonl`: explicit voucher extraction manifests.
 - `ledger_aggregation_rules.jsonl`: declared aggregation rules.
 
-No ERP adapter or automatic Discovery trigger is implied by these commands. Import is an explicit trust-boundary crossing; source completeness and ERP extraction semantics remain the responsibility of a future adapter and Pack-governed workflow.
+Discovery can invoke ledger controls only when the Pack explicitly declares `ledger_control.enabled=true` and `ledger_control.run_on_discover=true`. Otherwise the stage is recorded as skipped. A minimal opt-in declaration is:
+
+```json
+{
+  "ledger_control": {
+    "enabled": true,
+    "run_on_discover": true,
+    "reconciliation_tolerance": "0.01",
+    "voucher_tolerance": "0"
+  }
+}
+```
+
+No ERP adapter is implied: Discovery runs controls only over ledger records already imported into the Workspace. Source completeness and ERP extraction semantics remain the responsibility of a future adapter and Pack-governed workflow.

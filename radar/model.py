@@ -99,6 +99,20 @@ def load_pack(path):
     for key in ("schema_version", "pack", "version", "title", "modules", "subsystems"):
         _require(key in data, "pack 缺少字段 %s" % key)
     _require(data.get("schema_version") == 1, "pack.schema_version 必须是 1")
+    if "ledger_control" in data:
+        ledger_control = data["ledger_control"]
+        _require(isinstance(ledger_control, dict), "pack.ledger_control 必须是对象")
+        _require(isinstance(ledger_control.get("enabled"), bool),
+                 "pack.ledger_control.enabled 必须是 boolean")
+        _require(isinstance(ledger_control.get("run_on_discover"), bool),
+                 "pack.ledger_control.run_on_discover 必须是 boolean")
+        _require(not ledger_control["run_on_discover"] or ledger_control["enabled"],
+                 "pack.ledger_control.run_on_discover=true requires enabled=true")
+        for tolerance in ("reconciliation_tolerance", "voucher_tolerance"):
+            if tolerance in ledger_control:
+                _require(isinstance(ledger_control[tolerance], (str, int, float))
+                         and not isinstance(ledger_control[tolerance], bool),
+                         "pack.ledger_control.%s must be a decimal value" % tolerance)
     _require(str(data.get("pack", "")).strip(), "pack.pack 不能为空")
     _require(str(data.get("title", "")).strip(), "pack.title 不能为空")
     _require(isinstance(data["modules"], list) and data["modules"], "pack.modules 至少 1 条")

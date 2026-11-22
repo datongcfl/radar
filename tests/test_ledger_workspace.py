@@ -3,7 +3,8 @@ import unittest
 
 from radar.discovery import new_record
 from radar.discovery_store import JsonWorkspaceStore, StorageError
-from radar.ledger_workspace import import_ledger_bundle, load_ledger_bundle
+from radar.ledger_workspace import (import_ledger_bundle, load_ledger_bundle,
+                                     run_workspace_ledger_control)
 
 
 class TestLedgerWorkspace(unittest.TestCase):
@@ -66,6 +67,33 @@ class TestLedgerWorkspace(unittest.TestCase):
             with self.assertRaises(StorageError):
                 import_ledger_bundle(store, bundle)
             self.assertEqual(store.list_records("ledger_effect"), [])
+
+    def test_pack_opt_in_runs_workspace_pipeline_and_saves_snapshot(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            store, evidence = self._store(tmp)
+            bundle = self._bundle(evidence)
+            bundle["aggregation_rules"] = []
+            import_ledger_bundle(store, bundle)
+            result = run_workspace_ledger_control(store, {
+                "enabled": True, "run_on_discover": True,
+                "reconciliation_tolerance": "0.01", "voucher_tolerance": "0"
+            })
+            self.assertEqual(result["status"], "succeeded")
+            snapshot = json.loads(store.read_snapshot(result["snapshot_sha256"]))
+            self.assertEqual(snapshot["summary"]["ledger_effects_accepted"], 1)
+
+    def test_pack_must_explicitly_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store, evidence = self._store(tmp)
+            bundle = self._bundle(evidence)
+            bundle["aggregation_rules"] = []
+            import_ledger_bundle(store, bundle)
+            result = run_workspace_ledger_control(store, {
+                "enabled": False, "run_on_discover": False
+            })
+            self.assertEqual(result, {"status": "skipped",
+                                      "reason": "pack_opt_in_disabled"})
 
     def test_store_rejects_ledger_effect_with_mismatched_locator(self):
         with tempfile.TemporaryDirectory() as tmp:

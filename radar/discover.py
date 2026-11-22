@@ -16,6 +16,7 @@ from .github_discovery import discover_github
 from .business_graph import validate_business_model
 from .business_invariants import validate_observation_bundle, evaluate_business_invariants
 from .business_observation_extractor import extract_table_observations
+from .ledger_workspace import run_workspace_ledger_control
 
 
 def _now() -> str:
@@ -230,6 +231,8 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
             1 for item in evaluation_rows if item["outcome"] == "fail")
         observation_summary = observation_bundle["summary"]
 
+    ledger_control_result = run_workspace_ledger_control(store, pack.get("ledger_control"))
+
     run = new_record("discovery_run", workspace_id=workspace_id, status="partial"
                      if converted["pending_quotes"] or github_result["warnings"] else "succeeded",
         requirement_refs=[{"requirement_id": r["id"], "version": r["version"]} for r in requirements],
@@ -247,6 +250,8 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
             {"name": "extract_business_observations",
              "status": "succeeded" if observation_bundle is not None else ("skipped" if not business_model or not github else "no_matching_tables"),
              "errors": []},
+            {"name": "ledger_control", "status": ledger_control_result["status"],
+             "errors": [ledger_control_result["reason"]] if ledger_control_result.get("reason") else []},
             {"name": "assess_requirements", "status": "succeeded"},
             {"name": "locate_legacy_quotes", "status": "partial" if converted["pending_quotes"] else "succeeded",
              "errors": ["legacy quote lacks precise locator"] if converted["pending_quotes"] else []},
@@ -264,12 +269,14 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
                 "business_observation_skipped_rows": observation_summary["skipped_rows"],
                 "business_invariant_evaluations": observation_summary.get("invariant_evaluations", 0),
                 "business_invariant_passes": observation_summary.get("invariant_passes", 0),
-                "business_invariant_failures": observation_summary.get("invariant_failures", 0)},
+                "business_invariant_failures": observation_summary.get("invariant_failures", 0),
+                "ledger_control_runs": 1 if ledger_control_result["status"] == "succeeded" else 0,
         errors=list(github_result["warnings"]), parameters={"pack_path": str(pack_path), "pack_sha256": pack_digest,
                                "seeds_path": str(seeds_path), "seeds_sha256": sha256_file(seeds_path),
                                "requirements_path": str(requirements_path),
                                "requirements_sha256": sha256_file(requirements_path),
-                               "github_enabled": bool(github), "github_limit": github_limit},
+                               "github_enabled": bool(github), "github_limit": github_limit,
+                               "ledger_control": ledger_control_result},
         radar_version=__version__).to_dict()
 
     if observation_bundle is not None:
@@ -309,6 +316,7 @@ def run_discovery(workspace_id: str, requirements_path: str, pack_path: str,
         "counts": run["counts"], "warnings": github_result["warnings"],
         "business_observations_path": str(observation_bundle_path) if observation_bundle_path else None,
         "business_observations": observation_summary,
+        "ledger_control": ledger_control_result,
         "assessments": [{"requirement_key": r["key"], "status": a["overall_status"],
                          "candidate_assets": len(candidate_assets[r["id"]]),
                          "evidence": len(a["evidence_ids"])}

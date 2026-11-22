@@ -21,6 +21,7 @@ class TestDiscoverWorkflow(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = run_discovery("ws_discover_test", requirements, pack, seeds, tmp)
             self.assertEqual(result["run_status"], "partial")
+            self.assertEqual(result["ledger_control"], {"status": "skipped", "reason": "pack_opt_in_absent"})
             self.assertEqual(result["counts"]["assets"], 35)
             self.assertEqual(result["counts"]["pending_quotes"], 23)
             self.assertEqual(len(result["assessments"]), 5)

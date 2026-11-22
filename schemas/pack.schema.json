@@ -13,7 +13,18 @@
     "modules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/module"}},
     "subsystems": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/subsystem"}},
     "source_map": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
-    "query_templates": {"type": "array", "items": {"type": "string"}}
+    "query_templates": {"type": "array", "items": {"type": "string"}},
+    "ledger_control": {
+      "type": "object",
+      "required": ["enabled", "run_on_discover"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "run_on_discover": {"type": "boolean"},
+        "reconciliation_tolerance": {"type": ["string", "number"]},
+        "voucher_tolerance": {"type": ["string", "number"]}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": true,
   "$defs": {

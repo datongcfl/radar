@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Any
 from .discovery import new_record, validate_record
 from .discovery_store import JsonWorkspaceStore, StorageError
+from .ledger_control_pipeline import run_ledger_control_pipeline
+import json
 
 
 def import_ledger_bundle(store: JsonWorkspaceStore, bundle: dict[str, Any]) -> dict[str, int]:
@@ -101,6 +103,37 @@ def import_ledger_bundle(store: JsonWorkspaceStore, bundle: dict[str, Any]) -> d
     return {"ledger_effects": len(bundle["ledger_effects"]),
             "extraction_manifests": len(bundle["extraction_manifests"]),
             "aggregation_rules": len(bundle["aggregation_rules"])}
+
+
+
+def run_workspace_ledger_control(store: JsonWorkspaceStore,
+                                 config: dict[str, Any] | None) -> dict[str, Any]:
+    """Run controls during Discovery only when the Pack explicitly opts in."""
+    if config is None:
+        return {"status": "skipped", "reason": "pack_opt_in_absent"}
+    if not isinstance(config, dict):
+        raise StorageError("Pack ledger_control must be an object")
+    enabled = config.get("enabled")
+    run_on_discover = config.get("run_on_discover")
+    if not isinstance(enabled, bool) or not isinstance(run_on_discover, bool):
+        raise StorageError("Pack ledger_control requires boolean enabled and run_on_discover")
+    if not enabled or not run_on_discover:
+        return {"status": "skipped", "reason": "pack_opt_in_disabled"}
+    has_records = any(store.list_records(kind) for kind in (
+        "ledger_effect", "ledger_manifest", "ledger_aggregation_rule"))
+    if not has_records:
+        return {"status": "skipped", "reason": "no_workspace_ledger_records"}
+
+    bundle = load_ledger_bundle(store)
+    result = run_ledger_control_pipeline(
+        bundle["ledger_effects"], bundle["evidence_records"],
+        bundle["extraction_manifests"], bundle["aggregation_rules"],
+        reconciliation_tolerance=config.get("reconciliation_tolerance", "0.01"),
+        voucher_tolerance=config.get("voucher_tolerance", "0"))
+    digest = store.save_snapshot(json.dumps(
+        result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    return {"status": "succeeded", "snapshot_sha256": digest,
+            "summary": result["summary"]}
 
 
 def load_ledger_bundle(store: JsonWorkspaceStore) -> dict[str, Any]:
