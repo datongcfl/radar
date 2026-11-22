@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 import zipfile
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -55,17 +55,17 @@ class TestParserCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "guide.txt"
             path.write_text("too large", encoding="utf-8")
-            code, result = self.invoke([
-                "parse", "--file", str(path), "--max-bytes", "2"
-            ])
+            output = io.StringIO()
+            with redirect_stderr(output):
+                code = main(["parse", "--file", str(path), "--max-bytes", "2"])
         self.assertEqual(code, 1)
-        self.assertIn("--max-bytes", result["error"])
+        self.assertIn("--max-bytes", output.getvalue())
 
     def test_missing_file_returns_cli_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "missing.md"
             output = io.StringIO()
-            with redirect_stdout(output):
+            with redirect_stderr(output):
                 code = main(["parse", "--file", str(path)])
         self.assertEqual(code, 1)
         self.assertIn("input file does not exist", output.getvalue())
