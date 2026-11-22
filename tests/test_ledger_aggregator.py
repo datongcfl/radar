@@ -73,11 +73,11 @@ class TestLedgerAggregator(unittest.TestCase):
 
     def test_missing_dimensions_are_skipped_not_guessed(self):
         row = self._stock("S1", "E1", 2)
-        row["warehouse_id"] = ""
         result = aggregate_ledger_effects([row], [self._evidence("E1", 2)], [{
             "id": "stock_qty", "ledger_kind": "stock", "metric": "quantity_delta",
             "output_field": "qty", "group_by": [
-                "company_id", "currency", "item_id", "warehouse_id", "quantity_uom"]}])[0]
+                "company_id", "currency", "item_id", "warehouse_id",
+                "quantity_uom", "posting_period"]}])[0]
         self.assertEqual(result["results"], [])
         self.assertEqual(result["skipped"][-1]["reason"], "missing_ledger_group_dimension")
 
