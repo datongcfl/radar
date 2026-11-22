@@ -9,6 +9,7 @@ import hashlib
 import io
 import re
 import zipfile
+import zlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from .capabilities import CapabilityContext, CapabilityDescriptor, CapabilityResult
@@ -101,7 +102,8 @@ class DocxDocumentParserCapability:
                             return "docx_unsafe_xml_declaration"
                 if "[Content_Types].xml" not in names or "word/document.xml" not in names:
                     return "invalid_docx_package"
-        except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, RuntimeError):
+        except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, RuntimeError,
+                EOFError, ValueError, zlib.error):
             return "invalid_docx_package"
         return None
 
