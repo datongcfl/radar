@@ -128,7 +128,7 @@ class TestModel(unittest.TestCase):
         seeds = load_seeds(ROOT / "seeds/pet-hospital.json", pack)
         self.assertEqual(len(pack["modules"]), 6)
         self.assertEqual(len(pack["subsystems"]), 6)
-        self.assertEqual(len(seeds), 3)
+        self.assertEqual(len(seeds), 22)
 
     def test_data_center_pack_valid(self):
         pack = load_pack(ROOT / "packs/data-center-ops/pack.json")
@@ -887,6 +887,13 @@ class TestAudit(unittest.TestCase):
                                "--expect-strong", "9", "--expect-evidence", "20"],
                               capture_output=True, text=True, timeout=30)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        proc_ph = subprocess.run([sys.executable, str(ROOT / "tools/audit_ledger.py"),
+                                  "--pack", "packs/pet-hospital/pack.json",
+                                  "--seeds", "seeds/pet-hospital.json",
+                                  "--run", "runs/pet-hospital-demo",
+                                  "--expect-strong", "12", "--expect-evidence", "0"],
+                                 capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc_ph.returncode, 0, proc_ph.stdout + proc_ph.stderr)
 
     def test_ledger_audit_missing_run_fails(self):
         proc = subprocess.run([sys.executable, str(ROOT / "tools/audit_ledger.py"),

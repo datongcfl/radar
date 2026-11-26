@@ -94,7 +94,7 @@ python3 -m radar run \
   --out runs/pet-hospital-demo
 ```
 
-同一套代码，换 pack 就能跑；弱电和宠物医院互不写死。
+同一套代码，换 pack 就能跑；弱电和宠物医院互不写死。`pet-hospital` 现已扩充为 **22 条真实公开来源**（12 strong / 0 none，基线见 [docs/BASELINE-PET-HOSPITAL.md](docs/BASELINE-PET-HOSPITAL.md)）。
 
 ## 弱电 pack 现状（v1.7.0）
 

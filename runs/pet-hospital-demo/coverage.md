@@ -2,59 +2,84 @@
 
 | 层级 | 数量 |
 | --- | ---: |
-| none | 6 |
-| mention | 6 |
+| none | 0 |
+| mention | 0 |
 | evidence | 0 |
-| strong | 0 |
+| strong | 12 |
 
 ## 管理模块
 
-### M01 预约与接诊 — mention
+### M01 预约与接诊 — strong
 
 | 来源 | 平台 | 等级 | 许可 | 访问 |
 | --- | --- | --- | --- | --- |
-| `VET-001` | web | mention | unknown | public |
-| `VET-002` | web | mention | unknown | public |
+| `PH-001` | github | strong | AGPL-3.0 | public |
+| `PH-003` | github | strong | MIT | public |
+| `PH-004` | github | strong | MIT | public |
+| `PH-007` | github | strong | Apache-2.0 | public |
+| `PH-008` | gitee | strong | unknown | public |
+| `PH-009` | docs | strong | EPL-2.0 | public |
+| `PH-010` | web | strong | MIT | public |
+| `PH-011` | web | strong | GPL-3.0 | public |
+| `PH-018` | web | strong | unknown | public |
 
-### M02 病历与诊断 — mention
-
-| 来源 | 平台 | 等级 | 许可 | 访问 |
-| --- | --- | --- | --- | --- |
-| `VET-001` | web | mention | unknown | public |
-| `VET-002` | web | mention | unknown | public |
-
-### M03 处方与药品 — mention
-
-| 来源 | 平台 | 等级 | 许可 | 访问 |
-| --- | --- | --- | --- | --- |
-| `VET-003` | web | mention | unknown | public |
-
-### M04 收费与保险 — mention
+### M02 病历与诊断 — strong
 
 | 来源 | 平台 | 等级 | 许可 | 访问 |
 | --- | --- | --- | --- | --- |
-| `VET-002` | web | mention | unknown | public |
+| `PH-001` | github | strong | AGPL-3.0 | public |
+| `PH-003` | github | strong | MIT | public |
+| `PH-006` | github | strong | Apache-2.0 | public |
+| `PH-015` | web | strong | proprietary | public |
 
-### M05 库存与疫苗 — mention
-
-| 来源 | 平台 | 等级 | 许可 | 访问 |
-| --- | --- | --- | --- | --- |
-| `VET-003` | web | mention | unknown | public |
-
-### M06 复诊与随访 — mention
+### M03 处方与药品 — strong
 
 | 来源 | 平台 | 等级 | 许可 | 访问 |
 | --- | --- | --- | --- | --- |
-| `VET-001` | web | mention | unknown | public |
+| `PH-001` | github | strong | AGPL-3.0 | public |
+| `PH-006` | github | strong | Apache-2.0 | public |
+| `PH-011` | web | strong | GPL-3.0 | public |
+| `PH-015` | web | strong | proprietary | public |
+
+### M04 收费与保险 — strong
+
+| 来源 | 平台 | 等级 | 许可 | 访问 |
+| --- | --- | --- | --- | --- |
+| `PH-002` | web | strong | AGPL-3.0 | public |
+| `PH-010` | web | strong | MIT | public |
+| `PH-013` | web | strong | proprietary | public |
+| `PH-017` | web | strong | proprietary | public |
+| `PH-018` | web | strong | unknown | public |
+
+### M05 库存与疫苗 — strong
+
+| 来源 | 平台 | 等级 | 许可 | 访问 |
+| --- | --- | --- | --- | --- |
+| `PH-002` | web | strong | AGPL-3.0 | public |
+| `PH-003` | github | strong | MIT | public |
+| `PH-011` | web | strong | GPL-3.0 | public |
+| `PH-018` | web | strong | unknown | public |
+| `PH-019` | docs | evidence | unknown | public |
+| `PH-021` | docs | evidence | proprietary | public |
+
+### M06 复诊与随访 — strong
+
+| 来源 | 平台 | 等级 | 许可 | 访问 |
+| --- | --- | --- | --- | --- |
+| `PH-004` | github | strong | MIT | public |
+| `PH-015` | web | strong | proprietary | public |
+| `PH-017` | web | strong | proprietary | public |
+| `PH-019` | docs | evidence | unknown | public |
+| `PH-021` | docs | evidence | proprietary | public |
 
 ## 子系统
 
-- **S01 门诊** — none（0 个来源）
-- **S02 住院** — none（0 个来源）
-- **S03 手术** — none（0 个来源）
-- **S04 影像** — none（0 个来源）
-- **S05 检验** — none（0 个来源）
-- **S06 宠主门户** — none（0 个来源）
+- **S01 门诊** — strong（5 个来源）
+- **S02 住院** — strong（2 个来源）
+- **S03 手术** — strong（3 个来源）
+- **S04 影像** — strong（4 个来源）
+- **S05 检验** — strong（3 个来源）
+- **S06 宠主门户** — strong（4 个来源）
 
 ## 同源待印证
 
