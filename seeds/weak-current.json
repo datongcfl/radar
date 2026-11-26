@@ -1005,6 +1005,186 @@
       ],
       "status": "needs_review",
       "why_selected": "通用底座：国标，补综合布线设计依据"
+    },
+    {
+      "id": "SRC-036",
+      "platform": "gitee",
+      "url": "https://gitee.com/eywe-butler/eywe",
+      "title": "Eywe 项目管理系统",
+      "artifact_type": "code",
+      "language": "zh",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "MIT",
+      "license_status": "clear",
+      "evidence_level": "real_artifact",
+      "derived_from_real_data": false,
+      "stars": 111,
+      "covers": [
+        "M02"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model"
+      ],
+      "quotes": [
+        "适配敏捷 Scrum、IPD 研发、传统研发项目管控，覆盖需求、立项、任务、看板、甘特图、测试缺陷、合同预算、资源负载全链路。"
+      ],
+      "quote_verified": "unknown",
+      "limitations": "偏通用研发与外包项目管理，非弱电施工专用；未审计全部 Java 源码与单元测试。",
+      "status": "selected",
+      "why_selected": "MIT 开源企业级项目管理系统（Spring Boot + Vue 3），覆盖立项审批、项目全生命周期阶段与台账管控，补齐 M02 开源代码与工件证据。"
+    },
+    {
+      "id": "SRC-037",
+      "platform": "web",
+      "url": "https://sourceforge.net/projects/project-open/",
+      "title": "]project-open[ - Project Server",
+      "artifact_type": "code",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "GPL-2.0",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "M02"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model"
+      ],
+      "quotes": [
+        "Target organizations are companies or corporate departments that need to track finances, tasks, and resources for a large number of concurrently running projects.",
+        "]project-open[ is Web based enterprise project management application with a focus on finance and collaboration.",
+        "It’s main purpose is to coordinate the work of project managers, project members and stake holders across multiple projects.",
+        "Configurable workflows allow to control the life-cycle of all important objects",
+        "Dynamic fields and value ranges allow to extend all important business objects"
+      ],
+      "quote_verified": "unknown",
+      "limitations": "SourceForge 页面标注 GNU General Public License version 2.0 (GPLv2), Other License，含商业扩展，需人工复核；通用企业项目管理，非弱电专用。",
+      "status": "selected",
+      "why_selected": "生产级开源多项目与项目组合管理系统（]project-open[），支持项目台账追踪与可配置生命周期工作流，与 Gitee Eywe 形成不同 host 独立互证。"
+    },
+    {
+      "id": "SRC-038",
+      "platform": "docs",
+      "url": "https://www.openproject.org/docs/user-guide/projects/project-initiation-request/",
+      "title": "Project initiation request (Enterprise add-on) - OpenProject",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "proprietary",
+      "license_status": "proprietary",
+      "evidence_level": "docs",
+      "derived_from_real_data": false,
+      "covers": [
+        "M02"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "interaction"
+      ],
+      "quotes": [
+        "Instead of manually configuring each project from scratch, the wizard guides you through a defined sequence of steps to collect essential information and apply a consistent project setup.",
+        "A generated PDF artifact with all submitted information attached for reference and audit purposes",
+        "Before using the project initiation request, you need at least one project that is configured as a basis for the project initiation process.",
+        "Once all required fields are completed, click Complete to submit the project initiation request.",
+        "Once submitted, the responsible person can proceed with reviewing and processing the project initiation request."
+      ],
+      "quote_verified": "unknown",
+      "limitations": "文档页声明 All rights reserved 且 Project initiation request 属 Enterprise 商业增强功能，仅作流程参考，不可直接复用实现。",
+      "status": "selected",
+      "why_selected": "OpenProject 官方文档详述立项请求向导（Project Initiation Request）、立项模板、审批流与 PDF 立项工件归档，补齐 M02 立项规范。"
+    },
+    {
+      "id": "SRC-039",
+      "platform": "web",
+      "url": "https://networkupstools.org/",
+      "title": "Network UPS Tools - Welcome",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "GPL",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S04"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "The primary goal of the Network UPS Tools (NUT) project is to provide support for Power Devices, such as Uninterruptible Power Supplies, Power Distribution Units, Automatic Transfer Switches, Power Supply Units and Solar Controllers.",
+        "As of this publication, at least 201 different manufacturers, and 1442 hardware device models are known as compatible"
+      ],
+      "quote_verified": "unknown",
+      "limitations": "官网首页声明 GNU Public License (GPL) 但未标明具体版本号，需复核；偏 UPS/PDU 电源设备监控与协议，不含机房精密空调与机房布局。",
+      "status": "selected",
+      "why_selected": "生产级开源 UPS/PDU 监控系统（Network UPS Tools），兼容 201 家厂商 1442 款电源设备，直接支撑 S04 机房 UPS 监控与设备建模。"
+    },
+    {
+      "id": "SRC-040",
+      "platform": "web",
+      "url": "https://packages.debian.org/bookworm/apcupsd",
+      "title": "Debian -- Details of package apcupsd in bookworm",
+      "artifact_type": "code",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "unknown",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S04"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "apcupsd provides UPS power management for APC products, including most BackUPS series models (including USB), SmartUPS V/S, SmartUPS (NET/RM), and Matrix series.",
+        "It controls and monitors the status of UPS and allows your computer to run for a specified length of time on UPS power, and then executes a controlled shutdown in the case of an extended power failure."
+      ],
+      "quote_verified": "unknown",
+      "limitations": "Debian 软件包页未内联完整许可证正文（上游 apcupsd 为 GPL-2.0，需复核）；聚焦 APC UPS 监控与断电关机，不含机房装修与精密空调。",
+      "status": "selected",
+      "why_selected": "Debian 稳定版收录的生产级 APC UPS 监控守护进程（apcupsd），与 NUT 形成不同 host 的独立生产级互证，覆盖 S04 机房/UPS。"
+    },
+    {
+      "id": "SRC-041",
+      "platform": "docs",
+      "url": "https://docs.netbox.dev/en/stable/models/dcim/powerfeed/",
+      "title": "Power Feed | NetBox Labs Docs",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "unknown",
+      "license_status": "needs_review",
+      "evidence_level": "docs",
+      "derived_from_real_data": false,
+      "covers": [
+        "S04"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "boundary_conditions"
+      ],
+      "quotes": [
+        "In redundant environments, each power feed can be designated as providing either primary or redundant power. (In environment with only one power source, all power feeds should be designated as primary.)",
+        "The power utilization of a rack is calculated when one or more power feeds are assigned to the rack and connected to devices that draw power."
+      ],
+      "quote_verified": "unknown",
+      "limitations": "文档页未显式声明文档许可证（NetBox 源码为 Apache-2.0，需复核）；侧重 DCIM 机柜配电与功率利用率建模，不含蓄电池后备时长选型。",
+      "status": "selected",
+      "why_selected": "NetBox DCIM 官方文档详述机房配电柜、供电馈线主备冗余、机柜配电与安全负载上限（80%），补齐 S04 机房配电与机柜维度。"
     }
   ]
 }

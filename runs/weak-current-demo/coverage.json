@@ -22,15 +22,19 @@
       "id": "M02",
       "name": "立项与项目台账",
       "kind": "module",
-      "level": "none",
-      "source_count": 0,
-      "evidence_count": 0,
-      "independent_count": 0,
-      "verified_count": 0,
-      "verified_independent_count": 0,
-      "sources": [],
-      "strongest": null,
-      "reusable": false,
+      "level": "strong",
+      "source_count": 3,
+      "evidence_count": 3,
+      "independent_count": 3,
+      "verified_count": 3,
+      "verified_independent_count": 3,
+      "sources": [
+        "SRC-036",
+        "SRC-037",
+        "SRC-038"
+      ],
+      "strongest": "SRC-037",
+      "reusable": true,
       "single_source": false
     },
     {
@@ -321,14 +325,18 @@
       "id": "S04",
       "name": "机房/UPS",
       "kind": "subsystem",
-      "level": "none",
-      "source_count": 0,
-      "evidence_count": 0,
-      "independent_count": 0,
-      "verified_count": 0,
-      "verified_independent_count": 0,
-      "sources": [],
-      "strongest": null,
+      "level": "strong",
+      "source_count": 3,
+      "evidence_count": 3,
+      "independent_count": 3,
+      "verified_count": 3,
+      "verified_independent_count": 3,
+      "sources": [
+        "SRC-039",
+        "SRC-040",
+        "SRC-041"
+      ],
+      "strongest": "SRC-040",
       "reusable": false,
       "single_source": false
     },
@@ -671,16 +679,16 @@
     }
   ],
   "summary": {
-    "none": 6,
+    "none": 4,
     "mention": 8,
     "evidence": 20,
-    "strong": 3
+    "strong": 5
   },
-  "sources": 35,
+  "sources": 41,
   "platforms": {
-    "gitee": 5,
-    "web": 4,
+    "gitee": 6,
+    "web": 7,
     "github": 25,
-    "docs": 1
+    "docs": 3
   }
 }

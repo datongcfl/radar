@@ -8,8 +8,7 @@ import subprocess
 import urllib.parse
 
 CLEAR_LICENSES = {"MIT", "Apache-2.0", "BSD-3-Clause", "BSD-2-Clause", "0BSD",
-                  "ISC", "MPL-2.0", "GPL-2.0", "GPL-3.0", "LGPL-3.0",
-                  "PostgreSQL", "Unlicense", "CC0-1.0"}
+                  "ISC", "MPL-2.0", "PostgreSQL", "Unlicense", "CC0-1.0"}
 
 
 def _curl_json(url, token=None, accept="application/json"):
@@ -58,7 +57,7 @@ def github_search(query, pack, limit=3, token=None, id_offset=0):
     if not isinstance(data, dict) or "items" not in data:
         return [], "GitHub 返回异常: %s" % str(data)[:200]
     out = []
-    for i, item in enumerate(data.get("items", [])):
+    for item in data.get("items", []):
         desc = item.get("description") or ""
         text = " ".join([item.get("full_name", ""), desc] + list(item.get("topics") or []))
         covers = infer_covers(text, pack)
@@ -66,7 +65,7 @@ def github_search(query, pack, limit=3, token=None, id_offset=0):
             continue
         lic = (item.get("license") or {}).get("spdx_id") or "unknown"
         out.append({
-            "id": "GH-%03d" % (id_offset + i + 1),
+            "id": "GH-%03d" % (id_offset + len(out) + 1),
             "platform": "github",
             "url": item.get("html_url", ""),
             "title": item.get("full_name", ""),
@@ -106,14 +105,14 @@ def collect_github(pack, limit_per_query=3, max_queries=3, token=None):
 
 def parse_gitee_items(items, pack, query, id_offset=0):
     out = []
-    for i, item in enumerate(items or []):
+    for item in items or []:
         text = " ".join([item.get("full_name", ""), item.get("description") or ""])
         covers = infer_covers(text, pack)
         if not covers:
             continue
         lic = item.get("license") if isinstance(item.get("license"), str) else "unknown"
         out.append({
-            "id": "GT-%03d" % (id_offset + i + 1),
+            "id": "GT-%03d" % (id_offset + len(out) + 1),
             "platform": "gitee",
             "url": item.get("html_url", ""),
             "title": item.get("full_name", ""),
