@@ -4,12 +4,12 @@
 
 | 项 | 值 |
 | --- | ---: |
-| 公开来源 | 41 |
-| selected / needs_review | 36 / 5 |
+| 公开来源 | 53 |
+| selected / needs_review | 45 / 8 |
 | 模块 / 子系统 | 14 / 23 |
-| strong / evidence / mention / none | **5 / 20 / 8 / 4** |
+| strong / evidence / mention / none | **9 / 20 / 8 / 0** |
 | 单源单元 | 11 |
-| 无证据单元 | 4（S09、S11、S14、S22） |
+| 无证据单元 | 0（已清零） |
 
 对应产物：`runs/weak-current-demo/`。  
 `state.json` 的 `seeds_sha256` / `pack_sha256` 与仓库内文件逐位一致。
@@ -31,7 +31,7 @@
 - M01 恢复：SRC-008 从 SSL 失败的 docs 换成 OpenProject GitHub README，成为第二个验证通过的独立 host；
 - **M02 仍为 none**：SRC-001 的“全链条”是概括，不直接证明立项单/台账/项目阶段，不能挂 covers；
 - **M10 补证据**：SRC-012 补真实“竣工验收/资料”段落，从 mention 升 evidence；
-- 2026-11-26 补齐 `M02`（`SRC-036` Eywe / `SRC-037` ]project-open[ / `SRC-038` OpenProject 立项向导）与 `S04`（`SRC-039` NUT / `SRC-040` Debian `apcupsd` / `SRC-041` NetBox PowerFeed），各自达到 3 个独立 host 联网验真；结果升至 **5 strong（M01/M02/M06/M13/S04）/ 20 evidence / 8 mention / 4 none**；
+- 2026-11-26 补齐 `M02`（`SRC-036` Eywe / `SRC-037` ]project-open[ / `SRC-038` OpenProject 立项向导）与 `S04`（`SRC-039` NUT / `SRC-040` Debian `apcupsd` / `SRC-041` NetBox PowerFeed），以及最后 4 个无证据子系统 `S09`（`SRC-042`~`SRC-044`）、`S11`（`SRC-045`~`SRC-047`）、`S14`（`SRC-048`~`SRC-050`）、`S22`（`SRC-051`~`SRC-053`），各自达到 3 个独立 host 联网验真；结果升至 **9 strong（M01/M02/M06/M13/S04/S09/S11/S14/S22）/ 20 evidence / 8 mention / 0 none**；
 - 验证器修复了 Markdown 链接和 GitHub description 的误判，5 条真实 quote 恢复；4 条数据 quote 按原文修正/降级。
 
 ## strong 的集中度
@@ -41,12 +41,7 @@
 
 ## 真实缺口
 
-无证据：
-
-- `S09` 电子巡更
-- `S11` 环境监控
-- `S14` 信息发布
-- `S22` 客控系统
+无证据：无（`M02`、`S04`、`S09`、`S11`、`S14`、`S22` 已全部补证至 `strong`）。
 
 单源：`M07`、`M10`、`M11`、`S07`、`S08`、`S15`、`S16`、`S17`、`S18`、`S21`、`S23`。
 

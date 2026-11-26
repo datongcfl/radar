@@ -98,9 +98,9 @@ python3 -m radar run \
 
 ## 弱电 pack 现状（v1.7.0）
 
-- **41 条公开来源**：36 selected / 5 needs_review；
-- 覆盖：**5 strong / 20 evidence / 8 mention / 4 none**（strong：M01/M02/M06/M13/S04）；
-- 11 个单源、8 个同源待印证、4 个无证据（S09/S11/S14/S22）；`gaps.md` 有真实缺口，不再写“无缺口”；
+- **53 条公开来源**：45 selected / 8 needs_review；
+- 覆盖：**9 strong / 20 evidence / 8 mention / 0 none**（strong：M01/M02/M06/M13/S04/S09/S11/S14/S22）；
+- 11 个单源、8 个同源待印证、0 个无证据；`gaps.md` 收敛至单源待印证与 mention，不再存在空白模块；
 - 审计：无 `covers ≥5` 的万金油来源、无 <40 字的空壳 quote；
 - 来源包含弱电工程系统、报价/成本、设备台账、楼宇自控、视频、停车、IPTV、背景音乐、监控、工单等；
 - 完整基线：[docs/BASELINE.md](docs/BASELINE.md)。

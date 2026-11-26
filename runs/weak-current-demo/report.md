@@ -1,19 +1,19 @@
 # 弱电管理系统 · 雷达运行报告
 
-Run: `20261126-085533` · Pack: `weak-current` v0.1.0 · Radar: v1.7.0
+Run: `20261126-093238` · Pack: `weak-current` v0.1.0 · Radar: v1.7.0
 
 ## 一句话
 
-本次用 41 条来源，覆盖 14 个管理模块 + 23 个子系统；强/证据/提及/空 = 5/20/8/4。
+本次用 53 条来源，覆盖 14 个管理模块 + 23 个子系统；强/证据/提及/空 = 9/20/8/0。
 
 ## 平台覆盖
 
 | 平台 | 来源数 |
 | --- | ---: |
-| docs | 3 |
-| gitee | 6 |
-| github | 25 |
-| web | 7 |
+| docs | 6 |
+| gitee | 7 |
+| github | 29 |
+| web | 11 |
 
 ## 低星但高覆盖的发现
 
@@ -46,6 +46,12 @@ Run: `20261126-085533` · Pack: `weak-current` v0.1.0 · Radar: v1.7.0
 - `SRC-039` access=public, license_status=needs_review：官网首页声明 GNU Public License (GPL) 但未标明具体版本号，需复核；偏 UPS/PDU 电源设备监控与协议，不含机房精密空调与机房布局。
 - `SRC-040` access=public, license_status=needs_review：Debian 软件包页未内联完整许可证正文（上游 apcupsd 为 GPL-2.0，需复核）；聚焦 APC UPS 监控与断电关机，不含机房装修与精密空调。
 - `SRC-041` access=public, license_status=needs_review：文档页未显式声明文档许可证（NetBox 源码为 Apache-2.0，需复核）；侧重 DCIM 机柜配电与功率利用率建模，不含蓄电池后备时长选型。
+- `SRC-042` access=public, license_status=needs_review：仅核对公开 README 与仓库文件/测试目录，未完整搭建宿主环境运行；仓库未声明 LICENSE（license_status=needs_review），0 星。
+- `SRC-044` access=public, license_status=needs_review：百科综述页面，非具体软件工程实现；CC-BY-SA-4.0 许可标记为 needs_review。
+- `SRC-047` access=public, license_status=needs_review：Debian 稳定版软件包页面，侧重主机硬件温度/电压/风扇传感器采集；GPL-2.0 许可标记为 needs_review。
+- `SRC-049` access=public, license_status=needs_review：Screenly/Anthias 仓库 LICENSE 声明为 GPLv2 与 Commercial 双许可，按规则标为 needs_review；文档聚焦播放器部署、资产排期、REST API 与多屏控制器。
+- `SRC-050` access=public, license_status=needs_review：Xibo 社区版 CMS 采用 AGPL-3.0 协议，部分高级播放器为商业扩展，按规则标为 needs_review；本页为 Displays 章节手册，其余章节未逐页抓取。
+- `SRC-052` access=public, license_status=needs_review：GitLab 开源嵌入式客房控制器毕业设计仓库（越南语 README，未声明 LICENSE 故标为 needs_review）；包含 ADC/DAC/I2C RTC/PWM/SPI/UART/digital_input.c 等硬件驱动源码，不含酒店 PMS 对接。
 
 ## 单源模块
 
@@ -106,6 +112,18 @@ Run: `20261126-085533` · Pack: `weak-current` v0.1.0 · Radar: v1.7.0
 | `SRC-039` | [Network UPS Tools - Welcome](https://networkupstools.org/) | web | strong | GPL（需复核） | public |
 | `SRC-040` | [Debian -- Details of package apcupsd in bookworm](https://packages.debian.org/bookworm/apcupsd) | web | strong | unknown（需复核） | public |
 | `SRC-041` | [Power Feed \| NetBox Labs Docs](https://docs.netbox.dev/en/stable/models/dcim/powerfeed/) | docs | evidence | unknown（需复核） | public |
+| `SRC-042` | [jetlinks-v2/cloud-patrol-ui 园区智能巡更系统前端](https://github.com/jetlinks-v2/cloud-patrol-ui) | github | strong | unknown（需复核） | public |
+| `SRC-043` | [zhousiraaa/mypoc 融合对讲与巡更平台](https://gitee.com/zhousiraaa/mypoc) | gitee | strong | Apache-2.0 | public |
+| `SRC-044` | [Guard tour patrol system - Wikipedia](https://en.wikipedia.org/wiki/Guard_tour_patrol_system) | web | evidence | CC-BY-SA-4.0（需复核） | public |
+| `SRC-045` | [pimoroni/enviroplus-python](https://github.com/pimoroni/enviroplus-python) | github | strong | MIT | public |
+| `SRC-046` | [IPMI2 Monitoring \| Apache HertzBeat - Agentless Monitoring System](https://hertzbeat.apache.org/docs/help/ipmi/) | docs | strong | Apache-2.0 | public |
+| `SRC-047` | [Debian -- Details of package lm-sensors in trixie](https://packages.debian.org/stable/lm-sensors) | web | strong | GPL-2.0（需复核） | public |
+| `SRC-048` | [concerto/concerto](https://github.com/concerto/concerto) | github | strong | Apache-2.0 | public |
+| `SRC-049` | [Anthias Documentation](https://anthias.screenly.io/docs/) | docs | strong | GPL-2.0（需复核） | public |
+| `SRC-050` | [What is a Display? \| Xibo Docs](https://docs.xibosignage.com/user-manual/displays) | docs | evidence | AGPL-3.0（需复核） | public |
+| `SRC-051` | [microsoft/SmartHotel360-IoT](https://github.com/microsoft/SmartHotel360-IoT) | github | strong | MIT | public |
+| `SRC-052` | [Hotel Room Controller (GitLab)](https://gitlab.com/thangnguyentien/hotel-room-controller/-/raw/main/README.md) | web | strong | unknown（需复核） | public |
+| `SRC-053` | [SmartHotel360 Reference Architecture Portal](https://microsoft.github.io/SmartHotel360/) | web | strong | MIT | public |
 
 ## 边界
 

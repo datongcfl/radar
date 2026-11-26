@@ -33,12 +33,12 @@ Pack: `weak-current` v0.1.0
 | `S06` | 门禁一卡通/出入口 | **mention** | 2 | SRC-013 |
 | `S07` | 入侵/防盗报警 | **evidence**（单源） | 3 | SRC-027 |
 | `S08` | 周界防范 | **evidence**（单源） | 2 | SRC-027 |
-| `S09` | 电子巡更 | **none** | 0 | — |
+| `S09` | 电子巡更 | **strong** | 3 | SRC-043 |
 | `S10` | 楼宇自控 BA | **evidence** | 9 | SRC-030 |
-| `S11` | 环境监控 | **none** | 0 | — |
+| `S11` | 环境监控 | **strong** | 3 | SRC-047 |
 | `S12` | 智能照明 | **evidence** | 2 | SRC-020 |
 | `S13` | 能源管理 | **evidence** | 7 | SRC-030 |
-| `S14` | 信息发布 | **none** | 0 | — |
+| `S14` | 信息发布 | **strong** | 3 | SRC-049 |
 | `S15` | 程控电话/通讯 | **evidence**（单源） | 1 | SRC-028 |
 | `S16` | IPTV | **evidence**（单源） | 1 | SRC-031 |
 | `S17` | 有线电视 | **evidence**（单源） | 2 | SRC-031 |
@@ -46,7 +46,7 @@ Pack: `weak-current` v0.1.0
 | `S19` | 会议/多功能厅 | **mention** | 1 | SRC-013 |
 | `S20` | 背景音乐 | **mention** | 1 | SRC-034 |
 | `S21` | 五方对讲 | **evidence**（单源） | 1 | SRC-028 |
-| `S22` | 客控系统 | **none** | 0 | — |
+| `S22` | 客控系统 | **strong** | 3 | SRC-053 |
 | `S23` | 公区温控联网 | **evidence**（单源） | 1 | SRC-030 |
 
 ## 怎么读

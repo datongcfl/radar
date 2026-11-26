@@ -121,7 +121,7 @@ class TestModel(unittest.TestCase):
         seeds = load_seeds(SEEDS, pack)
         self.assertEqual(len(pack["modules"]), 14)
         self.assertEqual(len(pack["subsystems"]), 23)
-        self.assertEqual(len(seeds), 41)
+        self.assertEqual(len(seeds), 53)
 
     def test_second_pack_valid(self):
         pack = load_pack(ROOT / "packs/pet-hospital/pack.json")
@@ -884,7 +884,7 @@ class TestScanAllScript(unittest.TestCase):
 class TestAudit(unittest.TestCase):
     def test_ledger_audit(self):
         proc = subprocess.run([sys.executable, str(ROOT / "tools/audit_ledger.py"),
-                               "--expect-strong", "5", "--expect-evidence", "20"],
+                               "--expect-strong", "9", "--expect-evidence", "20"],
                               capture_output=True, text=True, timeout=30)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
@@ -912,7 +912,7 @@ class TestDraft(unittest.TestCase):
         self.assertEqual(skipped, ["https://gitee.com/eywe-butler/eywe"])
         self.assertEqual(len(payload["sources"]), 1)
         s = payload["sources"][0]
-        self.assertEqual(s["id"], "SRC-042")
+        self.assertEqual(s["id"], "SRC-054")
         self.assertEqual(s["status"], "needs_review")
         self.assertEqual(s["quote_verified"], "unknown")
         self.assertEqual(s["license"], "MIT")
