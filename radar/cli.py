@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import os
 import shutil
@@ -12,7 +11,11 @@ from datetime import datetime
 from pathlib import Path
 
 from . import __version__
-from .capabilities import CapabilityContext, CapabilityRegistry
+from .adapters import collect_github, collect_gitee
+from .fetch import fetch_sources
+from .snowball import snowball
+from .web import enrich_web
+from .verify import verify_sources
 from .coverage import compute_coverage
 from .claims import evaluate_claims, write_claims
 from .diff import diff_runs
@@ -47,74 +50,6 @@ def _gitee_token():
     return None
 
 
-def _collect_github_via_registry(pack, limit_per_query, max_queries, token=None):
-    """Compose the GitHub source explicitly and execute it through the Core contract."""
-    from .github_capability import GithubSourceCapability
-
-    registry = CapabilityRegistry()
-    registry.register(GithubSourceCapability())
-    result = registry.execute(
-        "github",
-        CapabilityContext(
-            operation="discover",
-            inputs={"pack": pack},
-            parameters={
-                "limit_per_query": limit_per_query,
-                "max_queries": max_queries,
-                "token": token,
-            },
-        ),
-        kind="source",
-    )
-    sources = [dict(item) for item in result.records]
-    warnings = []
-    for warning in result.warnings:
-        message = warning.get("message")
-        if message:
-            warnings.append(str(message))
-    if result.status == "failed":
-        warnings.append("GitHub source capability failed (%s)" % (
-            (result.error or {}).get("code", "unknown_error")
-        ))
-    elif result.status == "unavailable":
-        warnings.append("GitHub source capability is unavailable")
-    return sources, warnings
-
-
-def _collect_gitee_via_registry(pack, limit_per_query, max_queries, token=None):
-    """Compose the Gitee source explicitly and execute it through the Core contract."""
-    from .gitee_capability import GiteeSourceCapability
-
-    registry = CapabilityRegistry()
-    registry.register(GiteeSourceCapability())
-    result = registry.execute(
-        "gitee",
-        CapabilityContext(
-            operation="discover",
-            inputs={"pack": pack},
-            parameters={
-                "limit_per_query": limit_per_query,
-                "max_queries": max_queries,
-                "token": token,
-            },
-        ),
-        kind="source",
-    )
-    sources = [dict(item) for item in result.records]
-    warnings = []
-    for warning in result.warnings:
-        message = warning.get("message")
-        if message:
-            warnings.append(str(message))
-    if result.status == "failed":
-        warnings.append("Gitee source capability failed (%s)" % (
-            (result.error or {}).get("code", "unknown_error")
-        ))
-    elif result.status == "unavailable":
-        warnings.append("Gitee source capability is unavailable")
-    return sources, warnings
-
-
 def cmd_run(args):
     if (args.github or args.gitee or args.snowball or args.fetch or args.web) and not shutil.which("curl"):
         raise RadarError("网络选项需要 curl；请先安装 curl，或去掉 --github/--gitee/--snowball/--fetch/--web")
@@ -123,42 +58,34 @@ def cmd_run(args):
     warnings = []
     sources = list(seeds)
     if args.github:
-        got, warns = _collect_github_via_registry(
-            pack, limit_per_query=args.limit, max_queries=args.max_queries,
-            token=os.environ.get("GITHUB_TOKEN"))
+        got, warns = collect_github(pack, limit_per_query=args.limit,
+                                    max_queries=args.max_queries,
+                                    token=os.environ.get("GITHUB_TOKEN"))
         sources.extend(got)
         warnings.extend(warns)
     if args.gitee:
-        got, warns = _collect_gitee_via_registry(
-            pack, limit_per_query=args.limit, max_queries=args.max_queries,
-            token=_gitee_token())
+        got, warns = collect_gitee(pack, limit_per_query=args.limit,
+                                   max_queries=args.max_queries,
+                                   token=_gitee_token())
         sources.extend(got)
         warnings.extend(warns)
     if args.snowball:
-        from .snowball import snowball
-
         got, warns = snowball(sources, pack, token=os.environ.get("GITHUB_TOKEN"),
                                per_source=args.snowball_per_source,
                                max_sources=args.snowball_max)
         sources.extend(got)
         warnings.extend(warns)
     if args.fetch:
-        from .fetch import fetch_sources
-
         sources, warns = fetch_sources(sources, limit=args.fetch_limit,
                                         timeout=args.fetch_timeout)
         warnings.extend(warns)
     if args.web:
-        from .web import enrich_web
-
         sources, warns = enrich_web(sources, limit=args.web_limit,
                                      timeout=args.web_timeout,
                                      respect_robots=args.respect_robots)
         warnings.extend(warns)
     sources = merge_sources(sources)
     if args.verify_quotes:
-        from .verify import verify_sources
-
         sources, warns = verify_sources(sources, limit=args.verify_limit,
                                         timeout=args.verify_timeout)
         warnings.extend(warns)
@@ -272,77 +199,6 @@ def cmd_diff(args):
     return {"old": args.old, "new": args.new, "out": args.out, "bytes": len(text)}
 
 
-def cmd_parse(args):
-    """Parse one local document through the explicit capability registry."""
-    path = Path(args.file).expanduser()
-    if not path.is_file():
-        raise RadarError("input file does not exist or is not a regular file: %s" % path)
-    if not isinstance(args.max_bytes, int) or args.max_bytes < 1:
-        raise RadarError("--max-bytes must be a positive integer")
-    file_size = path.stat().st_size
-    if file_size > args.max_bytes:
-        raise RadarError(
-            "input file exceeds --max-bytes (%d > %d)" % (file_size, args.max_bytes)
-        )
-
-    parser_name = args.format
-    if parser_name == "auto":
-        parser_name = {
-            ".pdf": "pdf",
-            ".docx": "docx",
-            ".xlsx": "xlsx",
-            ".pptx": "pptx",
-        }.get(path.suffix.lower(), "text")
-
-    parser_specs = {
-        "text": ("radar.document_parser", "TextDocumentParserCapability"),
-        "pdf": ("radar.pdf_parser", "PdfDocumentParserCapability"),
-        "docx": ("radar.docx_parser", "DocxDocumentParserCapability"),
-        "xlsx": ("radar.xlsx_parser", "XlsxDocumentParserCapability"),
-        "pptx": ("radar.pptx_parser", "PptxDocumentParserCapability"),
-    }
-    module_name, class_name = parser_specs[parser_name]
-    module = importlib.import_module(module_name)
-    capability_type = getattr(module, class_name)
-    registry = CapabilityRegistry()
-    registry.register(capability_type())
-
-    raw_content = path.read_bytes()
-    if parser_name == "text":
-        try:
-            content = raw_content.decode("utf-8-sig")
-        except UnicodeDecodeError as exc:
-            raise RadarError("text input must be valid UTF-8: %s" % path) from exc
-    else:
-        content = raw_content
-
-    uri = args.uri or path.resolve().as_uri()
-    result = registry.execute(
-        parser_name,
-        CapabilityContext(
-            operation="parse",
-            inputs={
-                "content": content,
-                "uri": uri,
-                "filename": path.name,
-                "media_type": args.media_type or "",
-            },
-        ),
-        kind="parser",
-    )
-    payload = {
-        "status": result.status,
-        "parser": parser_name,
-        "records": [dict(record) for record in result.records],
-        "warnings": [dict(warning) for warning in result.warnings],
-        "error": dict(result.error) if result.error is not None else None,
-        "metadata": dict(result.metadata),
-    }
-    if result.status in ("failed", "unavailable"):
-        payload["_exit_code"] = 1
-    return payload
-
-
 def build_parser():
     p = argparse.ArgumentParser(prog="radar", description="最小行业雷达：pack + 来源账本 + 覆盖度")
     sub = p.add_subparsers(dest="command", required=True)
@@ -397,16 +253,6 @@ def build_parser():
     v.add_argument("--seeds", required=True)
     v.add_argument("--strict", action="store_true", help="要求 v0.1 的完整 12 字段")
     v.set_defaults(func=cmd_validate)
-
-    ps = sub.add_parser("parse", help="解析单个本地文档并输出结构化片段")
-    ps.add_argument("--file", required=True, help="本地 PDF/DOCX/XLSX/PPTX/文本文件")
-    ps.add_argument("--format", choices=("auto", "text", "pdf", "docx", "xlsx", "pptx"),
-                    default="auto", help="默认按扩展名选择解析器")
-    ps.add_argument("--uri", default=None, help="覆盖默认 file:// 来源 URI")
-    ps.add_argument("--media-type", default="", help="可选 MIME 类型提示（主要用于文本）")
-    ps.add_argument("--max-bytes", type=int, default=30 * 1024 * 1024,
-                    help="读取前执行的文件大小上限，默认 30 MiB")
-    ps.set_defaults(func=cmd_parse)
 
     d = sub.add_parser("diff", help="比较两次 run")
     d.add_argument("--from", dest="old", required=True)
