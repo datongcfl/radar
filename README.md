@@ -94,13 +94,13 @@ python3 -m radar run \
   --out runs/pet-hospital-demo
 ```
 
-同一套代码，换 pack 就能跑；弱电和宠物医院互不写死。
+同一套代码，换 pack 就能跑；弱电和宠物医院互不写死。`pet-hospital` 现已扩充为 **22 条真实公开来源**（12 strong / 0 none，基线见 [docs/BASELINE-PET-HOSPITAL.md](docs/BASELINE-PET-HOSPITAL.md)）。
 
 ## 弱电 pack 现状（v1.7.0）
 
-- **35 条公开来源**：30 selected / 5 needs_review；
-- 覆盖：**3 strong / 20 evidence / 8 mention / 6 none**；
-- 11 个单源、8 个同源待印证、6 个无证据；`gaps.md` 有真实缺口，不再写“无缺口”；
+- **53 条公开来源**：45 selected / 8 needs_review；
+- 覆盖：**9 strong / 20 evidence / 8 mention / 0 none**（strong：M01/M02/M06/M13/S04/S09/S11/S14/S22）；
+- 11 个单源、8 个同源待印证、0 个无证据；`gaps.md` 收敛至单源待印证与 mention，不再存在空白模块；
 - 审计：无 `covers ≥5` 的万金油来源、无 <40 字的空壳 quote；
 - 来源包含弱电工程系统、报价/成本、设备台账、楼宇自控、视频、停车、IPTV、背景音乐、监控、工单等；
 - 完整基线：[docs/BASELINE.md](docs/BASELINE.md)。
@@ -120,6 +120,7 @@ S24 智能厨房排油烟就是例子：它来自酒店弱电清单，偏厨房/
 ```bash
 python3 -m radar run --pack <pack.json> --seeds <seeds.json> --title "<标题>" --out <dir>
 python3 -m radar scan --pack <pack.json> --seeds <seeds.json> --title "<标题>" --out <dir> --base <旧 run>
+python3 -m radar draft --pack <pack.json> --url <url> --covers M02 --seeds <seeds.json> --out draft.json
 python3 -m radar validate --pack <pack.json> --seeds <seeds.json>
 python3 -m radar diff --from <run-a> --to <run-b> --out <diff.md>
 python3 -m radar claims --pack <pack.json> --run <run-dir> --claims <claims.json> --out <claims-dir>

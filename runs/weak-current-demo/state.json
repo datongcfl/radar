@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "run_id": "20261121-081328",
+  "run_id": "20261126-093238",
   "radar_version": "1.7.0",
-  "radar_commit": "28cf8ea",
+  "radar_commit": "03995d3",
   "title": "弱电管理系统",
-  "created_at": "2026-11-21T08:13:28+08:00",
+  "created_at": "2026-11-26T09:32:38-08:00",
   "pack": "weak-current",
   "pack_version": "0.1.0",
   "pack_sha256": "d950e3f6f0a85905e5fff2ccab0002f285bcfb441622ecf0723426e72dafcd13",
-  "seeds_sha256": "fda63e2cb38acc1eef463e6a70172b5df6b9cdc0937d2e1fcb7bbfeb9e3c19a4",
+  "seeds_sha256": "d02704a129d05aa9e0d56180de876bdc09bc31e4aec5e57673f650fbc242100b",
   "mode": "run",
   "base": null,
   "options": {
@@ -17,8 +17,8 @@
     "snowball": false,
     "fetch": false,
     "fetch_limit": 0,
-    "web": false,
-    "web_limit": 5,
+    "web": true,
+    "web_limit": 70,
     "respect_robots": false,
     "require_web_verify": true,
     "verify_quotes": true,
@@ -27,9 +27,13 @@
     "strict": false
   },
   "counts": {
-    "sources": 35,
+    "sources": 53,
     "modules": 14,
     "subsystems": 23
   },
-  "warnings": []
+  "warnings": [
+    "SRC-013: curl: (35) schannel: next InitializeSecurityContext failed: CRYPT_E_REVOCATION_OFFLINE (0x80092013) - ���ڵ������������ѻ������������޷���������",
+    "SRC-035: curl: (35) schannel: failed to receive handshake, SSL/TLS connection failed",
+    "SRC-002: curl: (35) schannel: failed to receive handshake, SSL/TLS connection failed"
+  ]
 }

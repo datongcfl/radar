@@ -1,0 +1,14 @@
+# Claim 账本
+
+Run: `runs/weak-current-demo` · Pack: `weak-current` · Claims: 8
+
+| ID | 主张 | 置信度 | 状态 | 来源 | 原因 |
+| --- | --- | ---: | --- | --- | --- |
+| `C001` | 弱电项目需要把报价、合同、实际成本、发票串成一条主线，而不是只做施工进度。 | 0.40 | open | SRC-001, SRC-003, SRC-007 | proprietary_reference |
+| `C002` | 单个项目管理系统的 README 只能证明它声称覆盖，不足以证明行业通用性。 | 0.30 | open | SRC-003 | single_source, unsupported_by_sources, unsupported_by_verified_sources, proprietary_reference |
+| `C003` | 项目立项与全生命周期台账应串联立项审批、阶段计划、合同预算与跨项目资源财务追踪，支持可配置工作流。 | 0.80 | accepted | SRC-036, SRC-037 | — |
+| `C004` | 机房与 UPS 运维需要统一建模配电柜、主备冗余供电馈线、机柜负载及多品牌 UPS 遥测与断电保护策略。 | 0.80 | accepted | SRC-039, SRC-040, SRC-041 | — |
+| `C005` | 电子巡更子系统核心由点位标准、巡更路线/排班日历、NFC/二维码现场打卡与异常预警构成。 | 0.80 | accepted | SRC-042, SRC-043, SRC-044 | — |
+| `C006` | 环境监控同时涵盖园区空气/温湿度/光照噪声传感采集与机房设备 IPMI/温度/风扇健康告警。 | 0.80 | accepted | SRC-045, SRC-046, SRC-047 | — |
+| `C007` | 信息发布（数字标牌）需要独立区分 CMS 审核发布端与终端播放器（Display），支持频道订阅、排期与多屏设备健康管控。 | 0.80 | accepted | SRC-048, SRC-049, SRC-050 | — |
+| `C008` | 酒店客控系统（RCU）需兼顾客房传感与执行控制（门磁占用、灯光、温控）以及住客与酒店运维分角色远程控制。 | 0.80 | accepted | SRC-051, SRC-052, SRC-053 | — |

@@ -1005,6 +1005,542 @@
       ],
       "status": "needs_review",
       "why_selected": "通用底座：国标，补综合布线设计依据"
+    },
+    {
+      "id": "SRC-036",
+      "platform": "gitee",
+      "url": "https://gitee.com/eywe-butler/eywe",
+      "title": "Eywe 项目管理系统",
+      "artifact_type": "code",
+      "language": "zh",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "MIT",
+      "license_status": "clear",
+      "evidence_level": "real_artifact",
+      "derived_from_real_data": false,
+      "stars": 111,
+      "covers": [
+        "M02"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model"
+      ],
+      "quotes": [
+        "适配敏捷 Scrum、IPD 研发、传统研发项目管控，覆盖需求、立项、任务、看板、甘特图、测试缺陷、合同预算、资源负载全链路。"
+      ],
+      "quote_verified": "unknown",
+      "limitations": "偏通用研发与外包项目管理，非弱电施工专用；未审计全部 Java 源码与单元测试。",
+      "status": "selected",
+      "why_selected": "MIT 开源企业级项目管理系统（Spring Boot + Vue 3），覆盖立项审批、项目全生命周期阶段与台账管控，补齐 M02 开源代码与工件证据。"
+    },
+    {
+      "id": "SRC-037",
+      "platform": "web",
+      "url": "https://sourceforge.net/projects/project-open/",
+      "title": "]project-open[ - Project Server",
+      "artifact_type": "code",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "GPL-2.0",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "M02"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model"
+      ],
+      "quotes": [
+        "Target organizations are companies or corporate departments that need to track finances, tasks, and resources for a large number of concurrently running projects.",
+        "]project-open[ is Web based enterprise project management application with a focus on finance and collaboration.",
+        "It’s main purpose is to coordinate the work of project managers, project members and stake holders across multiple projects.",
+        "Configurable workflows allow to control the life-cycle of all important objects",
+        "Dynamic fields and value ranges allow to extend all important business objects"
+      ],
+      "quote_verified": "unknown",
+      "limitations": "SourceForge 页面标注 GNU General Public License version 2.0 (GPLv2), Other License，含商业扩展，需人工复核；通用企业项目管理，非弱电专用。",
+      "status": "selected",
+      "why_selected": "生产级开源多项目与项目组合管理系统（]project-open[），支持项目台账追踪与可配置生命周期工作流，与 Gitee Eywe 形成不同 host 独立互证。"
+    },
+    {
+      "id": "SRC-038",
+      "platform": "docs",
+      "url": "https://www.openproject.org/docs/user-guide/projects/project-initiation-request/",
+      "title": "Project initiation request (Enterprise add-on) - OpenProject",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "proprietary",
+      "license_status": "proprietary",
+      "evidence_level": "docs",
+      "derived_from_real_data": false,
+      "covers": [
+        "M02"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "interaction"
+      ],
+      "quotes": [
+        "Instead of manually configuring each project from scratch, the wizard guides you through a defined sequence of steps to collect essential information and apply a consistent project setup.",
+        "A generated PDF artifact with all submitted information attached for reference and audit purposes",
+        "Before using the project initiation request, you need at least one project that is configured as a basis for the project initiation process.",
+        "Once all required fields are completed, click Complete to submit the project initiation request.",
+        "Once submitted, the responsible person can proceed with reviewing and processing the project initiation request."
+      ],
+      "quote_verified": "unknown",
+      "limitations": "文档页声明 All rights reserved 且 Project initiation request 属 Enterprise 商业增强功能，仅作流程参考，不可直接复用实现。",
+      "status": "selected",
+      "why_selected": "OpenProject 官方文档详述立项请求向导（Project Initiation Request）、立项模板、审批流与 PDF 立项工件归档，补齐 M02 立项规范。"
+    },
+    {
+      "id": "SRC-039",
+      "platform": "web",
+      "url": "https://networkupstools.org/",
+      "title": "Network UPS Tools - Welcome",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "GPL",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S04"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "The primary goal of the Network UPS Tools (NUT) project is to provide support for Power Devices, such as Uninterruptible Power Supplies, Power Distribution Units, Automatic Transfer Switches, Power Supply Units and Solar Controllers.",
+        "As of this publication, at least 201 different manufacturers, and 1442 hardware device models are known as compatible"
+      ],
+      "quote_verified": "unknown",
+      "limitations": "官网首页声明 GNU Public License (GPL) 但未标明具体版本号，需复核；偏 UPS/PDU 电源设备监控与协议，不含机房精密空调与机房布局。",
+      "status": "selected",
+      "why_selected": "生产级开源 UPS/PDU 监控系统（Network UPS Tools），兼容 201 家厂商 1442 款电源设备，直接支撑 S04 机房 UPS 监控与设备建模。"
+    },
+    {
+      "id": "SRC-040",
+      "platform": "web",
+      "url": "https://packages.debian.org/bookworm/apcupsd",
+      "title": "Debian -- Details of package apcupsd in bookworm",
+      "artifact_type": "code",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "unknown",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S04"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "apcupsd provides UPS power management for APC products, including most BackUPS series models (including USB), SmartUPS V/S, SmartUPS (NET/RM), and Matrix series.",
+        "It controls and monitors the status of UPS and allows your computer to run for a specified length of time on UPS power, and then executes a controlled shutdown in the case of an extended power failure."
+      ],
+      "quote_verified": "unknown",
+      "limitations": "Debian 软件包页未内联完整许可证正文（上游 apcupsd 为 GPL-2.0，需复核）；聚焦 APC UPS 监控与断电关机，不含机房装修与精密空调。",
+      "status": "selected",
+      "why_selected": "Debian 稳定版收录的生产级 APC UPS 监控守护进程（apcupsd），与 NUT 形成不同 host 的独立生产级互证，覆盖 S04 机房/UPS。"
+    },
+    {
+      "id": "SRC-041",
+      "platform": "docs",
+      "url": "https://docs.netbox.dev/en/stable/models/dcim/powerfeed/",
+      "title": "Power Feed | NetBox Labs Docs",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "unknown",
+      "license_status": "needs_review",
+      "evidence_level": "docs",
+      "derived_from_real_data": false,
+      "covers": [
+        "S04"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "boundary_conditions"
+      ],
+      "quotes": [
+        "In redundant environments, each power feed can be designated as providing either primary or redundant power. (In environment with only one power source, all power feeds should be designated as primary.)",
+        "The power utilization of a rack is calculated when one or more power feeds are assigned to the rack and connected to devices that draw power."
+      ],
+      "quote_verified": "unknown",
+      "limitations": "文档页未显式声明文档许可证（NetBox 源码为 Apache-2.0，需复核）；侧重 DCIM 机柜配电与功率利用率建模，不含蓄电池后备时长选型。",
+      "status": "selected",
+      "why_selected": "NetBox DCIM 官方文档详述机房配电柜、供电馈线主备冗余、机柜配电与安全负载上限（80%），补齐 S04 机房配电与机柜维度。"
+    },
+    {
+      "id": "SRC-042",
+      "platform": "github",
+      "url": "https://github.com/jetlinks-v2/cloud-patrol-ui",
+      "title": "jetlinks-v2/cloud-patrol-ui 园区智能巡更系统前端",
+      "artifact_type": "code",
+      "language": "Vue",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "unknown",
+      "license_status": "needs_review",
+      "evidence_level": "code_tests",
+      "derived_from_real_data": false,
+      "stars": 0,
+      "covers": [
+        "S09"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model",
+        "interaction"
+      ],
+      "quotes": [
+        "基础管理包含点位等级、巡更标准、分类和异常预警配置；不提供标签管理菜单或维护入口，已有点位标签数据保留。"
+      ],
+      "limitations": "仅核对公开 README 与仓库文件/测试目录，未完整搭建宿主环境运行；仓库未声明 LICENSE（license_status=needs_review），0 星。",
+      "status": "selected",
+      "why_selected": "直接面向园区智能巡更业务，涵盖巡更点位、等级标准、排班日历、异常预警与 25 个 tests/*.test.mjs 测试文件。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-043",
+      "platform": "gitee",
+      "url": "https://gitee.com/zhousiraaa/mypoc",
+      "title": "zhousiraaa/mypoc 融合对讲与巡更平台",
+      "artifact_type": "code",
+      "language": "Android",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "Apache-2.0",
+      "license_status": "clear",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "stars": 1658,
+      "covers": [
+        "S09"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "interaction"
+      ],
+      "quotes": [
+        "* 对讲组切换\n* NFC巡更签到\n* 二维码巡更签到\n* 直播图传\n* 音视频通话\n* 水印打卡"
+      ],
+      "limitations": "主定位为公网对讲与视频融合通讯平台，巡更签到与 Web 巡更管理为其业务子模块；仅核对公开 README 与仓库元数据。",
+      "status": "selected",
+      "why_selected": "Gitee 1658 星 Apache-2.0 生产级开源项目，包含 Android 端 NFC/二维码巡更签到与 Web 端巡更管理。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-044",
+      "platform": "web",
+      "url": "https://en.wikipedia.org/wiki/Guard_tour_patrol_system",
+      "title": "Guard tour patrol system - Wikipedia",
+      "artifact_type": "article",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "CC-BY-SA-4.0",
+      "license_status": "needs_review",
+      "evidence_level": "docs",
+      "derived_from_real_data": false,
+      "covers": [
+        "S09"
+      ],
+      "borrow_scope": [
+        "subsystem_taxonomy",
+        "boundary_conditions"
+      ],
+      "quotes": [
+        "A guard tour patrol system is a system for logging the rounds of personnel such as security guards on patrol, technicians monitoring climate-controlled environments, and correctional officers checking prisoner living areas."
+      ],
+      "limitations": "百科综述页面，非具体软件工程实现；CC-BY-SA-4.0 许可标记为 needs_review。",
+      "status": "selected",
+      "why_selected": "独立权威域名参考源，界定电子巡更（巡更点、巡更路线、RFID/NFC/条码校验与后台记录）的行业概念与演进边界。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-045",
+      "platform": "github",
+      "url": "https://github.com/pimoroni/enviroplus-python",
+      "title": "pimoroni/enviroplus-python",
+      "artifact_type": "code",
+      "language": "Python",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "MIT",
+      "license_status": "clear",
+      "evidence_level": "code_tests",
+      "derived_from_real_data": false,
+      "stars": 437,
+      "covers": [
+        "S11"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "Designed for environmental monitoring, Enviro+ lets you measure air quality (pollutant gases and particulates), temperature, pressure, humidity, light, and noise level."
+      ],
+      "limitations": "面向嵌入式传感采集硬件驱动与示例，不含弱电工程项目台账与告警工单流程；仅核对 README、CI 配置与测试文件。",
+      "status": "selected",
+      "why_selected": "MIT 许可的高星开源环境监测库（437 星），含 pytest 测试套件，覆盖空气质量、温湿度、气压、光照与噪声采集。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-046",
+      "platform": "docs",
+      "url": "https://hertzbeat.apache.org/docs/help/ipmi/",
+      "title": "IPMI2 Monitoring | Apache HertzBeat - Agentless Monitoring System",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "Apache-2.0",
+      "license_status": "clear",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S11"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "workflow"
+      ],
+      "quotes": [
+        "Collect and monitor the general performance Metrics of Server using IPMI2."
+      ],
+      "limitations": "侧重机房服务器 IPMI2 传感器读数、风扇/冷却故障与电源环境指标监控，不包含室内空气质量（PM2.5/VOC）。",
+      "status": "selected",
+      "why_selected": "Apache 顶级开源监控系统官方生产文档（Apache-2.0），覆盖机房设备环境传感器读数与冷却告警。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-047",
+      "platform": "web",
+      "url": "https://packages.debian.org/stable/lm-sensors",
+      "title": "Debian -- Details of package lm-sensors in trixie",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "access_status": "public",
+      "license": "GPL-2.0",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S11"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "Lm-sensors is a hardware health monitoring package for Linux. It allows you to access information from temperature, voltage, and fan speed sensors."
+      ],
+      "limitations": "Debian 稳定版软件包页面，侧重主机硬件温度/电压/风扇传感器采集；GPL-2.0 许可标记为 needs_review。",
+      "status": "selected",
+      "why_selected": "Debian 稳定版官方软件包页（production 级），提供标准化的温度、电压与风扇转速传感器监测参考。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-048",
+      "platform": "github",
+      "url": "https://github.com/concerto/concerto",
+      "title": "concerto/concerto",
+      "artifact_type": "code",
+      "language": "Ruby",
+      "retrieved_at": "2026-11-26",
+      "http_status": 200,
+      "access_status": "public",
+      "license": "Apache-2.0",
+      "license_status": "clear",
+      "evidence_level": "code_tests",
+      "derived_from_real_data": false,
+      "stars": 485,
+      "covers": [
+        "S14"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model",
+        "interaction"
+      ],
+      "quotes": [
+        "Concerto is an open source digital signage system. Users submit graphic, textual, and other content, and moderators approve that content for use in a variety of content feeds which are displayed on screens connected to computers displaying the Concerto frontend.",
+        "A screen can subscribe its fields to feeds (or channels). Screens can be public or private (requiring a token)."
+      ],
+      "limitations": "通用开源数字标牌/信息发布系统（Ruby on Rails），不含弱电施工/点位台账；仅验证公开 README/仓库结构与 CI 测试目录，未本地运行完整测试套件。",
+      "status": "selected",
+      "why_selected": "补 S14 信息发布：Apache-2.0 开源数字标牌（485 星，含 app/test/CI/Docker），覆盖内容审核、频道订阅、屏幕模板与排期发布模型。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-049",
+      "platform": "docs",
+      "url": "https://anthias.screenly.io/docs/",
+      "title": "Anthias Documentation",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "http_status": 200,
+      "access_status": "public",
+      "license": "GPL-2.0",
+      "license_status": "needs_review",
+      "evidence_level": "production",
+      "derived_from_real_data": false,
+      "covers": [
+        "S14"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "interaction",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "One Anthias device (the controller) can publish the same playlist to the other Anthias screens on your network, show their status and health, and reboot or control them."
+      ],
+      "limitations": "Screenly/Anthias 仓库 LICENSE 声明为 GPLv2 与 Commercial 双许可，按规则标为 needs_review；文档聚焦播放器部署、资产排期、REST API 与多屏控制器。",
+      "status": "needs_review",
+      "why_selected": "补 S14 信息发布：独立官网文档（anthias.screenly.io），原 Screenly OSE 开源数字标牌生产级项目，覆盖多屏控制发布、媒体排期与设备健康监控。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-050",
+      "platform": "docs",
+      "url": "https://docs.xibosignage.com/user-manual/displays",
+      "title": "What is a Display? | Xibo Docs",
+      "artifact_type": "manual",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "http_status": 200,
+      "access_status": "public",
+      "license": "AGPL-3.0",
+      "license_status": "needs_review",
+      "evidence_level": "docs",
+      "derived_from_real_data": false,
+      "covers": [
+        "S14"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "data_model",
+        "boundary_conditions"
+      ],
+      "quotes": [
+        "Xibo uses the concept of Displays which are managed from the CMS to control when and how content is shown as well as provide device management tools for Users. A Display is an essential part of digital signage as is it bridges the communication between the CMS software (Content Management System) and Media Player App."
+      ],
+      "limitations": "Xibo 社区版 CMS 采用 AGPL-3.0 协议，部分高级播放器为商业扩展，按规则标为 needs_review；本页为 Displays 章节手册，其余章节未逐页抓取。",
+      "status": "needs_review",
+      "why_selected": "补 S14 信息发布：Xibo 官方手册 Displays 章节（docs.xibosignage.com），清晰定义 CMS 与终端播放器授权、心跳状态、离线缓存播控等边界。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-051",
+      "platform": "github",
+      "url": "https://github.com/microsoft/SmartHotel360-IoT",
+      "title": "microsoft/SmartHotel360-IoT",
+      "artifact_type": "code",
+      "language": "C#",
+      "retrieved_at": "2026-11-26",
+      "http_status": 200,
+      "access_status": "public",
+      "license": "MIT",
+      "license_status": "clear",
+      "evidence_level": "real_artifact",
+      "derived_from_real_data": false,
+      "stars": 101,
+      "covers": [
+        "S22"
+      ],
+      "borrow_scope": [
+        "data_model",
+        "workflow",
+        "engineering_practice"
+      ],
+      "quotes": [
+        "The integrated magnetometer, is being utilized to demonstrate the ability to detect the room occupancy. It is mimicking the idea that we could detect the opening and closing of a door with a magnet on it.",
+        "The color of RGB LED indicates what the current setting of the room's light is."
+      ],
+      "limitations": "Microsoft 官方开源参考架构（已归档），采用 Azure Digital Twins + MXChip 硬件原型演示酒店客房温控/照明/门磁占用状态，并非传统 RS-485/KNX 商用 RCU 硬件固件。",
+      "status": "selected",
+      "why_selected": "补 S22 客控系统：MIT 开源酒店客房物联网参考实现（101 星），涵盖房间空间建模、门磁占用检测、灯光与温湿度传感控制闭环。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-052",
+      "platform": "web",
+      "url": "https://gitlab.com/thangnguyentien/hotel-room-controller/-/raw/main/README.md",
+      "title": "Hotel Room Controller (GitLab)",
+      "artifact_type": "code",
+      "language": "C",
+      "retrieved_at": "2026-11-26",
+      "http_status": 200,
+      "access_status": "public",
+      "license": "unknown",
+      "license_status": "needs_review",
+      "evidence_level": "real_artifact",
+      "derived_from_real_data": false,
+      "covers": [
+        "S22"
+      ],
+      "borrow_scope": [
+        "engineering_practice",
+        "data_model"
+      ],
+      "quotes": [
+        "Hotel Room Controller là thiết bị Thu thập - Xử lý - Điều khiển các thiết bị trong phòng khách sạn"
+      ],
+      "limitations": "GitLab 开源嵌入式客房控制器毕业设计仓库（越南语 README，未声明 LICENSE 故标为 needs_review）；包含 ADC/DAC/I2C RTC/PWM/SPI/UART/digital_input.c 等硬件驱动源码，不含酒店 PMS 对接。",
+      "status": "needs_review",
+      "why_selected": "补 S22 客控系统：独立托管平台（gitlab.com）的嵌入式酒店客房控制器源码仓库，体现底层传感采集与开关/PWM 执行器实作。",
+      "quote_verified": "unknown"
+    },
+    {
+      "id": "SRC-053",
+      "platform": "web",
+      "url": "https://microsoft.github.io/SmartHotel360/",
+      "title": "SmartHotel360 Reference Architecture Portal",
+      "artifact_type": "docs",
+      "language": "en",
+      "retrieved_at": "2026-11-26",
+      "http_status": 200,
+      "access_status": "public",
+      "license": "MIT",
+      "license_status": "clear",
+      "evidence_level": "real_artifact",
+      "derived_from_real_data": false,
+      "covers": [
+        "S22"
+      ],
+      "borrow_scope": [
+        "workflow",
+        "interaction",
+        "data_model"
+      ],
+      "quotes": [
+        "SmartHotel360 has implemented a Hotel Management solution built on top of Azure Digital Twins. The goal of the solution is to generate critical insights from the hotel to optimize building and energy efficiency, improve occupant experience and productivity of hotel personnel.",
+        "This solution empowers both the Occupant and the Hotel employees (from Head of Operations to Managers) to control and remotely change settings of rooms, as well as ensure the hotel is always operating to its maximum efficiency."
+      ],
+      "limitations": "与 SRC-304 同属 Microsoft SmartHotel360 参考工程家族（不同独立站点 microsoft.github.io）；展示住客端与酒店运维端分角色客控及能耗优化闭环，无现场商用接线规范。",
+      "status": "selected",
+      "why_selected": "补 S22 客控系统：独立站点（microsoft.github.io），完整阐述住客与酒店多角色对客房设备远程调节、能耗优化与设施运维的业务流程。",
+      "quote_verified": "unknown"
     }
   ]
 }

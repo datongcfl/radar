@@ -1,0 +1,196 @@
+{
+  "meta": {
+    "schema_version": 1,
+    "run": "runs/weak-current-demo",
+    "pack": "weak-current",
+    "created_at": "2026-11-26T09:34:33-08:00",
+    "radar_version": "1.7.0",
+    "claims_sha256": "efe66d907d1f36e2e11bceb5da024afb1dca623d09adb7ebcebf490b95db265b",
+    "count": 8
+  },
+  "claims": [
+    {
+      "id": "C001",
+      "statement": "弱电项目需要把报价、合同、实际成本、发票串成一条主线，而不是只做施工进度。",
+      "covers": [
+        "M06",
+        "M07",
+        "M11",
+        "M12"
+      ],
+      "sources": [
+        "SRC-001",
+        "SRC-003",
+        "SRC-007"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.4,
+      "label": "low",
+      "status": "open",
+      "reasons": [
+        "proprietary_reference"
+      ],
+      "source_count": 3,
+      "verified_count": 2,
+      "distinct_hosts": 2,
+      "best_level": "strong"
+    },
+    {
+      "id": "C002",
+      "statement": "单个项目管理系统的 README 只能证明它声称覆盖，不足以证明行业通用性。",
+      "covers": [
+        "M01"
+      ],
+      "sources": [
+        "SRC-003"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.3,
+      "label": "low",
+      "status": "open",
+      "reasons": [
+        "single_source",
+        "unsupported_by_sources",
+        "unsupported_by_verified_sources",
+        "proprietary_reference"
+      ],
+      "source_count": 1,
+      "verified_count": 1,
+      "distinct_hosts": 1,
+      "best_level": "evidence"
+    },
+    {
+      "id": "C003",
+      "statement": "项目立项与全生命周期台账应串联立项审批、阶段计划、合同预算与跨项目资源财务追踪，支持可配置工作流。",
+      "covers": [
+        "M02"
+      ],
+      "sources": [
+        "SRC-036",
+        "SRC-037"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.8,
+      "label": "high",
+      "status": "accepted",
+      "reasons": [],
+      "source_count": 2,
+      "verified_count": 2,
+      "distinct_hosts": 2,
+      "best_level": "strong"
+    },
+    {
+      "id": "C004",
+      "statement": "机房与 UPS 运维需要统一建模配电柜、主备冗余供电馈线、机柜负载及多品牌 UPS 遥测与断电保护策略。",
+      "covers": [
+        "S04"
+      ],
+      "sources": [
+        "SRC-039",
+        "SRC-040",
+        "SRC-041"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.8,
+      "label": "high",
+      "status": "accepted",
+      "reasons": [],
+      "source_count": 3,
+      "verified_count": 3,
+      "distinct_hosts": 3,
+      "best_level": "strong"
+    },
+    {
+      "id": "C005",
+      "statement": "电子巡更子系统核心由点位标准、巡更路线/排班日历、NFC/二维码现场打卡与异常预警构成。",
+      "covers": [
+        "S09"
+      ],
+      "sources": [
+        "SRC-042",
+        "SRC-043",
+        "SRC-044"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.8,
+      "label": "high",
+      "status": "accepted",
+      "reasons": [],
+      "source_count": 3,
+      "verified_count": 3,
+      "distinct_hosts": 3,
+      "best_level": "strong"
+    },
+    {
+      "id": "C006",
+      "statement": "环境监控同时涵盖园区空气/温湿度/光照噪声传感采集与机房设备 IPMI/温度/风扇健康告警。",
+      "covers": [
+        "S11"
+      ],
+      "sources": [
+        "SRC-045",
+        "SRC-046",
+        "SRC-047"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.8,
+      "label": "high",
+      "status": "accepted",
+      "reasons": [],
+      "source_count": 3,
+      "verified_count": 3,
+      "distinct_hosts": 3,
+      "best_level": "strong"
+    },
+    {
+      "id": "C007",
+      "statement": "信息发布（数字标牌）需要独立区分 CMS 审核发布端与终端播放器（Display），支持频道订阅、排期与多屏设备健康管控。",
+      "covers": [
+        "S14"
+      ],
+      "sources": [
+        "SRC-048",
+        "SRC-049",
+        "SRC-050"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.8,
+      "label": "high",
+      "status": "accepted",
+      "reasons": [],
+      "source_count": 3,
+      "verified_count": 3,
+      "distinct_hosts": 3,
+      "best_level": "strong"
+    },
+    {
+      "id": "C008",
+      "statement": "酒店客控系统（RCU）需兼顾客房传感与执行控制（门磁占用、灯光、温控）以及住客与酒店运维分角色远程控制。",
+      "covers": [
+        "S22"
+      ],
+      "sources": [
+        "SRC-051",
+        "SRC-052",
+        "SRC-053"
+      ],
+      "contradicts": [],
+      "declared_contradicts": [],
+      "confidence": 0.8,
+      "label": "high",
+      "status": "accepted",
+      "reasons": [],
+      "source_count": 3,
+      "verified_count": 3,
+      "distinct_hosts": 3,
+      "best_level": "strong"
+    }
+  ]
+}

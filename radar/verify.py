@@ -110,7 +110,7 @@ def source_text(src, timeout=20):
     text, status, err = fetch_text(url, timeout=timeout)
     if err:
         return None, status, err
-    return extract_html(text)["text"], status, None
+    return extract_html(text, max_chars=200000)["text"], status, None
 
 
 def verify_source(src, timeout=20):
@@ -123,7 +123,8 @@ def verify_source(src, timeout=20):
         out["quote_verified"] = "unknown"
         out["quote_verify_error"] = err[:200]
         return out
-    out["quote_verified"] = verify_quotes(src.get("quotes") or [], text)
+    out["quote_verified"] = verify_quotes(
+        src.get("quotes") or [], text, truncated=(len(text or "") >= 200000))
     out["quote_verify_chars"] = len(text or "")
     return out
 

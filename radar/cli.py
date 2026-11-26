@@ -19,6 +19,7 @@ from .verify import verify_sources
 from .coverage import compute_coverage
 from .claims import evaluate_claims, write_claims
 from .diff import diff_runs
+from .draft import draft_seeds_from_urls
 from .model import (RadarError, enforce_web_verification, load_json, load_pack, load_seeds,
                     merge_sources, sha256_file, write_json)
 from .report import write_run
@@ -199,6 +200,34 @@ def cmd_diff(args):
     return {"old": args.old, "new": args.new, "out": args.out, "bytes": len(text)}
 
 
+def cmd_draft(args):
+    if not shutil.which("curl"):
+        raise RadarError("draft 需要 curl；请先安装 curl")
+    pack = load_pack(args.pack)
+    urls = list(args.url or [])
+    if args.urls_file:
+        text = Path(args.urls_file).read_text(encoding="utf-8")
+        for line in text.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                urls.append(line)
+    if not urls:
+        raise RadarError("请至少提供一个 --url 或 --urls-file")
+    covers = [c.strip() for c in args.covers.split(",") if c.strip()] if args.covers else None
+    payload, warnings, skipped = draft_seeds_from_urls(
+        pack, urls, covers=covers, existing_seeds_path=args.seeds,
+        token=os.environ.get("GITHUB_TOKEN"), gitee_token=_gitee_token(),
+        timeout=args.timeout)
+    write_json(args.out, payload)
+    return {
+        "out": str(args.out),
+        "pack": pack["pack"],
+        "drafted": len(payload["sources"]),
+        "skipped_duplicates": len(skipped),
+        "warnings": warnings,
+    }
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="radar", description="最小行业雷达：pack + 来源账本 + 覆盖度")
     sub = p.add_subparsers(dest="command", required=True)
@@ -259,6 +288,16 @@ def build_parser():
     d.add_argument("--to", dest="new", required=True)
     d.add_argument("--out", default=None)
     d.set_defaults(func=cmd_diff)
+
+    dr = sub.add_parser("draft", help="从 URL 自动抓取元数据与候选引文，生成 seeds 草稿")
+    dr.add_argument("--pack", required=True)
+    dr.add_argument("--url", action="append", default=[], help="候选来源 URL（可重复）")
+    dr.add_argument("--urls-file", default=None, help="每行一个 URL 的文本文件（# 开头为注释）")
+    dr.add_argument("--covers", default=None, help="可选：逗号分隔的模块/子系统 ID，如 M02,S04")
+    dr.add_argument("--seeds", default=None, help="可选：已有 seeds 文件，用于续编 ID 与 URL 去重")
+    dr.add_argument("--out", required=True, help="输出草稿 JSON 文件")
+    dr.add_argument("--timeout", type=int, default=20)
+    dr.set_defaults(func=cmd_draft)
     return p
 
 

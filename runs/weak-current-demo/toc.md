@@ -7,7 +7,7 @@ Pack: `weak-current` v0.1.0
 | ID | 模块 | 覆盖 | 来源数 | 最强来源 |
 | --- | --- | --- | ---: | --- |
 | `M01` | 项目与往来单位 | **strong** | 2 | SRC-001 |
-| `M02` | 立项与项目台账 | **none** | 0 | — |
+| `M02` | 立项与项目台账 | **strong** | 3 | SRC-037 |
 | `M03` | 现场勘测与图纸 | **evidence** | 3 | SRC-012 |
 | `M04` | 询价与产品库 | **mention** | 1 | SRC-005 |
 | `M05` | 预估成本与容量 | **mention** | 1 | SRC-005 |
@@ -28,17 +28,17 @@ Pack: `weak-current` v0.1.0
 | `S01` | 综合布线 | **evidence** | 7 | SRC-025 |
 | `S02` | 计算机网络/无线WIFI | **evidence** | 3 | SRC-025 |
 | `S03` | 综合管路 | **evidence** | 3 | SRC-025 |
-| `S04` | 机房/UPS | **none** | 0 | — |
+| `S04` | 机房/UPS | **strong** | 3 | SRC-040 |
 | `S05` | 视频监控 | **mention** | 2 | SRC-013 |
 | `S06` | 门禁一卡通/出入口 | **mention** | 2 | SRC-013 |
 | `S07` | 入侵/防盗报警 | **evidence**（单源） | 3 | SRC-027 |
 | `S08` | 周界防范 | **evidence**（单源） | 2 | SRC-027 |
-| `S09` | 电子巡更 | **none** | 0 | — |
+| `S09` | 电子巡更 | **strong** | 3 | SRC-043 |
 | `S10` | 楼宇自控 BA | **evidence** | 9 | SRC-030 |
-| `S11` | 环境监控 | **none** | 0 | — |
+| `S11` | 环境监控 | **strong** | 3 | SRC-047 |
 | `S12` | 智能照明 | **evidence** | 2 | SRC-020 |
 | `S13` | 能源管理 | **evidence** | 7 | SRC-030 |
-| `S14` | 信息发布 | **none** | 0 | — |
+| `S14` | 信息发布 | **strong** | 3 | SRC-049 |
 | `S15` | 程控电话/通讯 | **evidence**（单源） | 1 | SRC-028 |
 | `S16` | IPTV | **evidence**（单源） | 1 | SRC-031 |
 | `S17` | 有线电视 | **evidence**（单源） | 2 | SRC-031 |
@@ -46,7 +46,7 @@ Pack: `weak-current` v0.1.0
 | `S19` | 会议/多功能厅 | **mention** | 1 | SRC-013 |
 | `S20` | 背景音乐 | **mention** | 1 | SRC-034 |
 | `S21` | 五方对讲 | **evidence**（单源） | 1 | SRC-028 |
-| `S22` | 客控系统 | **none** | 0 | — |
+| `S22` | 客控系统 | **strong** | 3 | SRC-053 |
 | `S23` | 公区温控联网 | **evidence**（单源） | 1 | SRC-030 |
 
 ## 怎么读

@@ -2,10 +2,10 @@
 
 | 层级 | 数量 |
 | --- | ---: |
-| none | 6 |
+| none | 0 |
 | mention | 8 |
 | evidence | 20 |
-| strong | 3 |
+| strong | 9 |
 
 ## 管理模块
 
@@ -16,9 +16,13 @@
 | `SRC-001` | gitee | strong | proprietary | public |
 | `SRC-008` | github | evidence | GPL-3.0 | public |
 
-### M02 立项与项目台账 — none
+### M02 立项与项目台账 — strong
 
-没有来源。
+| 来源 | 平台 | 等级 | 许可 | 访问 |
+| --- | --- | --- | --- | --- |
+| `SRC-036` | gitee | strong | MIT | public |
+| `SRC-037` | web | strong | GPL-2.0 | public |
+| `SRC-038` | docs | evidence | proprietary | public |
 
 ### M03 现场勘测与图纸 — evidence
 
@@ -114,17 +118,17 @@
 - **S01 综合布线** — evidence（7 个来源）
 - **S02 计算机网络/无线WIFI** — evidence（3 个来源）
 - **S03 综合管路** — evidence（3 个来源）
-- **S04 机房/UPS** — none（0 个来源）
+- **S04 机房/UPS** — strong（3 个来源）
 - **S05 视频监控** — mention（2 个来源）
 - **S06 门禁一卡通/出入口** — mention（2 个来源）
 - **S07 入侵/防盗报警** — evidence（3 个来源）
 - **S08 周界防范** — evidence（2 个来源）
-- **S09 电子巡更** — none（0 个来源）
+- **S09 电子巡更** — strong（3 个来源）
 - **S10 楼宇自控 BA** — evidence（9 个来源）
-- **S11 环境监控** — none（0 个来源）
+- **S11 环境监控** — strong（3 个来源）
 - **S12 智能照明** — evidence（2 个来源）
 - **S13 能源管理** — evidence（7 个来源）
-- **S14 信息发布** — none（0 个来源）
+- **S14 信息发布** — strong（3 个来源）
 - **S15 程控电话/通讯** — evidence（1 个来源）
 - **S16 IPTV** — evidence（1 个来源）
 - **S17 有线电视** — evidence（2 个来源）
@@ -132,7 +136,7 @@
 - **S19 会议/多功能厅** — mention（1 个来源）
 - **S20 背景音乐** — mention（1 个来源）
 - **S21 五方对讲** — evidence（1 个来源）
-- **S22 客控系统** — none（0 个来源）
+- **S22 客控系统** — strong（3 个来源）
 - **S23 公区温控联网** — evidence（1 个来源）
 
 ## 同源待印证

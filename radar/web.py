@@ -63,41 +63,51 @@ def extract_html(html, max_chars=20000):
         parser.feed(html or "")
     except Exception:
         pass
-    text = re.sub(r"\s+", " ", " ".join(parser.parts)).strip()[:max_chars]
+    full_text = re.sub(r"\s+", " ", " ".join(parser.parts)).strip()
+    truncated = len(full_text) > max_chars
+    text = full_text[:max_chars]
     quotes = []
     if parser.desc and len(parser.desc) >= 20:
         quotes.append(parser.desc[:240])
     quotes.extend(_sentences(text)[:2])
     return {"title": re.sub(r"\s+", " ", " ".join(parser.title)).strip(),
             "description": parser.desc.strip(), "text": text,
+            "truncated": truncated,
             "quotes": list(dict.fromkeys(quotes))[:3]}
 
 
 def detect_license(text, url=""):
-    """Return (license, status, evidence). Only strong/full-license signals are clear."""
+    """Return (license, status, evidence). Copyleft stays needs_review."""
     t = (text or "").lower()
     path = (urlsplit(url).path or "").lower()
 
-    strong = [
+    permissive_strong = [
         (r"permission is hereby granted, free of charge, to any person obtaining a copy", "MIT"),
         (r"licensed under the apache license,? version 2\.0", "Apache-2.0"),
-        (r"gnu affero general public license", "AGPL-3.0"),
-        (r"gnu lesser general public license", "LGPL-3.0"),
         (r"this source code form is subject to the terms of the mozilla public license", "MPL-2.0"),
         (r"this is free and unencumbered software released into the public domain", "Unlicense"),
         (r"cc0 1\.0 universal", "CC0-1.0"),
     ]
-    for pattern, lic in strong:
+    for pattern, lic in permissive_strong:
         m = re.search(pattern, t, re.S)
         if m:
             return lic, "clear", m.group(0)[:80]
 
+    copyleft_strong = [
+        (r"gnu affero general public license", "AGPL-3.0"),
+        (r"gnu lesser general public license", "LGPL-3.0"),
+    ]
+    for pattern, lic in copyleft_strong:
+        m = re.search(pattern, t, re.S)
+        if m:
+            return lic, "needs_review", "copyleft: %s" % m.group(0)[:60]
+
     m = re.search(r"gnu general public license", t, re.S)
     if m:
         if re.search(r"version 3|v3", t):
-            return "GPL-3.0", "clear", m.group(0)
+            return "GPL-3.0", "needs_review", "copyleft: %s" % m.group(0)
         if re.search(r"version 2|v2", t):
-            return "GPL-2.0", "clear", m.group(0)
+            return "GPL-2.0", "needs_review", "copyleft: %s" % m.group(0)
         return "GPL", "needs_review", "GNU GPL without version"
 
     m = re.search(r"redistribution and use in source and binary forms", t, re.S)
@@ -112,16 +122,17 @@ def detect_license(text, url=""):
         return "proprietary", "proprietary", "all rights reserved / 版权所有"
 
     weak = [
-        (r"\bmit license\b", "MIT"),
-        (r"\bapache license\b|apache-2\.0|apache", "Apache-2.0"),
-        (r"\bgnu general public license\b", "GPL"),
-        (r"\bmozilla public license\b", "MPL-2.0"),
-        (r"\bbsd license\b", "BSD"),
+        (r"\bmit license\b", "MIT", True),
+        (r"\bapache license\b|apache-2\.0|apache", "Apache-2.0", True),
+        (r"\bgnu general public license\b", "GPL", False),
+        (r"\bmozilla public license\b", "MPL-2.0", True),
+        (r"\bbsd license\b", "BSD", True),
     ]
-    for pattern, lic in weak:
+    for pattern, lic, permissive in weak:
         m = re.search(pattern, t, re.S)
         if m:
-            status = "clear" if path.endswith(("/license", "/license.txt", "/licence")) else "needs_review"
+            status = ("clear" if (permissive and path.endswith(("/license", "/license.txt", "/licence")))
+                      else "needs_review")
             return lic, status, "weak mention: %s" % m.group(0)[:60]
     return "unknown", "needs_review", ""
 
@@ -135,7 +146,7 @@ def _norm(text):
     return re.sub(r"[\W_]+", "", _strip_markdown(text).lower())
 
 
-def verify_quotes(quotes, text):
+def verify_quotes(quotes, text, truncated=False):
     """Return true/false/unknown by normalized substring match."""
     quotes = [q for q in (quotes or []) if q and q.strip()]
     if not quotes:
@@ -143,6 +154,8 @@ def verify_quotes(quotes, text):
     page = _norm(text)
     if all(_norm(q) in page for q in quotes):
         return "true"
+    if truncated:
+        return "unknown"
     if len(page) >= 300:
         return "false"
     return "unknown"
@@ -156,15 +169,23 @@ def apply_web(source, page, status=200):
     out = dict(source)
     if page.get("title") and (not out.get("title") or out["title"] == out.get("url")):
         out["title"] = page["title"]
-    old = out.get("quotes") or []
-    out["quotes"] = list(dict.fromkeys(old + page.get("quotes", [])))[:5]
+    old = [q for q in (out.get("quotes") or []) if q and str(q).strip()]
+    extracted = page.get("quotes", [])
+    out["quotes"] = list(dict.fromkeys(old + extracted))[:5]
     page_text = " ".join([page.get("title", ""), page.get("description", ""),
                           page.get("text", "")])
-    out["quote_verified"] = verify_quotes(old, page_text) if old else (
-        "true" if page.get("quotes") else "unknown")
-    out["quote_verified_by"] = "web"
-    out["quote_verified_at"] = _now()
-    out["quote_verified_this_run"] = True
+    if old:
+        out["quote_verified"] = verify_quotes(
+            old, page_text, truncated=bool(page.get("truncated", False)))
+        out["quote_verified_by"] = "web"
+        out["quote_verified_this_run"] = True
+    else:
+        # Extracted candidate quotes must not self-certify as verified evidence.
+        out["quote_verified"] = "unknown"
+        out["quote_verified_by"] = None
+        out["quote_verified_this_run"] = False
+        if extracted:
+            out["quote_source"] = "web_extract"
     out["web_text_chars"] = len(page.get("text", ""))
     out["web_extracted"] = True
     out["last_seen"] = _now()
@@ -179,6 +200,9 @@ def apply_web(source, page, status=200):
         out["license_evidence"] = evidence
     elif lic_status == "proprietary" and out.get("license_status") in (None, "", "unknown", "needs_review"):
         out["license"], out["license_status"] = "proprietary", "proprietary"
+        out["license_evidence"] = evidence
+    elif lic != "unknown" and out.get("license") in (None, "", "unknown"):
+        out["license"] = lic
         out["license_evidence"] = evidence
     return out
 
