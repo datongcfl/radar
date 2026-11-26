@@ -11,6 +11,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--pack", default="packs/weak-current/pack.json")
 ap.add_argument("--seeds", default="seeds/weak-current.json")
 ap.add_argument("--run", default="runs/weak-current-demo")
+ap.add_argument("--expect-strong", type=int, default=None)
+ap.add_argument("--expect-evidence", type=int, default=None)
 args = ap.parse_args()
 pack = json.loads((ROOT / args.pack).read_text(encoding="utf-8"))
 seeds = json.loads((ROOT / args.seeds).read_text(encoding="utf-8"))["sources"]
@@ -35,6 +37,7 @@ print("bad_quote_verified: %s" % ([s["id"] for s in bad_qv] or "none"))
 print("bad_quote_verified_by: %s" % ([s["id"] for s in bad_by] or "none"))
 
 state_path = ROOT / args.run / "state.json"
+cov_path = ROOT / args.run / "coverage.json"
 if state_path.exists():
     state = json.loads(state_path.read_text(encoding="utf-8"))
     import hashlib
@@ -43,9 +46,23 @@ if state_path.exists():
     hash_ok = state.get("seeds_sha256") == seed_hash and state.get("pack_sha256") == pack_hash
     print("state_hashes: %s" % ("OK" if hash_ok else "MISMATCH"))
 else:
-    hash_ok = True
-    print("state_hashes: no sample run")
+    hash_ok = False
+    print("state_hashes: MISSING (%s)" % state_path)
 
-if wide or wide_only or short or bad_qv or bad_by or not hash_ok:
+summary_ok = True
+if cov_path.exists():
+    summary = json.loads(cov_path.read_text(encoding="utf-8")).get("summary", {})
+    print("coverage_summary: %s" % summary)
+    if args.expect_strong is not None and summary.get("strong") != args.expect_strong:
+        summary_ok = False
+        print("expect_strong mismatch: got %s expected %s" % (summary.get("strong"), args.expect_strong))
+    if args.expect_evidence is not None and summary.get("evidence") != args.expect_evidence:
+        summary_ok = False
+        print("expect_evidence mismatch: got %s expected %s" % (summary.get("evidence"), args.expect_evidence))
+elif args.expect_strong is not None or args.expect_evidence is not None:
+    summary_ok = False
+    print("coverage_summary: MISSING (%s)" % cov_path)
+
+if wide or wide_only or short or bad_qv or bad_by or not hash_ok or not summary_ok:
     sys.exit(1)
 print("audit: PASS")

@@ -11,7 +11,7 @@
 | 单源单元 | 15（M03、M05、M06、M07、M10、S01、S02、S03、S06、S07、S09、S11、S12、S13、S15） |
 
 对应产物：`runs/data-center-ops-demo/`。  
-`state_hashes: OK`；`tools/audit_ledger.py --pack packs/data-center-ops/pack.json --seeds seeds/data-center-ops.json --run runs/data-center-demo` PASS。
+`state_hashes: OK`；`tools/audit_ledger.py --pack packs/data-center-ops/pack.json --seeds seeds/data-center-ops.json --run runs/data-center-ops-demo` PASS。
 
 ## 来源构成
 

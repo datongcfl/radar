@@ -2,10 +2,10 @@
 
 | 层级 | 数量 |
 | --- | ---: |
-| none | 6 |
+| none | 4 |
 | mention | 8 |
 | evidence | 20 |
-| strong | 3 |
+| strong | 5 |
 
 ## 管理模块
 
@@ -16,9 +16,13 @@
 | `SRC-001` | gitee | strong | proprietary | public |
 | `SRC-008` | github | evidence | GPL-3.0 | public |
 
-### M02 立项与项目台账 — none
+### M02 立项与项目台账 — strong
 
-没有来源。
+| 来源 | 平台 | 等级 | 许可 | 访问 |
+| --- | --- | --- | --- | --- |
+| `SRC-036` | gitee | strong | MIT | public |
+| `SRC-037` | web | strong | GPL-2.0 | public |
+| `SRC-038` | docs | evidence | proprietary | public |
 
 ### M03 现场勘测与图纸 — evidence
 
@@ -114,7 +118,7 @@
 - **S01 综合布线** — evidence（7 个来源）
 - **S02 计算机网络/无线WIFI** — evidence（3 个来源）
 - **S03 综合管路** — evidence（3 个来源）
-- **S04 机房/UPS** — none（0 个来源）
+- **S04 机房/UPS** — strong（3 个来源）
 - **S05 视频监控** — mention（2 个来源）
 - **S06 门禁一卡通/出入口** — mention（2 个来源）
 - **S07 入侵/防盗报警** — evidence（3 个来源）

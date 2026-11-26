@@ -36,9 +36,10 @@ python3 -m radar run --pack <pack> --seeds <seeds> --title "<title>" --out <out>
 ## 硬规则
 
 - 不改 `radar/` 引擎；需要新行业就加 `packs/<industry>/`；
+- 补充来源可用 `python3 -m radar draft` 从 URL 起草，但必须人工/Agent 核对 `covers`、`license_status` 与正文原句 `quotes`（禁止用 `...` 拼接或改写总结充当 quote）；
 - 单源最高 `evidence`，不能 `strong`；
 - 专有来源只进参考池，不能复用；
-- `needs_review` 必须人工复核；
+- `needs_review`（含 GPL/AGPL 等强传染或未明许可）必须人工复核；
 - 不绕过登录/付费/验证码；
 - 不写完整 PRD；雷达只出目录/覆盖度/缺口。
 

@@ -7,7 +7,7 @@ Pack: `weak-current` v0.1.0
 | ID | 模块 | 覆盖 | 来源数 | 最强来源 |
 | --- | --- | --- | ---: | --- |
 | `M01` | 项目与往来单位 | **strong** | 2 | SRC-001 |
-| `M02` | 立项与项目台账 | **none** | 0 | — |
+| `M02` | 立项与项目台账 | **strong** | 3 | SRC-037 |
 | `M03` | 现场勘测与图纸 | **evidence** | 3 | SRC-012 |
 | `M04` | 询价与产品库 | **mention** | 1 | SRC-005 |
 | `M05` | 预估成本与容量 | **mention** | 1 | SRC-005 |
@@ -28,7 +28,7 @@ Pack: `weak-current` v0.1.0
 | `S01` | 综合布线 | **evidence** | 7 | SRC-025 |
 | `S02` | 计算机网络/无线WIFI | **evidence** | 3 | SRC-025 |
 | `S03` | 综合管路 | **evidence** | 3 | SRC-025 |
-| `S04` | 机房/UPS | **none** | 0 | — |
+| `S04` | 机房/UPS | **strong** | 3 | SRC-040 |
 | `S05` | 视频监控 | **mention** | 2 | SRC-013 |
 | `S06` | 门禁一卡通/出入口 | **mention** | 2 | SRC-013 |
 | `S07` | 入侵/防盗报警 | **evidence**（单源） | 3 | SRC-027 |

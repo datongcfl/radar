@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT))
 from radar.coverage import compute_coverage, gap_rows
 from radar.report import render_gaps, render_report
 from radar.state import compare_sources, render_changes
-from radar.adapters import parse_gitee_items, gitee_search, github_search
+from radar.adapters import parse_gitee_items, gitee_search, github_search, collect_github, collect_gitee
+from radar.draft import draft_seeds_from_urls
 from radar.fetch import apply_fetch, parse_headers
 from radar.snowball import parse_github_repo, fork_source, snowball as run_snowball
 from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes
@@ -120,7 +121,7 @@ class TestModel(unittest.TestCase):
         seeds = load_seeds(SEEDS, pack)
         self.assertEqual(len(pack["modules"]), 14)
         self.assertEqual(len(pack["subsystems"]), 23)
-        self.assertEqual(len(seeds), 35)
+        self.assertEqual(len(seeds), 41)
 
     def test_second_pack_valid(self):
         pack = load_pack(ROOT / "packs/pet-hospital/pack.json")
@@ -451,6 +452,10 @@ class TestWeb(unittest.TestCase):
         self.assertEqual(detect_license(mit)[:2], ("MIT", "clear"))
         self.assertEqual(detect_license("licensed under the Apache License, Version 2.0")[:2],
                          ("Apache-2.0", "clear"))
+        self.assertEqual(detect_license("GNU General Public License Version 3")[:2],
+                         ("GPL-3.0", "needs_review"))
+        self.assertEqual(detect_license("GNU Affero General Public License")[:2],
+                         ("AGPL-3.0", "needs_review"))
         self.assertEqual(detect_license("All rights reserved.")[:2], ("proprietary", "proprietary"))
         self.assertEqual(detect_license("A 项目采用 Apache 协议")[:2], ("Apache-2.0", "needs_review"))
         self.assertEqual(detect_license("MIT License")[:2], ("MIT", "needs_review"))
@@ -460,6 +465,31 @@ class TestWeb(unittest.TestCase):
         self.assertEqual(verify_quotes(["弱电 工程"], "这是弱电工程报价页面"), "true")
         self.assertEqual(verify_quotes(["不存在的句子"], "短页面"), "unknown")
         self.assertEqual(verify_quotes(["不存在的句子"], "长页面" * 200), "false")
+        self.assertEqual(verify_quotes(["不存在的句子"], "长页面" * 200, truncated=True), "unknown")
+
+    def test_extract_html_marks_truncated(self):
+        page = "<html><body>" + ("padding sentence. " * 2000) + "<p>THE REAL QUOTE IS AT THE END.</p></body></html>"
+        ex = extract_html(page, max_chars=2000)
+        self.assertTrue(ex["truncated"])
+        self.assertEqual(verify_quotes(["THE REAL QUOTE IS AT THE END."], ex["text"], truncated=ex["truncated"]), "unknown")
+
+    def test_apply_web_empty_quotes_does_not_self_certify_strong(self):
+        pack = {"pack": "p", "title": "T",
+                "modules": [{"id": "M01", "name": "Alpha", "artifacts": ["docs"], "keywords": ["alpha"]}],
+                "subsystems": [{"id": "S01", "name": "Beta", "artifacts": ["docs"], "keywords": ["beta"]}]}
+        page = {"title": "Doc", "description": "", "truncated": False,
+                "text": "Alpha is fully described in this documentation page with implementation details.",
+                "quotes": ["Alpha is fully described in this documentation page with implementation details."]}
+        srcs = []
+        for i, host in enumerate(("a.example.com", "b.example.com"), 1):
+            s = src("W%d" % i, ["M01"], evidence="real_artifact", quotes=[])
+            s["platform"] = "web"
+            s["url"] = "https://%s/doc" % host
+            srcs.append(apply_web(s, page))
+        self.assertEqual(srcs[0]["quote_verified"], "unknown")
+        self.assertIsNone(srcs[0]["quote_verified_by"])
+        self.assertFalse(srcs[0]["quote_verified_this_run"])
+        self.assertEqual(compute_coverage(pack, srcs)["modules"][0]["level"], "evidence")
 
     def test_web_output_reloads_and_grades(self):
         pack = load_pack(PACK)
@@ -592,6 +622,39 @@ class TestGitee(unittest.TestCase):
         got, warn = gitee_search("弱电", pack, token=None)
         self.assertEqual(got, [])
         self.assertIn("GITEE_TOKEN", warn)
+
+    def test_multi_query_github_gitee_ids_do_not_collide(self):
+        pack = load_pack(PACK)
+        def gh_item(name, desc, lic="MIT"):
+            return {"full_name": name, "description": desc, "topics": [],
+                    "html_url": "https://github.com/" + name,
+                    "license": {"spdx_id": lic}, "updated_at": "2026", "stargazers_count": 1}
+        gh_responses = [
+            ({"items": [gh_item("x/skip1", "nothing"), gh_item("y/hit1", "弱电 报价")]}, None),
+            ({"items": [gh_item("z/hit2", "弱电 报价", "GPL-3.0"), gh_item("w/skip2", "nothing")]}, None),
+            ({"items": [gh_item("u/skip3", "nothing"), gh_item("v/hit3", "弱电 报价")]}, None),
+        ]
+        with mock.patch("radar.adapters._curl_json", side_effect=gh_responses):
+            got, warns = collect_github(pack, limit_per_query=2, max_queries=3)
+        self.assertEqual(warns, [])
+        self.assertEqual([g["id"] for g in got], ["GH-001", "GH-002", "GH-003"])
+        self.assertEqual(got[1]["license_status"], "needs_review")
+
+        def gt_item(name, desc):
+            return {"full_name": name, "description": desc,
+                    "html_url": "https://gitee.com/" + name,
+                    "license": "MIT", "updated_at": "2026", "stargazers_count": 1}
+        gt_responses = [
+            ([gt_item("x/skip1", "nothing"), gt_item("y/hit1", "弱电 报价")], None),
+            ([gt_item("z/hit2", "弱电 报价"), gt_item("w/skip2", "nothing")], None),
+            ([gt_item("u/skip3", "nothing"), gt_item("v/hit3", "弱电 报价")], None),
+        ]
+        gt_pack = dict(pack)
+        gt_pack["source_map"] = {"gitee": ["q1", "q2", "q3"]}
+        with mock.patch("radar.adapters._curl_json", side_effect=gt_responses):
+            got_gt, warns_gt = collect_gitee(gt_pack, limit_per_query=2, max_queries=3, token="tok")
+        self.assertEqual(warns_gt, [])
+        self.assertEqual([g["id"] for g in got_gt], ["GT-001", "GT-002", "GT-003"])
 
 
 class TestCLIErrors(unittest.TestCase):
@@ -820,9 +883,46 @@ class TestScanAllScript(unittest.TestCase):
 
 class TestAudit(unittest.TestCase):
     def test_ledger_audit(self):
-        proc = subprocess.run([sys.executable, str(ROOT / "tools/audit_ledger.py")],
+        proc = subprocess.run([sys.executable, str(ROOT / "tools/audit_ledger.py"),
+                               "--expect-strong", "5", "--expect-evidence", "20"],
                               capture_output=True, text=True, timeout=30)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_ledger_audit_missing_run_fails(self):
+        proc = subprocess.run([sys.executable, str(ROOT / "tools/audit_ledger.py"),
+                               "--run", "runs/does-not-exist"],
+                              capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(proc.returncode, 0)
+
+
+class TestDraft(unittest.TestCase):
+    def test_draft_seeds_from_urls_dedup_and_validate(self):
+        pack = load_pack(PACK)
+        html = ("<html><head><title>弱电立项规范</title></head>"
+                "<body><p>弱电项目立项与项目台账管理系统需要覆盖项目编码、立项审批与阶段跟踪的完整流程。</p>"
+                "<p>Permission is hereby granted, free of charge, to any person obtaining a copy</p></body></html>")
+        with mock.patch("radar.draft.fetch_text", return_value=(html, 200, None)):
+            payload, warnings, skipped = draft_seeds_from_urls(
+                pack,
+                ["https://gitee.com/eywe-butler/eywe", "https://example.com/initiation-guide"],
+                covers=["M02"],
+                existing_seeds_path=SEEDS,
+            )
+        self.assertEqual(warnings, [])
+        self.assertEqual(skipped, ["https://gitee.com/eywe-butler/eywe"])
+        self.assertEqual(len(payload["sources"]), 1)
+        s = payload["sources"][0]
+        self.assertEqual(s["id"], "SRC-042")
+        self.assertEqual(s["status"], "needs_review")
+        self.assertEqual(s["quote_verified"], "unknown")
+        self.assertEqual(s["license"], "MIT")
+        self.assertEqual(s["license_status"], "clear")
+        self.assertTrue(s["quotes"])
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "draft.json"
+            p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            loaded = load_seeds(p, pack, strict=False)
+            self.assertEqual(len(loaded), 1)
 
 
 if __name__ == "__main__":
