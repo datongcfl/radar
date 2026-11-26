@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "run": "runs/weak-current-demo",
+  "pack": "weak-current",
+  "created_at": "2026-11-26T09:34:33-08:00",
+  "radar_version": "1.7.0",
+  "claims_sha256": "efe66d907d1f36e2e11bceb5da024afb1dca623d09adb7ebcebf490b95db265b",
+  "count": 8
+}
