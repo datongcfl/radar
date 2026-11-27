@@ -31,47 +31,60 @@ def _is_disallowed_ip(ip_obj):
     )
 
 
-def validate_public_url(url):
-    """Ensure URL is public http(s) without userinfo or private/loopback/link-local targets."""
+def resolve_public_url(url):
+    """Validate URL and resolve DNS once, returning (approved_ip, host, port, err).
+
+    approved_ip is None when host is already a literal public IP; otherwise it is the
+    first validated public IP to pin via curl --resolve so curl never re-resolves DNS.
+    """
     raw = str(url or "").strip()
     parts = urlsplit(raw)
     if parts.scheme.lower() not in ("http", "https"):
-        return "非 http(s) URL"
+        return None, None, None, "非 http(s) URL"
     if parts.username is not None or parts.password is not None:
-        return "拒绝包含 userinfo 的 URL"
+        return None, None, None, "拒绝包含 userinfo 的 URL"
     host = (parts.hostname or "").rstrip(".").lower()
     if not host:
-        return "URL 缺少主机名"
+        return None, None, None, "URL 缺少主机名"
     if host == "localhost" or any(host.endswith(suf) for suf in _BLOCKED_HOST_SUFFIXES):
-        return "拒绝本地或内网主机名: %s" % host
+        return None, None, None, "拒绝本地或内网主机名: %s" % host
+    try:
+        port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
+    except ValueError:
+        return None, None, None, "URL 端口非法"
     try:
         ip_literal = ipaddress.ip_address(host)
     except ValueError:
         ip_literal = None
     if ip_literal is not None:
         if _is_disallowed_ip(ip_literal):
-            return "拒绝私网/回环/保留 IP 地址: %s" % host
-        return None
-    try:
-        port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
-    except ValueError:
-        return "URL 端口非法"
+            return None, None, None, "拒绝私网/回环/保留 IP 地址: %s" % host
+        return None, host, port, None
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError as exc:
-        return "主机名解析失败: %s (%s)" % (host, exc)
+        return None, None, None, "主机名解析失败: %s (%s)" % (host, exc)
     if not infos:
-        return "主机名无可用解析记录: %s" % host
+        return None, None, None, "主机名无可用解析记录: %s" % host
+    approved_ip = None
     for info in infos:
         sockaddr = info[4]
         addr = sockaddr[0].split("%", 1)[0]
         try:
             resolved_ip = ipaddress.ip_address(addr)
         except ValueError:
-            return "解析结果含非法 IP: %s" % addr
+            return None, None, None, "解析结果含非法 IP: %s" % addr
         if _is_disallowed_ip(resolved_ip):
-            return "拒绝解析到私网/回环/保留地址的域名: %s -> %s" % (host, addr)
-    return None
+            return None, None, None, "拒绝解析到私网/回环/保留地址的域名: %s -> %s" % (host, addr)
+        if approved_ip is None:
+            approved_ip = ("[%s]" % addr) if isinstance(resolved_ip, ipaddress.IPv6Address) else addr
+    return approved_ip, host, port, None
+
+
+def validate_public_url(url):
+    """Ensure URL is public http(s) without userinfo or private/loopback/link-local targets."""
+    _, _, _, err = resolve_public_url(url)
+    return err
 
 
 def _extract_location(header_text):
@@ -83,10 +96,10 @@ def _extract_location(header_text):
 
 
 def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, max_redirects=5, ua=UA):
-    """Fetch public http(s) text via curl without -L, validating every redirect hop against SSRF."""
+    """Fetch public http(s) text via curl without -L, pinning approved IP per hop via --resolve."""
     current = str(url or "").strip()
     for _ in range(max_redirects + 1):
-        err = validate_public_url(current)
+        approved_ip, host, port, err = resolve_public_url(current)
         if err:
             return None, 0, err
         with tempfile.TemporaryDirectory() as tmp:
@@ -98,6 +111,8 @@ def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, ma
                 "--max-filesize", str(max_bytes),
                 "-D", str(hdr), "-o", str(body), "-w", "%{http_code}",
             ]
+            if approved_ip and host and port:
+                cmd += ["--resolve", "%s:%d:%s" % (host, port, approved_ip)]
             for h in headers or []:
                 cmd += ["-H", h]
             cmd.append(current)
@@ -194,12 +209,17 @@ def extract_html(html, max_chars=20000):
 
 
 def detect_license(text, url=""):
-    """Return (license, status, evidence). Proprietary notices take precedence; copyleft stays needs_review."""
+    """Return (license, status, evidence).
+
+    Standard MIT/BSD texts that include a copyright 'All rights reserved' line stay clear;
+    standalone proprietary notices return proprietary; conflicting permissive + proprietary
+    declarations on the same page are downgraded to needs_review.
+    """
     t = (text or "").lower()
     path = (urlsplit(url).path or "").lower()
-
-    if "all rights reserved" in t or "版权所有" in t or "proprietary notice" in t:
-        return "proprietary", "proprietary", "all rights reserved / 版权所有"
+    is_license_file = path.endswith(("/license", "/license.txt", "/license.md", "/licence", "/copying"))
+    has_arr = "all rights reserved" in t
+    has_hard_proprietary = ("版权所有" in t or "proprietary notice" in t)
 
     permissive_strong = [
         (r"permission is hereby granted, free of charge, to any person obtaining a copy", "MIT"),
@@ -211,6 +231,10 @@ def detect_license(text, url=""):
     for pattern, lic in permissive_strong:
         m = re.search(pattern, t, re.S)
         if m:
+            if has_hard_proprietary:
+                return lic, "needs_review", "conflicting license & proprietary notice: %s" % m.group(0)[:50]
+            if has_arr and not is_license_file and len(t) > 2500:
+                return lic, "needs_review", "conflicting all rights reserved on non-license page: %s" % m.group(0)[:50]
             return lic, "clear", m.group(0)[:80]
 
     copyleft_strong = [
@@ -232,11 +256,15 @@ def detect_license(text, url=""):
 
     m = re.search(r"redistribution and use in source and binary forms", t, re.S)
     if m:
-        if "neither the name" in t:
-            return "BSD-3-Clause", "clear", m.group(0)
-        if "2." in t and "3." not in t:
-            return "BSD-2-Clause", "clear", m.group(0)
-        return "BSD", "needs_review", "BSD without clause count"
+        bsd_lic = "BSD-3-Clause" if "neither the name" in t else ("BSD-2-Clause" if ("2." in t and "3." not in t) else "BSD")
+        if bsd_lic == "BSD":
+            return "BSD", "needs_review", "BSD without clause count"
+        if has_hard_proprietary or (has_arr and not is_license_file and len(t) > 2500):
+            return bsd_lic, "needs_review", "conflicting BSD & proprietary notice"
+        return bsd_lic, "clear", m.group(0)
+
+    if has_arr or has_hard_proprietary:
+        return "proprietary", "proprietary", "all rights reserved / 版权所有"
 
     weak = [
         (r"\bmit license\b", "MIT", True),

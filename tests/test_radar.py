@@ -18,7 +18,7 @@ from radar.adapters import parse_gitee_items, gitee_search, github_search, colle
 from radar.draft import draft_seeds_from_urls
 from radar.fetch import apply_fetch, parse_headers
 from radar.snowball import parse_github_repo, fork_source, snowball as run_snowball
-from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes, validate_public_url
+from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes, validate_public_url, safe_curl_fetch
 from radar.verify import source_text, verify_source, verify_sources
 from radar.model import level_for_source
 from radar.adapters import infer_covers
@@ -448,8 +448,14 @@ class TestWeb(unittest.TestCase):
 
     def test_detect_license(self):
         mit = "Permission is hereby granted, free of charge, to any person obtaining a copy"
-        self.assertEqual(detect_license(mit + "\nAll rights reserved")[:2], ("proprietary", "proprietary"))
-        self.assertEqual(detect_license(mit + "\n版权所有")[:2], ("proprietary", "proprietary"))
+        # Standard MIT header often includes a copyright 'All rights reserved' line -> MIT/clear
+        self.assertEqual(detect_license(mit + "\nAll rights reserved")[:2], ("MIT", "clear"))
+        # Conflicting permissive + hard proprietary notice or long non-LICENSE webpage -> needs_review
+        self.assertEqual(detect_license(mit + "\n版权所有")[:2], ("MIT", "needs_review"))
+        self.assertEqual(detect_license(mit + "\nProprietary notice")[:2], ("MIT", "needs_review"))
+        long_corp_page = ("Enterprise commercial platform documentation. " * 90) + mit + "\nAll rights reserved."
+        self.assertEqual(detect_license(long_corp_page, url="https://corp.example/docs")[:2], ("MIT", "needs_review"))
+        self.assertEqual(detect_license(long_corp_page, url="https://github.com/org/repo/blob/main/LICENSE")[:2], ("MIT", "clear"))
         self.assertEqual(detect_license(mit)[:2], ("MIT", "clear"))
         self.assertEqual(detect_license("licensed under the Apache License, Version 2.0")[:2],
                          ("Apache-2.0", "clear"))
@@ -1023,6 +1029,56 @@ class TestP0SecurityAndEvidenceRegressions(unittest.TestCase):
         with mock.patch("radar.web.socket.getaddrinfo",
                         return_value=[(2, 1, 6, "", ("127.0.0.1", 80))]):
             self.assertIsNotNone(validate_public_url("https://rebind.example.com/"))
+
+    def test_safe_curl_fetch_pins_resolved_ip_against_dns_rebinding(self):
+        # First DNS lookup returns public IP; a hypothetical second lookup would return 127.0.0.1.
+        # safe_curl_fetch must resolve ONCE and pass --resolve host:port:approved-ip to curl.
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            out_idx = cmd.index("-o") + 1
+            Path(cmd[out_idx]).write_text("<html>ok</html>", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="200", stderr="")
+
+        dns_seq = [
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+            [(2, 1, 6, "", ("127.0.0.1", 443))],
+        ]
+        with mock.patch("radar.web.socket.getaddrinfo", side_effect=dns_seq) as dns_mock, \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://rebind.example.com/page")
+        self.assertIsNone(err)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "<html>ok</html>")
+        self.assertEqual(dns_mock.call_count, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("--resolve", calls[0])
+        res_idx = calls[0].index("--resolve") + 1
+        self.assertEqual(calls[0][res_idx], "rebind.example.com:443:93.184.216.34")
+        self.assertNotIn("-L", calls[0])
+
+    def test_safe_curl_fetch_revalidates_and_blocks_private_redirect(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            hdr_idx = cmd.index("-D") + 1
+            Path(cmd[hdr_idx]).write_text("HTTP/1.1 302 Found\r\nLocation: http://internal.example.com/admin\r\n", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="302", stderr="")
+
+        dns_seq = [
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+            [(2, 1, 6, "", ("127.0.0.1", 80))],
+        ]
+        with mock.patch("radar.web.socket.getaddrinfo", side_effect=dns_seq), \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://public.example.com/start")
+        self.assertIsNone(text)
+        self.assertIsNotNone(err)
+        self.assertIn("私网", err)
+        # Second hop was blocked BEFORE invoking curl a second time!
+        self.assertEqual(len(calls), 1)
 
     def test_compare_sources_tracks_status_and_quote_verified(self):
         old = src("A", ["M01"])
