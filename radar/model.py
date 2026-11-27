@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
@@ -50,7 +52,29 @@ def load_json(path):
 def write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_name(".%s.%d.%s.tmp" % (path.name, os.getpid(), uuid.uuid4().hex[:8]))
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+
+def normalized_host(url):
+    """Normalize hostname for independent-source deduplication (lowercase, strip trailing dot and www.)."""
+    host = (urlsplit(str(url or "").strip()).hostname or "").rstrip(".").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
+def valid_quotes(quotes):
+    """Return non-empty string quotes only."""
+    return [q.strip() for q in (quotes or []) if isinstance(q, str) and q.strip()]
 
 
 def sha256_file(path):
@@ -198,6 +222,7 @@ def normalize_source(src, pack, index=0, strict=False):
     for cid in out["covers"]:
         _require(cid in valid_ids, "%s.covers 含不存在的 id: %s" % (where, cid))
     _require(isinstance(out["quotes"], list), "%s.quotes 必须是数组" % where)
+    _require(all(isinstance(q, str) for q in out["quotes"]), "%s.quotes 元素必须是字符串" % where)
     _require(out["quote_verified"] in QUOTE_VERIFIED,
              "%s.quote_verified 必须是 true/false/unknown" % where)
     _require(out.get("quote_verified_by") in (None, "", "web", "human"),
@@ -227,9 +252,9 @@ def load_seeds(path, pack, strict=False):
 
 
 def enforce_web_verification(sources):
-    """Ignore seed-provided marks: only quotes verified in this run can count."""
+    """Ignore seed-provided marks: only non-empty quotes verified in this run can count."""
     for src in sources:
-        if not src.get("quote_verified_this_run"):
+        if not src.get("quote_verified_this_run") or not valid_quotes(src.get("quotes")):
             src["quote_verified"] = "unknown"
             src["quote_verified_by"] = None
     return sources
@@ -240,7 +265,7 @@ def level_for_source(src):
         return "none"
     if src.get("access_status") in {"deleted", "blocked", "unreachable"}:
         return "mention"
-    has_quote = bool(src.get("quotes"))
+    has_quote = bool(valid_quotes(src.get("quotes")))
     verified = src.get("quote_verified", "unknown")
     by = src.get("quote_verified_by")
     ev = src.get("evidence_level")
@@ -279,6 +304,7 @@ def merge_sources(sources):
             continue
         cur = by_url[key]
         merged_from = cur["_merged_from"] + [src["id"]]
+        one_rejected = (cur.get("status") == "rejected") != (src.get("status") == "rejected")
         if cur.get("status") == "rejected" and src.get("status") != "rejected":
             covers = list(src.get("covers") or [])
             quotes = list(src.get("quotes") or [])
@@ -296,18 +322,25 @@ def merge_sources(sources):
         merged["quotes"] = quotes
         merged["_merged_from"] = merged_from
         merged["status"] = _merge_status(cur.get("status"), src.get("status"))
-        merged["quote_verified_this_run"] = bool(
-            cur.get("quote_verified_this_run") or src.get("quote_verified_this_run"))
-        verified = (cur.get("quote_verified", "unknown"), src.get("quote_verified", "unknown"))
-        if "false" in verified:
-            merged["quote_verified"] = "false"
-        elif all(v == "true" for v in verified):
-            merged["quote_verified"] = "true"
+        if one_rejected:
+            merged["quote_verified_this_run"] = bool(stronger.get("quote_verified_this_run"))
+            merged["quote_verified"] = stronger.get("quote_verified", "unknown")
+            merged["quote_verified_by"] = stronger.get("quote_verified_by")
         else:
-            merged["quote_verified"] = "unknown"
-        bys = (cur.get("quote_verified_by"), src.get("quote_verified_by"))
-        merged["quote_verified_by"] = ("web" if merged["quote_verified"] == "true" and all(b == "web" for b in bys)
-                                       else ("human" if "human" in bys else None))
+            # Merging two active entries requires both to have been verified this run
+            # so an unverified seed cannot inherit quote_verified_this_run=True via OR.
+            merged["quote_verified_this_run"] = bool(
+                cur.get("quote_verified_this_run") and src.get("quote_verified_this_run"))
+            verified = (cur.get("quote_verified", "unknown"), src.get("quote_verified", "unknown"))
+            if "false" in verified:
+                merged["quote_verified"] = "false"
+            elif all(v == "true" for v in verified):
+                merged["quote_verified"] = "true"
+            else:
+                merged["quote_verified"] = "unknown"
+            bys = (cur.get("quote_verified_by"), src.get("quote_verified_by"))
+            merged["quote_verified_by"] = ("web" if merged["quote_verified"] == "true" and all(b == "web" for b in bys)
+                                           else ("human" if "human" in bys else None))
         merged["access_status"] = max(
             (cur.get("access_status"), src.get("access_status")),
             key=lambda x: ACCESS_RANK.get(x, 0))

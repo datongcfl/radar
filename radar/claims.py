@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .model import RadarError, level_for_source, load_json, write_json
+from .model import LEVELS, RadarError, level_for_source, load_json, normalized_host, valid_quotes, write_json
 
 LEVEL_BASE = {"strong": 0.80, "evidence": 0.60, "mention": 0.30, "none": 0.0}
 
@@ -18,13 +18,14 @@ def _sources_for(claim, by_id):
 def _distinct_hosts(sources):
     hosts = set()
     for src in sources:
-        hosts.add((urlsplit(src.get("url", "")).hostname or "").lower())
+        hosts.add(normalized_host(src.get("url", "")))
     hosts.discard("")
     return len(hosts)
 
 
 def compute_confidence(claim, by_id):
-    sources = _sources_for(claim, by_id)
+    all_sources = _sources_for(claim, by_id)
+    sources = [s for s in all_sources if s.get("status") != "rejected"]
     if not sources:
         return {"confidence": 0.0, "label": "low", "status": "unresolved",
                 "reasons": ["no_sources"], "source_count": 0, "distinct_hosts": 0,
@@ -33,8 +34,10 @@ def compute_confidence(claim, by_id):
     best = max(levels, key=lambda x: {"none": 0, "mention": 1, "evidence": 2, "strong": 3}[x])
     base = LEVEL_BASE.get(best, 0.0)
     cap, reasons = 1.0, []
-    hosts = _distinct_hosts(sources)
-    if len(sources) < 2 or hosts < 2:
+    # Only non-rejected sources with at least evidence-level backing count toward independent corroboration.
+    corroborating = [s for s in sources if LEVELS[level_for_source(s)] >= LEVELS["evidence"]]
+    hosts = _distinct_hosts(corroborating)
+    if len(corroborating) < 2 or hosts < 2:
         cap = min(cap, 0.55)
         reasons.append("single_source")
     supported = set()
@@ -44,7 +47,9 @@ def compute_confidence(claim, by_id):
         cap = min(cap, 0.30)
         reasons.append("unsupported_by_sources")
     verified = [s for s in sources
-                if s.get("quote_verified") == "true" and s.get("quote_verified_by") == "web"]
+                if valid_quotes(s.get("quotes"))
+                and s.get("quote_verified") == "true"
+                and s.get("quote_verified_by") == "web"]
     verified_covers = set()
     for src in verified:
         verified_covers |= set(src.get("covers") or [])
@@ -54,7 +59,7 @@ def compute_confidence(claim, by_id):
     elif not (set(claim.get("covers") or []) & verified_covers):
         cap = min(cap, 0.30)
         reasons.append("unsupported_by_verified_sources")
-    if not any(s.get("quotes") for s in sources):
+    if not any(valid_quotes(s.get("quotes")) for s in sources):
         cap = min(cap, 0.40)
         reasons.append("no_quote")
     if any(s.get("license_status") == "proprietary" for s in sources):

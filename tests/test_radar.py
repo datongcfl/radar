@@ -18,7 +18,7 @@ from radar.adapters import parse_gitee_items, gitee_search, github_search, colle
 from radar.draft import draft_seeds_from_urls
 from radar.fetch import apply_fetch, parse_headers
 from radar.snowball import parse_github_repo, fork_source, snowball as run_snowball
-from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes
+from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes, validate_public_url, safe_curl_fetch
 from radar.verify import source_text, verify_source, verify_sources
 from radar.model import level_for_source
 from radar.adapters import infer_covers
@@ -448,7 +448,14 @@ class TestWeb(unittest.TestCase):
 
     def test_detect_license(self):
         mit = "Permission is hereby granted, free of charge, to any person obtaining a copy"
+        # Standard MIT header often includes a copyright 'All rights reserved' line -> MIT/clear
         self.assertEqual(detect_license(mit + "\nAll rights reserved")[:2], ("MIT", "clear"))
+        # Conflicting permissive + hard proprietary notice or long non-LICENSE webpage -> needs_review
+        self.assertEqual(detect_license(mit + "\n版权所有")[:2], ("MIT", "needs_review"))
+        self.assertEqual(detect_license(mit + "\nProprietary notice")[:2], ("MIT", "needs_review"))
+        long_corp_page = ("Enterprise commercial platform documentation. " * 90) + mit + "\nAll rights reserved."
+        self.assertEqual(detect_license(long_corp_page, url="https://corp.example/docs")[:2], ("MIT", "needs_review"))
+        self.assertEqual(detect_license(long_corp_page, url="https://github.com/org/repo/blob/main/LICENSE")[:2], ("MIT", "clear"))
         self.assertEqual(detect_license(mit)[:2], ("MIT", "clear"))
         self.assertEqual(detect_license("licensed under the Apache License, Version 2.0")[:2],
                          ("Apache-2.0", "clear"))
@@ -930,6 +937,242 @@ class TestDraft(unittest.TestCase):
             p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             loaded = load_seeds(p, pack, strict=False)
             self.assertEqual(len(loaded), 1)
+
+
+class TestP0SecurityAndEvidenceRegressions(unittest.TestCase):
+    def test_empty_string_quote_cannot_be_strong(self):
+        s = src("E1", ["M01"], evidence="real_artifact", quotes=[""])
+        self.assertEqual(level_for_source(s), "mention")
+        s["quote_verified_this_run"] = True
+        enforce_web_verification([s])
+        self.assertEqual(s["quote_verified"], "unknown")
+        self.assertIsNone(s["quote_verified_by"])
+
+    def test_merge_does_not_bypass_require_web_verify(self):
+        a = src("A", ["M01"], evidence="real_artifact", quotes=["verified quote"])
+        a["quote_verified_this_run"] = True
+        b = src("B", ["M01"], evidence="real_artifact", quotes=["unverified seed quote"])
+        b["url"] = a["url"]
+        b["quote_verified_this_run"] = False
+        merged = merge_sources([a, b])
+        self.assertEqual(len(merged), 1)
+        self.assertFalse(merged[0]["quote_verified_this_run"])
+        enforce_web_verification(merged)
+        self.assertEqual(merged[0]["quote_verified"], "unknown")
+        self.assertEqual(level_for_source(merged[0]), "evidence")
+
+    def test_www_and_trailing_dot_count_as_same_host(self):
+        pack = {"modules": [{"id": "M01", "name": "模块"}], "subsystems": []}
+        a = src("A", ["M01"], evidence="real_artifact")
+        a["url"] = "https://example.com/a"
+        b = src("B", ["M01"], evidence="real_artifact")
+        b["url"] = "https://www.example.com./b"
+        cov = compute_coverage(pack, [a, b])
+        row = cov["modules"][0]
+        self.assertEqual(row["independent_count"], 1)
+        self.assertEqual(row["level"], "evidence")
+
+    def test_rejected_and_mention_sources_do_not_boost_claim_confidence(self):
+        a = src("A", ["M01"], evidence="real_artifact", quotes=["real quote"])
+        a["url"] = "https://alpha.example/a"
+        rej = src("R", ["M01"], evidence="real_artifact", quotes=["rejected quote"], status="rejected")
+        rej["url"] = "https://beta.example/r"
+        claim = {"id": "C1", "statement": "s", "covers": ["M01"],
+                 "sources": ["A", "R"], "contradicts": []}
+        res = compute_confidence(claim, {"A": a, "R": rej})
+        self.assertEqual(res["distinct_hosts"], 1)
+        self.assertEqual(res["confidence"], 0.55)
+        self.assertIn("single_source", res["reasons"])
+        self.assertEqual(res["status"], "open")
+
+        # Mention-only (no quote) different host also cannot corroborate to high
+        m = src("M", ["M01"], evidence="docs", quotes=[])
+        m["url"] = "https://gamma.example/m"
+        res2 = compute_confidence({"id": "C2", "statement": "s", "covers": ["M01"],
+                                   "sources": ["A", "M"], "contradicts": []}, {"A": a, "M": m})
+        self.assertEqual(res2["distinct_hosts"], 1)
+        self.assertEqual(res2["confidence"], 0.55)
+        self.assertIn("single_source", res2["reasons"])
+
+    def test_scan_rejects_same_base_and_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "same"
+            subprocess.run([sys.executable, "-m", "radar", "run", "--pack", str(PACK),
+                            "--seeds", str(SEEDS), "--title", "T", "--out", str(run_dir)],
+                           cwd=ROOT, check=True, capture_output=True, text=True)
+            sentinel = run_dir / "state.json"
+            before = sentinel.read_text(encoding="utf-8")
+            proc = subprocess.run([sys.executable, "-m", "radar", "scan", "--pack", str(PACK),
+                                   "--seeds", str(SEEDS), "--title", "T",
+                                   "--base", str(run_dir), "--out", str(run_dir)],
+                                  cwd=ROOT, capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("不能指向同一目录", proc.stderr)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), before)
+
+    def test_validate_public_url_blocks_ssrf(self):
+        for bad in [
+            "http://127.0.0.1:7100/api/desk",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.1/admin",
+            "http://192.168.1.1/",
+            "http://[::1]:8080/",
+            "http://[::ffff:127.0.0.1]/",
+            "http://localhost/secret",
+            "https://user:pass@example.com/",
+            "file:///etc/passwd",
+        ]:
+            self.assertIsNotNone(validate_public_url(bad), "Expected SSRF block for %s" % bad)
+        with mock.patch("radar.web.socket.getaddrinfo",
+                        return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]):
+            self.assertIsNone(validate_public_url("https://example.com/public"))
+        with mock.patch("radar.web.socket.getaddrinfo",
+                        return_value=[(2, 1, 6, "", ("127.0.0.1", 80))]):
+            self.assertIsNotNone(validate_public_url("https://rebind.example.com/"))
+
+    def test_safe_curl_fetch_pins_resolved_ip_against_dns_rebinding(self):
+        # First DNS lookup returns public IP; a hypothetical second lookup would return 127.0.0.1.
+        # safe_curl_fetch must resolve ONCE and pass --resolve host:port:approved-ip to curl.
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            out_idx = cmd.index("-o") + 1
+            Path(cmd[out_idx]).write_text("<html>ok</html>", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="200", stderr="")
+
+        dns_seq = [
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+            [(2, 1, 6, "", ("127.0.0.1", 443))],
+        ]
+        with mock.patch("radar.web.socket.getaddrinfo", side_effect=dns_seq) as dns_mock, \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://rebind.example.com/page")
+        self.assertIsNone(err)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "<html>ok</html>")
+        self.assertEqual(dns_mock.call_count, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("--resolve", calls[0])
+        res_idx = calls[0].index("--resolve") + 1
+        self.assertEqual(calls[0][res_idx], "rebind.example.com:443:93.184.216.34")
+        self.assertNotIn("-L", calls[0])
+
+    def test_safe_curl_fetch_revalidates_and_blocks_private_redirect(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            hdr_idx = cmd.index("-D") + 1
+            Path(cmd[hdr_idx]).write_text("HTTP/1.1 302 Found\r\nLocation: http://internal.example.com/admin\r\n", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="302", stderr="")
+
+        dns_seq = [
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+            [(2, 1, 6, "", ("127.0.0.1", 80))],
+        ]
+        with mock.patch("radar.web.socket.getaddrinfo", side_effect=dns_seq), \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://public.example.com/start")
+        self.assertIsNone(text)
+        self.assertIsNotNone(err)
+        self.assertIn("私网", err)
+        # Second hop was blocked BEFORE invoking curl a second time!
+        self.assertEqual(len(calls), 1)
+
+    def test_safe_curl_fetch_normalizes_trailing_dot_and_isolates_curlrc_and_proxy(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            out_idx = cmd.index("-o") + 1
+            Path(cmd[out_idx]).write_text("ok", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="200", stderr="")
+
+        with mock.patch("radar.web.socket.getaddrinfo",
+                        return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]), \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://Example.COM.:443/doc?a=1")
+        self.assertIsNone(err)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "ok")
+        self.assertEqual(len(calls), 1)
+        cmd = calls[0]
+        # -q must be the very first argument to disable ~/.curlrc
+        self.assertEqual(cmd[:2], ["curl", "-q"])
+        # --noproxy '*' isolates environment proxies so DNS is never delegated to a proxy
+        np_idx = cmd.index("--noproxy")
+        self.assertEqual(cmd[np_idx + 1], "*")
+        # --resolve host and actual URL host must both be normalized without trailing dot
+        res_idx = cmd.index("--resolve")
+        self.assertEqual(cmd[res_idx + 1], "example.com:443:93.184.216.34")
+        self.assertEqual(cmd[-1], "https://example.com:443/doc?a=1")
+
+    def test_malformed_url_and_port_zero_return_error_not_exception(self):
+        for bad in [
+            "http://[::1/",
+            "http://example\uff1a80/path",
+            "https://example.com:0/path",
+            "http://93.184.216.34:0/",
+        ]:
+            err = validate_public_url(bad)
+            self.assertIsNotNone(err, "Expected error for %s" % bad)
+            text, status, fetch_err = safe_curl_fetch(bad)
+            self.assertIsNone(text)
+            self.assertEqual(status, 0)
+            self.assertIsNotNone(fetch_err)
+
+    def test_safe_curl_fetch_strips_sensitive_headers_on_cross_origin_redirect(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            hdr_idx = cmd.index("-D") + 1
+            out_idx = cmd.index("-o") + 1
+            if len(calls) == 1:
+                Path(hdr_idx and cmd[hdr_idx]).write_text(
+                    "HTTP/1.1 302 Found\r\nLocation: https://cdn.example.com/raw/readme.md\r\n",
+                    encoding="utf-8",
+                )
+                return mock.Mock(returncode=0, stdout="302", stderr="")
+            Path(cmd[out_idx]).write_text("hello", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="200", stderr="")
+
+        dns_seq = [
+            [(2, 1, 6, "", ("140.82.121.6", 443))],
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+        ]
+        headers = [
+            "Authorization: Bearer ghp_secret",
+            "Cookie: session=abc",
+            "Proxy-Authorization: Basic xyz",
+            "Accept: application/vnd.github.raw",
+        ]
+        with mock.patch("radar.web.socket.getaddrinfo", side_effect=dns_seq), \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://api.github.com/repos/o/r/contents/README.md", headers=headers)
+        self.assertIsNone(err)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "hello")
+        self.assertEqual(len(calls), 2)
+        # First hop carries all caller headers
+        self.assertIn("Authorization: Bearer ghp_secret", calls[0])
+        # Second hop (cross-origin) strips sensitive headers while keeping Accept
+        hop2_str = " ".join(calls[1]).lower()
+        self.assertNotIn("authorization:", hop2_str)
+        self.assertNotIn("cookie:", hop2_str)
+        self.assertNotIn("proxy-authorization:", hop2_str)
+        self.assertIn("Accept: application/vnd.github.raw", calls[1])
+
+    def test_compare_sources_tracks_status_and_quote_verified(self):
+        old = src("A", ["M01"])
+        new = dict(old)
+        new["status"] = "needs_review"
+        new["quote_verified"] = "unknown"
+        res = compare_sources([old], [new])
+        self.assertEqual(len(res["changed"]), 1)
+        self.assertIn("status", res["changed"][0]["fields"])
+        self.assertIn("quote_verified", res["changed"][0]["fields"])
 
 
 if __name__ == "__main__":

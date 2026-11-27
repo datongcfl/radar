@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .model import canonical_url
-from .web import extract_html, fetch_text, verify_quotes
+from .web import MAX_FETCH_BYTES, extract_html, fetch_text, safe_curl_fetch, verify_quotes
 
 UA = "radar-mvp/1.1.0"
 
@@ -35,28 +35,7 @@ def _github_file(url):
 
 
 def _curl_text(url, headers=None, timeout=20):
-    with tempfile.TemporaryDirectory() as tmp:
-        body = Path(tmp) / "body.bin"
-        cmd = ["curl", "-sS", "-L", "--max-time", str(timeout),
-               "-H", "User-Agent: %s" % UA, "-o", str(body), "-w", "%{http_code}"]
-        for h in headers or []:
-            cmd += ["-H", h]
-        cmd.append(url)
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", timeout=timeout + 5)
-        except Exception as exc:
-            return None, 0, "curl 异常: %s" % exc
-        try:
-            status = int((proc.stdout or "0").strip())
-        except ValueError:
-            status = 0
-        text = body.read_text(encoding="utf-8", errors="replace") if body.exists() else ""
-        if proc.returncode != 0:
-            return None, status, (proc.stderr or "curl exit %s" % proc.returncode).strip()[:200]
-        if status != 200:
-            return None, status, "HTTP %s" % status
-        return text, status, None
+    return safe_curl_fetch(url, headers=headers, timeout=timeout, max_bytes=MAX_FETCH_BYTES, ua=UA)
 
 
 def source_text(src, timeout=20):

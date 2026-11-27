@@ -1,16 +1,175 @@
 """Minimal web extraction + license hints (v0.3), standard library only."""
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import subprocess
 import tempfile
 from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
 UA = "radar-mvp/1.7.0"
+MAX_FETCH_BYTES = 5242880
+_BLOCKED_HOST_SUFFIXES = (".localhost", ".local", ".internal", ".arpa", ".localdomain")
+
+
+def _is_disallowed_ip(ip_obj):
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped is not None:
+        return _is_disallowed_ip(ip_obj.ipv4_mapped)
+    return (
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+        or ip_obj.is_unspecified
+        or not ip_obj.is_global
+    )
+
+
+_SENSITIVE_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization"})
+
+
+def resolve_public_url(url):
+    """Validate URL and resolve DNS once, returning (normalized_url, approved_ip, host, port, err).
+
+    normalized_url strips trailing dots from host so DNS verification, curl --resolve,
+    and the actual URL passed to curl always use the exact same hostname.
+    approved_ip is None when host is already a literal public IP.
+    """
+    raw = str(url or "").strip()
+    try:
+        parts = urlsplit(raw)
+    except ValueError as exc:
+        return None, None, None, None, "URL 格式非法: %s" % exc
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
+        return None, None, None, None, "非 http(s) URL"
+    if parts.username is not None or parts.password is not None:
+        return None, None, None, None, "拒绝包含 userinfo 的 URL"
+    host = (parts.hostname or "").rstrip(".").lower()
+    if not host:
+        return None, None, None, None, "URL 缺少主机名"
+    if host == "localhost" or any(host.endswith(suf) for suf in _BLOCKED_HOST_SUFFIXES):
+        return None, None, None, None, "拒绝本地或内网主机名: %s" % host
+    try:
+        explicit_port = parts.port
+    except ValueError:
+        return None, None, None, None, "URL 端口非法"
+    if explicit_port is not None and (explicit_port <= 0 or explicit_port > 65535):
+        return None, None, None, None, "URL 端口非法: %s" % explicit_port
+    port = explicit_port if explicit_port is not None else (443 if scheme == "https" else 80)
+    try:
+        ip_literal = ipaddress.ip_address(host)
+    except ValueError:
+        ip_literal = None
+    host_for_netloc = ("[%s]" % host) if (ip_literal is not None and isinstance(ip_literal, ipaddress.IPv6Address)) else host
+    netloc = ("%s:%d" % (host_for_netloc, explicit_port)) if explicit_port is not None else host_for_netloc
+    normalized_url = urlunsplit((scheme, netloc, parts.path or "", parts.query or "", ""))
+    if ip_literal is not None:
+        if _is_disallowed_ip(ip_literal):
+            return None, None, None, None, "拒绝私网/回环/保留 IP 地址: %s" % host
+        return normalized_url, None, host, port, None
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        return None, None, None, None, "主机名解析失败: %s (%s)" % (host, exc)
+    if not infos:
+        return None, None, None, None, "主机名无可用解析记录: %s" % host
+    approved_ip = None
+    for info in infos:
+        sockaddr = info[4]
+        addr = sockaddr[0].split("%", 1)[0]
+        try:
+            resolved_ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return None, None, None, None, "解析结果含非法 IP: %s" % addr
+        if _is_disallowed_ip(resolved_ip):
+            return None, None, None, None, "拒绝解析到私网/回环/保留地址的域名: %s -> %s" % (host, addr)
+        if approved_ip is None:
+            approved_ip = ("[%s]" % addr) if isinstance(resolved_ip, ipaddress.IPv6Address) else addr
+    return normalized_url, approved_ip, host, port, None
+
+
+def validate_public_url(url):
+    """Ensure URL is public http(s) without userinfo or private/loopback/link-local targets."""
+    _, _, _, _, err = resolve_public_url(url)
+    return err
+
+
+def _extract_location(header_text):
+    location = None
+    for line in (header_text or "").splitlines():
+        if line.lower().startswith("location:"):
+            location = line.split(":", 1)[1].strip()
+    return location
+
+
+def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, max_redirects=5, ua=UA):
+    """Fetch public http(s) text via curl without -L, disabling .curlrc (-q) and proxies (--noproxy '*'),
+    stripping sensitive headers on cross-origin redirects, and pinning approved IP per hop via --resolve.
+    """
+    current = str(url or "").strip()
+    active_headers = list(headers or [])
+    initial_origin = None
+    for _ in range(max_redirects + 1):
+        norm_url, approved_ip, host, port, err = resolve_public_url(current)
+        if err:
+            return None, 0, err
+        cur_origin = (urlsplit(norm_url).scheme.lower(), host, port)
+        if initial_origin is None:
+            initial_origin = cur_origin
+        elif cur_origin != initial_origin:
+            active_headers = [
+                h for h in active_headers
+                if str(h).split(":", 1)[0].strip().lower() not in _SENSITIVE_HEADERS
+            ]
+        with tempfile.TemporaryDirectory() as tmp:
+            hdr = Path(tmp) / "headers.txt"
+            body = Path(tmp) / "body.bin"
+            cmd = [
+                "curl", "-q", "-sS", "--noproxy", "*",
+                "--max-time", str(timeout),
+                "-H", "User-Agent: %s" % ua,
+                "--max-filesize", str(max_bytes),
+                "-D", str(hdr), "-o", str(body), "-w", "%{http_code}",
+            ]
+            if approved_ip and host and port:
+                cmd += ["--resolve", "%s:%d:%s" % (host, port, approved_ip)]
+            for h in active_headers:
+                cmd += ["-H", h]
+            cmd.append(norm_url)
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=timeout + 5,
+                )
+            except Exception as exc:
+                return None, 0, "curl 异常: %s" % exc
+            try:
+                status = int((proc.stdout or "0").strip())
+            except ValueError:
+                status = 0
+            if proc.returncode != 0:
+                return None, status, (proc.stderr or "curl exit %s" % proc.returncode).strip()[:240]
+            if status in (301, 302, 303, 307, 308):
+                hdr_text = hdr.read_text(encoding="utf-8", errors="replace") if hdr.exists() else ""
+                loc = _extract_location(hdr_text)
+                if not loc:
+                    return None, status, "HTTP %s 缺少 Location 头" % status
+                current = urljoin(norm_url, loc)
+                continue
+            if status != 200:
+                return None, status, "HTTP %s" % status
+            if body.exists() and body.stat().st_size > max_bytes:
+                return None, status, "响应体超过上限 (%d bytes)" % max_bytes
+            text = body.read_text(encoding="utf-8", errors="replace") if body.exists() else ""
+            return text, status, None
+    return None, 0, "重定向次数超过上限 (%d)" % max_redirects
 
 
 class _Extractor(HTMLParser):
@@ -77,9 +236,17 @@ def extract_html(html, max_chars=20000):
 
 
 def detect_license(text, url=""):
-    """Return (license, status, evidence). Copyleft stays needs_review."""
+    """Return (license, status, evidence).
+
+    Standard MIT/BSD texts that include a copyright 'All rights reserved' line stay clear;
+    standalone proprietary notices return proprietary; conflicting permissive + proprietary
+    declarations on the same page are downgraded to needs_review.
+    """
     t = (text or "").lower()
     path = (urlsplit(url).path or "").lower()
+    is_license_file = path.endswith(("/license", "/license.txt", "/license.md", "/licence", "/copying"))
+    has_arr = "all rights reserved" in t
+    has_hard_proprietary = ("版权所有" in t or "proprietary notice" in t)
 
     permissive_strong = [
         (r"permission is hereby granted, free of charge, to any person obtaining a copy", "MIT"),
@@ -91,6 +258,10 @@ def detect_license(text, url=""):
     for pattern, lic in permissive_strong:
         m = re.search(pattern, t, re.S)
         if m:
+            if has_hard_proprietary:
+                return lic, "needs_review", "conflicting license & proprietary notice: %s" % m.group(0)[:50]
+            if has_arr and not is_license_file and len(t) > 2500:
+                return lic, "needs_review", "conflicting all rights reserved on non-license page: %s" % m.group(0)[:50]
             return lic, "clear", m.group(0)[:80]
 
     copyleft_strong = [
@@ -112,13 +283,14 @@ def detect_license(text, url=""):
 
     m = re.search(r"redistribution and use in source and binary forms", t, re.S)
     if m:
-        if "neither the name" in t:
-            return "BSD-3-Clause", "clear", m.group(0)
-        if "2." in t and "3." not in t:
-            return "BSD-2-Clause", "clear", m.group(0)
-        return "BSD", "needs_review", "BSD without clause count"
+        bsd_lic = "BSD-3-Clause" if "neither the name" in t else ("BSD-2-Clause" if ("2." in t and "3." not in t) else "BSD")
+        if bsd_lic == "BSD":
+            return "BSD", "needs_review", "BSD without clause count"
+        if has_hard_proprietary or (has_arr and not is_license_file and len(t) > 2500):
+            return bsd_lic, "needs_review", "conflicting BSD & proprietary notice"
+        return bsd_lic, "clear", m.group(0)
 
-    if "all rights reserved" in t or "版权所有" in t or "proprietary notice" in t:
+    if has_arr or has_hard_proprietary:
         return "proprietary", "proprietary", "all rights reserved / 版权所有"
 
     weak = [
@@ -208,30 +380,8 @@ def apply_web(source, page, status=200):
 
 
 def fetch_text(url, timeout=20):
-    """Returns (text, status, error). Non-2xx must not be treated as success."""
-    if not str(url).startswith(("http://", "https://")):
-        return None, 0, "非 http(s) URL"
-    with tempfile.TemporaryDirectory() as tmp:
-        hdr = Path(tmp) / "headers.txt"
-        body = Path(tmp) / "body.bin"
-        cmd = ["curl", "-sS", "-L", "--max-time", str(timeout),
-               "-H", "User-Agent: %s" % UA, "--max-filesize", "5242880",
-               "-D", str(hdr), "-o", str(body), "-w", "%{http_code}", url]
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout + 5)
-        except Exception as exc:
-            return None, 0, "curl 异常: %s" % exc
-        status = 0
-        try:
-            status = int((proc.stdout or "0").strip())
-        except ValueError:
-            status = 0
-        text = body.read_text(encoding="utf-8", errors="ignore") if body.exists() else ""
-        if proc.returncode != 0:
-            return None, status, (proc.stderr or "curl exit %s" % proc.returncode).strip()[:240]
-        if status != 200:
-            return None, status, "HTTP %s" % status
-        return text, status, None
+    """Returns (text, status, error). Non-2xx and private/redirect SSRF targets are rejected."""
+    return safe_curl_fetch(url, timeout=timeout, max_bytes=MAX_FETCH_BYTES, ua=UA)
 
 
 def robots_allowed(url, timeout=10):
