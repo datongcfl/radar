@@ -171,6 +171,8 @@ def cmd_validate(args):
 
 
 def cmd_scan(args):
+    if Path(args.base).resolve() == Path(args.out).resolve():
+        raise RadarError("scan 的 --base 与 --out 不能指向同一目录，否则会覆盖旧结果并与自身比较")
     result = cmd_run(args)
     out = Path(args.out)
     diff_path = out / "diff.md"

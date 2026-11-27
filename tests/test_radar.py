@@ -18,7 +18,7 @@ from radar.adapters import parse_gitee_items, gitee_search, github_search, colle
 from radar.draft import draft_seeds_from_urls
 from radar.fetch import apply_fetch, parse_headers
 from radar.snowball import parse_github_repo, fork_source, snowball as run_snowball
-from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes
+from radar.web import extract_html, detect_license, apply_web, enrich_web, verify_quotes, validate_public_url
 from radar.verify import source_text, verify_source, verify_sources
 from radar.model import level_for_source
 from radar.adapters import infer_covers
@@ -448,7 +448,8 @@ class TestWeb(unittest.TestCase):
 
     def test_detect_license(self):
         mit = "Permission is hereby granted, free of charge, to any person obtaining a copy"
-        self.assertEqual(detect_license(mit + "\nAll rights reserved")[:2], ("MIT", "clear"))
+        self.assertEqual(detect_license(mit + "\nAll rights reserved")[:2], ("proprietary", "proprietary"))
+        self.assertEqual(detect_license(mit + "\n版权所有")[:2], ("proprietary", "proprietary"))
         self.assertEqual(detect_license(mit)[:2], ("MIT", "clear"))
         self.assertEqual(detect_license("licensed under the Apache License, Version 2.0")[:2],
                          ("Apache-2.0", "clear"))
@@ -930,6 +931,108 @@ class TestDraft(unittest.TestCase):
             p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             loaded = load_seeds(p, pack, strict=False)
             self.assertEqual(len(loaded), 1)
+
+
+class TestP0SecurityAndEvidenceRegressions(unittest.TestCase):
+    def test_empty_string_quote_cannot_be_strong(self):
+        s = src("E1", ["M01"], evidence="real_artifact", quotes=[""])
+        self.assertEqual(level_for_source(s), "mention")
+        s["quote_verified_this_run"] = True
+        enforce_web_verification([s])
+        self.assertEqual(s["quote_verified"], "unknown")
+        self.assertIsNone(s["quote_verified_by"])
+
+    def test_merge_does_not_bypass_require_web_verify(self):
+        a = src("A", ["M01"], evidence="real_artifact", quotes=["verified quote"])
+        a["quote_verified_this_run"] = True
+        b = src("B", ["M01"], evidence="real_artifact", quotes=["unverified seed quote"])
+        b["url"] = a["url"]
+        b["quote_verified_this_run"] = False
+        merged = merge_sources([a, b])
+        self.assertEqual(len(merged), 1)
+        self.assertFalse(merged[0]["quote_verified_this_run"])
+        enforce_web_verification(merged)
+        self.assertEqual(merged[0]["quote_verified"], "unknown")
+        self.assertEqual(level_for_source(merged[0]), "evidence")
+
+    def test_www_and_trailing_dot_count_as_same_host(self):
+        pack = {"modules": [{"id": "M01", "name": "模块"}], "subsystems": []}
+        a = src("A", ["M01"], evidence="real_artifact")
+        a["url"] = "https://example.com/a"
+        b = src("B", ["M01"], evidence="real_artifact")
+        b["url"] = "https://www.example.com./b"
+        cov = compute_coverage(pack, [a, b])
+        row = cov["modules"][0]
+        self.assertEqual(row["independent_count"], 1)
+        self.assertEqual(row["level"], "evidence")
+
+    def test_rejected_and_mention_sources_do_not_boost_claim_confidence(self):
+        a = src("A", ["M01"], evidence="real_artifact", quotes=["real quote"])
+        a["url"] = "https://alpha.example/a"
+        rej = src("R", ["M01"], evidence="real_artifact", quotes=["rejected quote"], status="rejected")
+        rej["url"] = "https://beta.example/r"
+        claim = {"id": "C1", "statement": "s", "covers": ["M01"],
+                 "sources": ["A", "R"], "contradicts": []}
+        res = compute_confidence(claim, {"A": a, "R": rej})
+        self.assertEqual(res["distinct_hosts"], 1)
+        self.assertEqual(res["confidence"], 0.55)
+        self.assertIn("single_source", res["reasons"])
+        self.assertEqual(res["status"], "open")
+
+        # Mention-only (no quote) different host also cannot corroborate to high
+        m = src("M", ["M01"], evidence="docs", quotes=[])
+        m["url"] = "https://gamma.example/m"
+        res2 = compute_confidence({"id": "C2", "statement": "s", "covers": ["M01"],
+                                   "sources": ["A", "M"], "contradicts": []}, {"A": a, "M": m})
+        self.assertEqual(res2["distinct_hosts"], 1)
+        self.assertEqual(res2["confidence"], 0.55)
+        self.assertIn("single_source", res2["reasons"])
+
+    def test_scan_rejects_same_base_and_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "same"
+            subprocess.run([sys.executable, "-m", "radar", "run", "--pack", str(PACK),
+                            "--seeds", str(SEEDS), "--title", "T", "--out", str(run_dir)],
+                           cwd=ROOT, check=True, capture_output=True, text=True)
+            sentinel = run_dir / "state.json"
+            before = sentinel.read_text(encoding="utf-8")
+            proc = subprocess.run([sys.executable, "-m", "radar", "scan", "--pack", str(PACK),
+                                   "--seeds", str(SEEDS), "--title", "T",
+                                   "--base", str(run_dir), "--out", str(run_dir)],
+                                  cwd=ROOT, capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("不能指向同一目录", proc.stderr)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), before)
+
+    def test_validate_public_url_blocks_ssrf(self):
+        for bad in [
+            "http://127.0.0.1:7100/api/desk",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.1/admin",
+            "http://192.168.1.1/",
+            "http://[::1]:8080/",
+            "http://[::ffff:127.0.0.1]/",
+            "http://localhost/secret",
+            "https://user:pass@example.com/",
+            "file:///etc/passwd",
+        ]:
+            self.assertIsNotNone(validate_public_url(bad), "Expected SSRF block for %s" % bad)
+        with mock.patch("radar.web.socket.getaddrinfo",
+                        return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]):
+            self.assertIsNone(validate_public_url("https://example.com/public"))
+        with mock.patch("radar.web.socket.getaddrinfo",
+                        return_value=[(2, 1, 6, "", ("127.0.0.1", 80))]):
+            self.assertIsNotNone(validate_public_url("https://rebind.example.com/"))
+
+    def test_compare_sources_tracks_status_and_quote_verified(self):
+        old = src("A", ["M01"])
+        new = dict(old)
+        new["status"] = "needs_review"
+        new["quote_verified"] = "unknown"
+        res = compare_sources([old], [new])
+        self.assertEqual(len(res["changed"]), 1)
+        self.assertIn("status", res["changed"][0]["fields"])
+        self.assertIn("quote_verified", res["changed"][0]["fields"])
 
 
 if __name__ == "__main__":

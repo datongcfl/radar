@@ -7,6 +7,9 @@ from pathlib import Path
 
 import argparse
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from radar.coverage import compute_coverage
+from radar.state import read_sources
 ap = argparse.ArgumentParser()
 ap.add_argument("--pack", default="packs/weak-current/pack.json")
 ap.add_argument("--seeds", default="seeds/weak-current.json")
@@ -50,15 +53,21 @@ else:
     print("state_hashes: MISSING (%s)" % state_path)
 
 summary_ok = True
-if cov_path.exists():
-    summary = json.loads(cov_path.read_text(encoding="utf-8")).get("summary", {})
-    print("coverage_summary: %s" % summary)
-    if args.expect_strong is not None and summary.get("strong") != args.expect_strong:
+run_dir = ROOT / args.run
+sources_path = run_dir / "sources.jsonl"
+if cov_path.exists() and sources_path.exists():
+    recorded = json.loads(cov_path.read_text(encoding="utf-8")).get("summary", {})
+    recomputed = compute_coverage(pack, read_sources(run_dir)).get("summary", {})
+    print("coverage_summary: %s (recomputed: %s)" % (recorded, recomputed))
+    if recorded != recomputed:
         summary_ok = False
-        print("expect_strong mismatch: got %s expected %s" % (summary.get("strong"), args.expect_strong))
-    if args.expect_evidence is not None and summary.get("evidence") != args.expect_evidence:
+        print("coverage_summary mismatch: recorded %s != recomputed %s" % (recorded, recomputed))
+    if args.expect_strong is not None and recomputed.get("strong") != args.expect_strong:
         summary_ok = False
-        print("expect_evidence mismatch: got %s expected %s" % (summary.get("evidence"), args.expect_evidence))
+        print("expect_strong mismatch: got %s expected %s" % (recomputed.get("strong"), args.expect_strong))
+    if args.expect_evidence is not None and recomputed.get("evidence") != args.expect_evidence:
+        summary_ok = False
+        print("expect_evidence mismatch: got %s expected %s" % (recomputed.get("evidence"), args.expect_evidence))
 elif args.expect_strong is not None or args.expect_evidence is not None:
     summary_ok = False
     print("coverage_summary: MISSING (%s)" % cov_path)

@@ -11,7 +11,9 @@ from pathlib import Path
 from .model import canonical_url
 
 COMPARE_FIELDS = [
-    "evidence_level", "covers", "quotes", "license", "license_status",
+    "status", "evidence_level", "covers", "quotes",
+    "quote_verified", "quote_verified_by", "quote_verified_this_run",
+    "license", "license_status",
     "access_status", "version", "content_hash", "etag",
 ]
 

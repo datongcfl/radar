@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
-from .model import LEVELS, level_for_source
+from .model import LEVELS, level_for_source, normalized_host
 
 # 存在性阶梯（existence ladder），不是质量排序：production 只证明“东西存在”，
 # 不证明“工程质量更好”。质量判断另看测试/文档/维护/边界。
@@ -18,7 +18,7 @@ def _pick_strongest(sources):
 
 
 def _host(src):
-    return (urlsplit(src.get("url", "")).hostname or "").lower()
+    return normalized_host(src.get("url", ""))
 
 
 def _row(item, kind, sources):
