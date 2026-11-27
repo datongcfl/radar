@@ -31,6 +31,9 @@ def _is_disallowed_ip(ip_obj):
     )
 
 
+_SENSITIVE_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization"})
+
+
 def resolve_public_url(url):
     """Validate URL and resolve DNS once, returning (normalized_url, approved_ip, host, port, err).
 
@@ -39,7 +42,10 @@ def resolve_public_url(url):
     approved_ip is None when host is already a literal public IP.
     """
     raw = str(url or "").strip()
-    parts = urlsplit(raw)
+    try:
+        parts = urlsplit(raw)
+    except ValueError as exc:
+        return None, None, None, None, "URL 格式非法: %s" % exc
     scheme = parts.scheme.lower()
     if scheme not in ("http", "https"):
         return None, None, None, None, "非 http(s) URL"
@@ -52,9 +58,11 @@ def resolve_public_url(url):
         return None, None, None, None, "拒绝本地或内网主机名: %s" % host
     try:
         explicit_port = parts.port
-        port = explicit_port or (443 if scheme == "https" else 80)
     except ValueError:
         return None, None, None, None, "URL 端口非法"
+    if explicit_port is not None and (explicit_port <= 0 or explicit_port > 65535):
+        return None, None, None, None, "URL 端口非法: %s" % explicit_port
+    port = explicit_port if explicit_port is not None else (443 if scheme == "https" else 80)
     try:
         ip_literal = ipaddress.ip_address(host)
     except ValueError:
@@ -103,13 +111,23 @@ def _extract_location(header_text):
 
 def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, max_redirects=5, ua=UA):
     """Fetch public http(s) text via curl without -L, disabling .curlrc (-q) and proxies (--noproxy '*'),
-    and pinning the approved IP per hop via --resolve against the exact normalized URL host.
+    stripping sensitive headers on cross-origin redirects, and pinning approved IP per hop via --resolve.
     """
     current = str(url or "").strip()
+    active_headers = list(headers or [])
+    initial_origin = None
     for _ in range(max_redirects + 1):
         norm_url, approved_ip, host, port, err = resolve_public_url(current)
         if err:
             return None, 0, err
+        cur_origin = (urlsplit(norm_url).scheme.lower(), host, port)
+        if initial_origin is None:
+            initial_origin = cur_origin
+        elif cur_origin != initial_origin:
+            active_headers = [
+                h for h in active_headers
+                if str(h).split(":", 1)[0].strip().lower() not in _SENSITIVE_HEADERS
+            ]
         with tempfile.TemporaryDirectory() as tmp:
             hdr = Path(tmp) / "headers.txt"
             body = Path(tmp) / "body.bin"
@@ -122,7 +140,7 @@ def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, ma
             ]
             if approved_ip and host and port:
                 cmd += ["--resolve", "%s:%d:%s" % (host, port, approved_ip)]
-            for h in headers or []:
+            for h in active_headers:
                 cmd += ["-H", h]
             cmd.append(norm_url)
             try:

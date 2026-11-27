@@ -1108,6 +1108,62 @@ class TestP0SecurityAndEvidenceRegressions(unittest.TestCase):
         self.assertEqual(cmd[res_idx + 1], "example.com:443:93.184.216.34")
         self.assertEqual(cmd[-1], "https://example.com:443/doc?a=1")
 
+    def test_malformed_url_and_port_zero_return_error_not_exception(self):
+        for bad in [
+            "http://[::1/",
+            "http://example\uff1a80/path",
+            "https://example.com:0/path",
+            "http://93.184.216.34:0/",
+        ]:
+            err = validate_public_url(bad)
+            self.assertIsNotNone(err, "Expected error for %s" % bad)
+            text, status, fetch_err = safe_curl_fetch(bad)
+            self.assertIsNone(text)
+            self.assertEqual(status, 0)
+            self.assertIsNotNone(fetch_err)
+
+    def test_safe_curl_fetch_strips_sensitive_headers_on_cross_origin_redirect(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            hdr_idx = cmd.index("-D") + 1
+            out_idx = cmd.index("-o") + 1
+            if len(calls) == 1:
+                Path(hdr_idx and cmd[hdr_idx]).write_text(
+                    "HTTP/1.1 302 Found\r\nLocation: https://cdn.example.com/raw/readme.md\r\n",
+                    encoding="utf-8",
+                )
+                return mock.Mock(returncode=0, stdout="302", stderr="")
+            Path(cmd[out_idx]).write_text("hello", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="200", stderr="")
+
+        dns_seq = [
+            [(2, 1, 6, "", ("140.82.121.6", 443))],
+            [(2, 1, 6, "", ("93.184.216.34", 443))],
+        ]
+        headers = [
+            "Authorization: Bearer ghp_secret",
+            "Cookie: session=abc",
+            "Proxy-Authorization: Basic xyz",
+            "Accept: application/vnd.github.raw",
+        ]
+        with mock.patch("radar.web.socket.getaddrinfo", side_effect=dns_seq), \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://api.github.com/repos/o/r/contents/README.md", headers=headers)
+        self.assertIsNone(err)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "hello")
+        self.assertEqual(len(calls), 2)
+        # First hop carries all caller headers
+        self.assertIn("Authorization: Bearer ghp_secret", calls[0])
+        # Second hop (cross-origin) strips sensitive headers while keeping Accept
+        hop2_str = " ".join(calls[1]).lower()
+        self.assertNotIn("authorization:", hop2_str)
+        self.assertNotIn("cookie:", hop2_str)
+        self.assertNotIn("proxy-authorization:", hop2_str)
+        self.assertIn("Accept: application/vnd.github.raw", calls[1])
+
     def test_compare_sources_tracks_status_and_quote_verified(self):
         old = src("A", ["M01"])
         new = dict(old)
