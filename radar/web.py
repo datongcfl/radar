@@ -9,7 +9,7 @@ import tempfile
 from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
 UA = "radar-mvp/1.7.0"
@@ -32,40 +32,46 @@ def _is_disallowed_ip(ip_obj):
 
 
 def resolve_public_url(url):
-    """Validate URL and resolve DNS once, returning (approved_ip, host, port, err).
+    """Validate URL and resolve DNS once, returning (normalized_url, approved_ip, host, port, err).
 
-    approved_ip is None when host is already a literal public IP; otherwise it is the
-    first validated public IP to pin via curl --resolve so curl never re-resolves DNS.
+    normalized_url strips trailing dots from host so DNS verification, curl --resolve,
+    and the actual URL passed to curl always use the exact same hostname.
+    approved_ip is None when host is already a literal public IP.
     """
     raw = str(url or "").strip()
     parts = urlsplit(raw)
-    if parts.scheme.lower() not in ("http", "https"):
-        return None, None, None, "非 http(s) URL"
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
+        return None, None, None, None, "非 http(s) URL"
     if parts.username is not None or parts.password is not None:
-        return None, None, None, "拒绝包含 userinfo 的 URL"
+        return None, None, None, None, "拒绝包含 userinfo 的 URL"
     host = (parts.hostname or "").rstrip(".").lower()
     if not host:
-        return None, None, None, "URL 缺少主机名"
+        return None, None, None, None, "URL 缺少主机名"
     if host == "localhost" or any(host.endswith(suf) for suf in _BLOCKED_HOST_SUFFIXES):
-        return None, None, None, "拒绝本地或内网主机名: %s" % host
+        return None, None, None, None, "拒绝本地或内网主机名: %s" % host
     try:
-        port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
+        explicit_port = parts.port
+        port = explicit_port or (443 if scheme == "https" else 80)
     except ValueError:
-        return None, None, None, "URL 端口非法"
+        return None, None, None, None, "URL 端口非法"
     try:
         ip_literal = ipaddress.ip_address(host)
     except ValueError:
         ip_literal = None
+    host_for_netloc = ("[%s]" % host) if (ip_literal is not None and isinstance(ip_literal, ipaddress.IPv6Address)) else host
+    netloc = ("%s:%d" % (host_for_netloc, explicit_port)) if explicit_port is not None else host_for_netloc
+    normalized_url = urlunsplit((scheme, netloc, parts.path or "", parts.query or "", ""))
     if ip_literal is not None:
         if _is_disallowed_ip(ip_literal):
-            return None, None, None, "拒绝私网/回环/保留 IP 地址: %s" % host
-        return None, host, port, None
+            return None, None, None, None, "拒绝私网/回环/保留 IP 地址: %s" % host
+        return normalized_url, None, host, port, None
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError as exc:
-        return None, None, None, "主机名解析失败: %s (%s)" % (host, exc)
+        return None, None, None, None, "主机名解析失败: %s (%s)" % (host, exc)
     if not infos:
-        return None, None, None, "主机名无可用解析记录: %s" % host
+        return None, None, None, None, "主机名无可用解析记录: %s" % host
     approved_ip = None
     for info in infos:
         sockaddr = info[4]
@@ -73,17 +79,17 @@ def resolve_public_url(url):
         try:
             resolved_ip = ipaddress.ip_address(addr)
         except ValueError:
-            return None, None, None, "解析结果含非法 IP: %s" % addr
+            return None, None, None, None, "解析结果含非法 IP: %s" % addr
         if _is_disallowed_ip(resolved_ip):
-            return None, None, None, "拒绝解析到私网/回环/保留地址的域名: %s -> %s" % (host, addr)
+            return None, None, None, None, "拒绝解析到私网/回环/保留地址的域名: %s -> %s" % (host, addr)
         if approved_ip is None:
             approved_ip = ("[%s]" % addr) if isinstance(resolved_ip, ipaddress.IPv6Address) else addr
-    return approved_ip, host, port, None
+    return normalized_url, approved_ip, host, port, None
 
 
 def validate_public_url(url):
     """Ensure URL is public http(s) without userinfo or private/loopback/link-local targets."""
-    _, _, _, err = resolve_public_url(url)
+    _, _, _, _, err = resolve_public_url(url)
     return err
 
 
@@ -96,17 +102,20 @@ def _extract_location(header_text):
 
 
 def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, max_redirects=5, ua=UA):
-    """Fetch public http(s) text via curl without -L, pinning approved IP per hop via --resolve."""
+    """Fetch public http(s) text via curl without -L, disabling .curlrc (-q) and proxies (--noproxy '*'),
+    and pinning the approved IP per hop via --resolve against the exact normalized URL host.
+    """
     current = str(url or "").strip()
     for _ in range(max_redirects + 1):
-        approved_ip, host, port, err = resolve_public_url(current)
+        norm_url, approved_ip, host, port, err = resolve_public_url(current)
         if err:
             return None, 0, err
         with tempfile.TemporaryDirectory() as tmp:
             hdr = Path(tmp) / "headers.txt"
             body = Path(tmp) / "body.bin"
             cmd = [
-                "curl", "-sS", "--max-time", str(timeout),
+                "curl", "-q", "-sS", "--noproxy", "*",
+                "--max-time", str(timeout),
                 "-H", "User-Agent: %s" % ua,
                 "--max-filesize", str(max_bytes),
                 "-D", str(hdr), "-o", str(body), "-w", "%{http_code}",
@@ -115,7 +124,7 @@ def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, ma
                 cmd += ["--resolve", "%s:%d:%s" % (host, port, approved_ip)]
             for h in headers or []:
                 cmd += ["-H", h]
-            cmd.append(current)
+            cmd.append(norm_url)
             try:
                 proc = subprocess.run(
                     cmd, capture_output=True, text=True,
@@ -134,7 +143,7 @@ def safe_curl_fetch(url, headers=None, timeout=20, max_bytes=MAX_FETCH_BYTES, ma
                 loc = _extract_location(hdr_text)
                 if not loc:
                     return None, status, "HTTP %s 缺少 Location 头" % status
-                current = urljoin(current, loc)
+                current = urljoin(norm_url, loc)
                 continue
             if status != 200:
                 return None, status, "HTTP %s" % status

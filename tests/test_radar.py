@@ -1080,6 +1080,34 @@ class TestP0SecurityAndEvidenceRegressions(unittest.TestCase):
         # Second hop was blocked BEFORE invoking curl a second time!
         self.assertEqual(len(calls), 1)
 
+    def test_safe_curl_fetch_normalizes_trailing_dot_and_isolates_curlrc_and_proxy(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            out_idx = cmd.index("-o") + 1
+            Path(cmd[out_idx]).write_text("ok", encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="200", stderr="")
+
+        with mock.patch("radar.web.socket.getaddrinfo",
+                        return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]), \
+                mock.patch("radar.web.subprocess.run", side_effect=fake_run):
+            text, status, err = safe_curl_fetch("https://Example.COM.:443/doc?a=1")
+        self.assertIsNone(err)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "ok")
+        self.assertEqual(len(calls), 1)
+        cmd = calls[0]
+        # -q must be the very first argument to disable ~/.curlrc
+        self.assertEqual(cmd[:2], ["curl", "-q"])
+        # --noproxy '*' isolates environment proxies so DNS is never delegated to a proxy
+        np_idx = cmd.index("--noproxy")
+        self.assertEqual(cmd[np_idx + 1], "*")
+        # --resolve host and actual URL host must both be normalized without trailing dot
+        res_idx = cmd.index("--resolve")
+        self.assertEqual(cmd[res_idx + 1], "example.com:443:93.184.216.34")
+        self.assertEqual(cmd[-1], "https://example.com:443/doc?a=1")
+
     def test_compare_sources_tracks_status_and_quote_verified(self):
         old = src("A", ["M01"])
         new = dict(old)
